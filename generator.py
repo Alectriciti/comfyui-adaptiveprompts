@@ -322,7 +322,7 @@ def _collect_candidates(_resolved_vars: dict,
       var_pat == "*" -> all vars' values
       var_pat == "a*" -> var names starting with "a"
       var_pat == "alpha" -> var 'alpha' values
-      origin_filter restricts to that origin's stored values only
+      origin_filter restricts to that origin key (e.g., "character").
     """
     if not _resolved_vars or not var_pat:
         return []
@@ -430,6 +430,10 @@ def resolve_wildcards(text: str,
         assign the resolved bracket output to that variable. The assignment's origin
         key is generated as '__bracket_<n>' so multiple bracket assignments to the same
         var create a shuffle group.
+      - Chained assignments like {A|B|C}^a^b will:
+          * assign 'a' = first resolved bracket output (printed)
+          * re-roll the bracket for 'b' (attempting to be different from 'a')
+          * support arbitrarily long chains (stops when ^ not found).
     """
     if _depth > 80:
         return text
@@ -469,25 +473,64 @@ def resolve_wildcards(text: str,
                 _resolved_vars=_resolved_vars
             )
 
-            # NOW: check for a ^varname immediately after the closing brace
-            var_assigned = False
-            if br_end + 1 < len(text) and text[br_end + 1] == "^":
-                # attempt match from br_end+2
-                rem = text[br_end + 2:]
-                m_var = _VARNAME_RE.match(rem)
-                if m_var:
-                    var_name = m_var.group(0)
-                    # store the assignment under a unique bracket-origin key
-                    _ensure_var_bucket(_resolved_vars, var_name)
-                    bucket = _resolved_vars[var_name]
-                    origin_key = f"__bracket_{len(bucket)}"
-                    bucket[origin_key] = repl
-                    # remove the ^varname from the text when replacing
-                    replace_end = br_end + 2 + len(var_name)
-                    text = text[:br_start] + repl + text[replace_end:]
-                    var_assigned = True
+            # ---------- Variable assignment (possibly chained) ----------
+            # Look for ^varname^var2... chain immediately after closing brace.
+            # varnames are [A-Za-z0-9_-]+
+            chain_assigned_values = []
+            replace_end = br_end + 1
+            pos = br_end + 1
+            made_assignment = False
 
-            if not var_assigned:
+            while pos < len(text) and text[pos] == "^":
+                # try to parse a var name beginning at pos+1
+                m_var = _VARNAME_RE.match(text, pos + 1)
+                if not m_var:
+                    break
+                var_name = m_var.group(0)
+
+                # compute value to store
+                if not chain_assigned_values:
+                    # first var: use the already resolved bracket result (repl)
+                    value_to_store = repl
+                else:
+                    # subsequent var: re-roll the bracket — attempt to be unique within chain
+                    max_attempts = 12
+                    attempt = 0
+                    value_to_store = None
+                    prev_set = set(chain_assigned_values)
+                    last_try = None
+                    while attempt < max_attempts:
+                        attempt += 1
+                        # re-generate by calling process_bracket again (advances RNG deterministically)
+                        candidate = process_bracket(
+                            content, seeded_rng, wildcard_dir, _resolved_vars=_resolved_vars
+                        )
+                        last_try = candidate
+                        if candidate not in prev_set:
+                            value_to_store = candidate
+                            break
+                    if value_to_store is None:
+                        # fall back to last candidate even if duplicate
+                        value_to_store = last_try if last_try is not None else repl
+
+                # store into resolved vars under a unique origin key
+                _ensure_var_bucket(_resolved_vars, var_name)
+                bucket = _resolved_vars[var_name]
+                origin_key = f"__bracket_{len(bucket)}"
+                bucket[origin_key] = value_to_store
+
+                chain_assigned_values.append(value_to_store)
+
+                # consume the ^varname in the replacement span
+                replace_end = pos + 1 + len(var_name)
+                pos = replace_end
+                made_assignment = True
+
+            # If we assigned at least one var, replace the whole "{...}^a^b..." region with the first value (repl)
+            if made_assignment:
+                text = text[:br_start] + repl + text[replace_end:]
+            else:
+                # No variable chain found — normal replacement
                 text = text[:br_start] + repl + text[br_end + 1:]
 
             text = _space_adjacent_wildcards(text)
