@@ -36,7 +36,7 @@ NODE_CLASS_MAPPINGS = {
     "CleanupTags": CleanupTags,
     "NormalizeLoraTags": LoraTagNormalizer,
     "StringMerger4": StringMerger4,
-    "StringMerger12": StringMerger12
+    "StringMerger8": StringMerger8
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -48,5 +48,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CleanupTags": "Cleanup Tags 🧹",
     "NormalizeLoraTags": "Normalize Lora Tags 🟰",
     "StringMerger4": "String Merger (4)",
-    "StringMerger12": "String Merger (12)"
+    "StringMerger8": "String Merger (8)"
 }

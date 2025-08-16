@@ -263,7 +263,7 @@ class CleanupTags:
         return (string,)
 
 
-class StringMerger4:
+class StringAppend4:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -272,6 +272,7 @@ class StringMerger4:
                 "string_2": ("STRING", {"default": ""}),
                 "string_3": ("STRING", {"default": ""}),
                 "string_4": ("STRING", {"default": ""}),
+                "combine_mode": (["NONE", "SPACE", "NEWLINE"], {"default": "NONE"}),
             }
         }
 
@@ -280,17 +281,23 @@ class StringMerger4:
     CATEGORY = "Custom"
 
     @staticmethod
-    def merge_strings(**kwargs):
+    def merge_strings(string_1, string_2, string_3, string_4, combine_mode):
         # Extract all strings in order
-        strings = [kwargs[f"string_{i}"] for i in range(1, 5)]
+        strings = [string_1, string_2, string_3, string_4]
         # Filter out empty strings
         strings = [s for s in strings if s.strip() != ""]
         # Join with newline
-        merged = "\n".join(strings)
+        if combine_mode == "SPACE":
+            connector = " "
+        elif combine_mode =="NEWLINE":
+            connector = "\n"
+        else:
+            connector = ""
+        merged = connector.join(strings)
         return (merged,)
 
 
-class StringMerger12:
+class StringAppend8:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -303,10 +310,7 @@ class StringMerger12:
                 "string_6": ("STRING", {"default": ""}),
                 "string_7": ("STRING", {"default": ""}),
                 "string_8": ("STRING", {"default": ""}),
-                "string_9": ("STRING", {"default": ""}),
-                "string_10": ("STRING", {"default": ""}),
-                "string_11": ("STRING", {"default": ""}),
-                "string_12": ("STRING", {"default": ""}),
+                "combine_mode": (["NONE", "SPACE", "NEWLINE"], {"default": "NONE"}),
             }
         }
 
@@ -315,13 +319,19 @@ class StringMerger12:
     CATEGORY = "Custom"
 
     @staticmethod
-    def merge_strings(**kwargs):
+    def merge_strings(string_1, string_2, string_3, string_4, string_5, string_6, string_7, string_8, combine_mode):
         # Extract all strings in order
-        strings = [kwargs[f"string_{i}"] for i in range(1, 13)]
+        strings = [string_1, string_2, string_3, string_4, string_5, string_6, string_7, string_8]
         # Filter out empty strings
         strings = [s for s in strings if s.strip() != ""]
         # Join with newline
-        merged = "\n".join(strings)
+        if combine_mode == "SPACE":
+            connector = " "
+        elif combine_mode =="NEWLINE":
+            connector = "\n"
+        else:
+            connector = ""
+        merged = connector.join(strings)
         return (merged,)
     
 
