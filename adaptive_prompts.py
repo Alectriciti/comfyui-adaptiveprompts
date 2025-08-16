@@ -15,6 +15,7 @@ class PromptGenerator:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "seed": ("INT", {"default": 0}),
+                "hide_comments": ("BOOLEAN", {"default": True, "tooltip": "Comments can be created using the # token.\nExample: #comment here# will be removed after processing is done.\nVariables can be assigned this way"}),
             }
         }
 
@@ -22,9 +23,19 @@ class PromptGenerator:
     FUNCTION = "process"
     CATEGORY = "prompt"
 
-    def process(self, prompt, seed):
+    def process(self, prompt, seed, hide_comments):
         rng = SeededRandom(seed)
-        return (resolve_wildcards(prompt, rng, self.input_dir),)
+        # First resolve all wildcards / variables
+        result = resolve_wildcards(prompt, rng, self.input_dir)
+
+        # Then optionally strip comments
+        if hide_comments:
+            # Remove everything between #...# (non-greedy)
+            result = re.sub(r"#.*?#", "", result)
+
+        # Clean up extra spaces left by comment removal
+        result = " ".join(result.split())
+        return (result,)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -35,8 +46,8 @@ NODE_CLASS_MAPPINGS = {
     "ShuffleTagsAdvanced": ShuffleTagsAdvanced,
     "CleanupTags": CleanupTags,
     "NormalizeLoraTags": LoraTagNormalizer,
-    "StringMerger4": StringMerger4,
-    "StringMerger8": StringMerger8
+    "StringAppend4": StringAppend4,
+    "StringAppend8": StringAppend8
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -47,6 +58,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ShuffleTagsAdvanced": "Shuffle Tags ♻️ (Advanced)",
     "CleanupTags": "Cleanup Tags 🧹",
     "NormalizeLoraTags": "Normalize Lora Tags 🟰",
-    "StringMerger4": "String Merger (4)",
-    "StringMerger8": "String Merger (8)"
+    "StringAppend4": "String Append (4)",
+    "StringAppend8": "String Append (8)"
 }
