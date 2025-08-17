@@ -2,7 +2,6 @@ import re
 import os
 import random
 import sys
-from .wildcard_preprocessor import WildcardPreprocessor
 
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 
@@ -75,13 +74,13 @@ def _split_top_level_pipes(s: str) -> list[str]:
                 depth -= 1
             buf.append(c)
         elif c == "|" and depth == 0:
-            part = "".join(buf).strip()
+            part = "".join(buf)
             parts.append(part)
             buf = []
         else:
             buf.append(c)
         i += 1
-    last = "".join(buf).strip()
+    last = "".join(buf)
     if last:
         parts.append(last)
     return parts
@@ -410,9 +409,82 @@ def find_next_bracket_span(text: str):
     inners.sort(key=lambda x: x[0])
     return (inners[0][0], inners[0][1])
 
-# ---------------------- Main resolver (left-to-right) -----------------------
+# ---------------------- Main resolver (iterative passes + final sweep) ------------
 
 _VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
+
+def _final_sweep_resolve(text: str,
+                         seeded_rng: SeededRandom,
+                         wildcard_dir: str,
+                         _resolved_vars: dict,
+                         _depth: int) -> str:
+    """
+    Final left-to-right pass that tries to resolve any remaining variable/wildcard tokens.
+    This is executed once after the iterative passes to rescue __^var__ style tokens that
+    could not be resolved earlier.
+    """
+    indent = "  " * _depth
+    i = 0
+    while True:
+        m = FILE_PATTERN.search(text, i)
+        if not m:
+            break
+        full_token = m.group(0)
+        wc_name = m.group(1)   # may be None for pure var recall
+        var_tok = m.group(2)   # may be None or include '*'
+
+        replacement = None
+
+        if wc_name is None and var_tok:
+            # pure variable recall: __^var__ / __^a*__ / __^*__
+            candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
+            if candidates:
+                replacement = seeded_rng.next_rng().choice(candidates)
+            else:
+                replacement = ""  # remove unrecoverable var
+
+        elif wc_name is not None and var_tok:
+            # origin-scoped recall or assignment attempt
+            if "*" in var_tok:
+                # e.g., __character^*__ -> pick among values stored under origin 'character'
+                candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
+                if candidates:
+                    replacement = seeded_rng.next_rng().choice(candidates)
+                else:
+                    replacement = ""  # nothing to recall
+            else:
+                bucket = _resolved_vars.get(var_tok, {})
+                if wc_name in bucket:
+                    replacement = bucket[wc_name]
+                else:
+                    # Attempt to assign once from the wildcard file as a last resort
+                    rng_for_this = seeded_rng.next_rng()
+                    generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir)
+                    if generated and generated.strip() != full_token:
+                        replacement = resolve_wildcards(generated, seeded_rng, wildcard_dir,
+                                                       _depth=_depth + 1, _resolved_vars=_resolved_vars)
+                        _ensure_var_bucket(_resolved_vars, var_tok)
+                        _resolved_vars[var_tok][wc_name] = replacement
+                    else:
+                        replacement = ""  # remove if we cannot generate
+
+        else:
+            # plain wildcard leftover: attempt to generate once
+            rng_for_this = seeded_rng.next_rng()
+            generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir)
+            if generated and generated.strip() != full_token:
+                replacement = resolve_wildcards(generated, seeded_rng, wildcard_dir,
+                                               _depth=_depth + 1, _resolved_vars=_resolved_vars)
+            else:
+                replacement = ""
+
+        # Apply replacement and continue
+        text = text[:m.start()] + replacement + text[m.end():]
+        # advance index to after replacement to avoid infinite loop on same spot
+        i = m.start() + len(replacement)
+
+    print(f"{indent}[final sweep] result: {repr(text)}")
+    return text
 
 def resolve_wildcards(text: str,
                       seeded_rng: SeededRandom,
@@ -420,180 +492,228 @@ def resolve_wildcards(text: str,
                       _depth=0,
                       _resolved_vars=None) -> str:
     """
-    Left-to-right resolver:
-      - Processes whichever comes next: a selected bracket (via find_next_bracket_span)
-        or a wildcard/variable token.
-      - Variable assignments/recalls persist in _resolved_vars during the whole run.
-      - Bracket separators are parsed top-level-aware and evaluated per join,
-        and any nested wildcards/vars inside them are resolved recursively at join time.
-      - Brackets followed immediately by ^varname (letters, digits, dash, underscore)
-        assign the resolved bracket output to that variable. The assignment's origin
-        key is generated as '__bracket_<n>' so multiple bracket assignments to the same
-        var create a shuffle group.
-      - Chained assignments like {A|B|C}^a^b will:
-          * assign 'a' = first resolved bracket output (printed)
-          * re-roll the bracket for 'b' (attempting to be different from 'a')
-          * support arbitrarily long chains (stops when ^ not found).
+    Iterative resolver:
+      - Runs passes until no further replacements occur (or max passes reached).
+      - Keeps unresolved variable/wildcard tokens intact for later passes instead of deleting them.
+      - Uses placeholders during a pass to avoid infinite loops on unresolved tokens.
+      - After the normal iterative passes, runs a final sweep attempting to resolve
+        any remaining variable/wildcard tokens once more; removes ones that cannot be resolved.
     """
+    indent = "  " * _depth
+    print(f"{indent}Resolving (depth {_depth}) start: {repr(text)}")
+
     if _depth > 80:
+        print(f"{indent}⚠️ Max recursion depth reached; returning text as-is.")
         return text
 
     if _resolved_vars is None:
         _resolved_vars = {}
 
+    # ensure adjacent wildcards spaced
     text = _space_adjacent_wildcards(text)
 
-    while True:
-        # file token match using regex
-        m_file = FILE_PATTERN.search(text)
+    # placeholders for unresolved tokens during a single pass
+    placeholder_counter = 0
+    placeholders = {}  # placeholder -> original token
 
-        # bracket span selection using stack-aware logic
-        br_span = find_next_bracket_span(text)
-        m_br = None
-        if br_span:
-            br_start, br_end = br_span
-        else:
-            br_start = br_end = None
+    def next_placeholder():
+        nonlocal placeholder_counter
+        ph = f"<<UNRES_{placeholder_counter}>>"
+        placeholder_counter += 1
+        return ph
 
-        if not m_file and not br_span:
-            break
+    max_passes = 12
+    pass_no = 0
+    while pass_no < max_passes:
+        pass_no += 1
+        changed = False
 
-        # determine which to process (earliest start index)
-        if m_file and br_span:
-            take_bracket = (br_start < m_file.start())
-        else:
-            take_bracket = bool(br_span)
+        # local function to perform a single pass that may create placeholders for unresolved tokens.
+        def _single_pass(s_text: str) -> str:
+            nonlocal changed, placeholders
+            # work on copy
+            working = s_text
 
-        if take_bracket:
-            content = text[br_start + 1: br_end]
-            repl = process_bracket(
-                content,
-                seeded_rng,
-                wildcard_dir,
-                _resolved_vars=_resolved_vars
-            )
+            # main processing loop (very similar to previous algorithm)
+            while True:
+                m_file = FILE_PATTERN.search(working)
+                br_span = find_next_bracket_span(working)
+                if br_span:
+                    br_start, br_end = br_span
+                else:
+                    br_start = br_end = None
 
-            # ---------- Variable assignment (possibly chained) ----------
-            # Look for ^varname^var2... chain immediately after closing brace.
-            # varnames are [A-Za-z0-9_-]+
-            chain_assigned_values = []
-            replace_end = br_end + 1
-            pos = br_end + 1
-            made_assignment = False
-
-            while pos < len(text) and text[pos] == "^":
-                # try to parse a var name beginning at pos+1
-                m_var = _VARNAME_RE.match(text, pos + 1)
-                if not m_var:
+                if not m_file and not br_span:
                     break
-                var_name = m_var.group(0)
 
-                # compute value to store
-                if not chain_assigned_values:
-                    # first var: use the already resolved bracket result (repl)
-                    value_to_store = repl
+                # decide which comes first
+                if m_file and br_span:
+                    take_bracket = (br_start < m_file.start())
                 else:
-                    # subsequent var: re-roll the bracket — attempt to be unique within chain
-                    max_attempts = 12
-                    attempt = 0
-                    value_to_store = None
-                    prev_set = set(chain_assigned_values)
-                    last_try = None
-                    while attempt < max_attempts:
-                        attempt += 1
-                        # re-generate by calling process_bracket again (advances RNG deterministically)
-                        candidate = process_bracket(
-                            content, seeded_rng, wildcard_dir, _resolved_vars=_resolved_vars
-                        )
-                        last_try = candidate
-                        if candidate not in prev_set:
-                            value_to_store = candidate
+                    take_bracket = bool(br_span)
+
+                if take_bracket:
+                    content = working[br_start + 1: br_end]
+                    repl = process_bracket(
+                        content,
+                        seeded_rng,
+                        wildcard_dir,
+                        _resolved_vars=_resolved_vars
+                    )
+
+                    # bracket variable chaining logic (as before)
+                    chain_assigned_values = []
+                    replace_end = br_end + 1
+                    pos = br_end + 1
+                    made_assignment = False
+
+                    while pos < len(working) and working[pos] == "^":
+                        m_var = _VARNAME_RE.match(working, pos + 1)
+                        if not m_var:
                             break
-                    if value_to_store is None:
-                        # fall back to last candidate even if duplicate
-                        value_to_store = last_try if last_try is not None else repl
+                        var_name = m_var.group(0)
 
-                # store into resolved vars under a unique origin key
-                _ensure_var_bucket(_resolved_vars, var_name)
-                bucket = _resolved_vars[var_name]
-                origin_key = f"__bracket_{len(bucket)}"
-                bucket[origin_key] = value_to_store
+                        if not chain_assigned_values:
+                            value_to_store = repl
+                        else:
+                            # re-roll with attempts to avoid duplicates
+                            max_attempts = 12
+                            attempt = 0
+                            value_to_store = None
+                            prev_set = set(chain_assigned_values)
+                            last_try = None
+                            while attempt < max_attempts:
+                                attempt += 1
+                                candidate = process_bracket(
+                                    content, seeded_rng, wildcard_dir, _resolved_vars=_resolved_vars
+                                )
+                                last_try = candidate
+                                if candidate not in prev_set:
+                                    value_to_store = candidate
+                                    break
+                            if value_to_store is None:
+                                value_to_store = last_try if last_try is not None else repl
 
-                chain_assigned_values.append(value_to_store)
+                        _ensure_var_bucket(_resolved_vars, var_name)
+                        bucket = _resolved_vars[var_name]
+                        origin_key = f"__bracket_{len(bucket)}"
+                        bucket[origin_key] = value_to_store
 
-                # consume the ^varname in the replacement span
-                replace_end = pos + 1 + len(var_name)
-                pos = replace_end
-                made_assignment = True
+                        chain_assigned_values.append(value_to_store)
 
-            # If we assigned at least one var, replace the whole "{...}^a^b..." region with the first value (repl)
-            if made_assignment:
-                text = text[:br_start] + repl + text[replace_end:]
-            else:
-                # No variable chain found — normal replacement
-                text = text[:br_start] + repl + text[br_end + 1:]
+                        replace_end = pos + 1 + len(var_name)
+                        pos = replace_end
+                        made_assignment = True
 
-            text = _space_adjacent_wildcards(text)
-            continue
+                    if made_assignment:
+                        working = working[:br_start] + repl + working[replace_end:]
+                    else:
+                        working = working[:br_start] + repl + working[br_end + 1:]
 
-        # Resolve wildcard/var token (regex match)
-        full_token = m_file.group(0)
-        wc_name = m_file.group(1)   # may be None for pure var recall
-        var_tok = m_file.group(2)   # may be None or include '*'
+                    working = _space_adjacent_wildcards(working)
+                    continue
 
-        replacement = ""
+                # handle file/wildcard token
+                full_token = m_file.group(0)
+                wc_name = m_file.group(1)   # may be None for pure var recall
+                var_tok = m_file.group(2)   # may be None or include '*'
 
-        if wc_name is None and var_tok:
-            # Pure variable recall, e.g., __^alpha__ or __^a*__ or __^*__
-            rng = seeded_rng.next_rng()
-            candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
-            replacement = rng.choice(candidates) if candidates else ""
+                replacement = ""
 
-        elif wc_name is not None and var_tok:
-            # assignment or origin-scoped recall: __origin^var__ or __origin^*__
-            if "*" in var_tok:
-                # e.g., __character^*__ -> pick among values stored under origin 'character'
-                rng = seeded_rng.next_rng()
-                candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
-                replacement = rng.choice(candidates) if candidates else ""
-            else:
-                # exact var name with origin key
-                bucket = _resolved_vars.get(var_tok, {})
-                if wc_name in bucket:
-                    # recall exact origin-specific stored value
-                    replacement = bucket[wc_name]
+                if wc_name is None and var_tok:
+                    # Pure variable recall e.g. __^alpha__
+                    rng = seeded_rng.next_rng()
+                    candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
+                    if candidates:
+                        replacement = rng.choice(candidates)
+                    else:
+                        replacement = None  # unresolved
+
+                elif wc_name is not None and var_tok:
+                    # assignment or origin-scoped recall: __origin^var__ or __origin^*__
+                    if "*" in var_tok:
+                        rng = seeded_rng.next_rng()
+                        candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
+                        if candidates:
+                            replacement = rng.choice(candidates)
+                        else:
+                            replacement = None
+                    else:
+                        bucket = _resolved_vars.get(var_tok, {})
+                        if wc_name in bucket:
+                            replacement = bucket[wc_name]
+                        else:
+                            rng_for_this = seeded_rng.next_rng()
+                            generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir)
+                            if not generated or generated.strip() == full_token:
+                                replacement = None
+                            else:
+                                replacement = resolve_wildcards(
+                                    generated, seeded_rng, wildcard_dir,
+                                    _depth=_depth + 1, _resolved_vars=_resolved_vars
+                                )
+                                _ensure_var_bucket(_resolved_vars, var_tok)
+                                _resolved_vars[var_tok][wc_name] = replacement
+
                 else:
-                    # assign: generate value from file wildcard and store it
+                    # plain wildcard: __name__
                     rng_for_this = seeded_rng.next_rng()
                     generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir)
                     if not generated or generated.strip() == full_token:
-                        replacement = ""
+                        replacement = None
                     else:
                         replacement = resolve_wildcards(
                             generated, seeded_rng, wildcard_dir,
                             _depth=_depth + 1, _resolved_vars=_resolved_vars
                         )
-                        _ensure_var_bucket(_resolved_vars, var_tok)
-                        _resolved_vars[var_tok][wc_name] = replacement
 
-        else:
-            # plain wildcard: __name__ etc.
-            rng_for_this = seeded_rng.next_rng()
-            generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir)
-            if not generated or generated.strip() == full_token:
-                replacement = ""
-            else:
-                replacement = resolve_wildcards(
-                    generated, seeded_rng, wildcard_dir,
-                    _depth=_depth + 1, _resolved_vars=_resolved_vars
-                )
+                # apply logic: if replacement is None -> unresolved this pass
+                if replacement is None:
+                    # create placeholder for this unresolved token so we don't re-process it in this pass
+                    ph = next_placeholder()
+                    placeholders[ph] = full_token
+                    working = working[:m_file.start()] + ph + working[m_file.end():]
+                    print(f"{indent}  [pass] placeholdering unresolved token {full_token!r} -> {ph!r}")
+                    # do NOT set changed = True (no real replacement happened)
+                else:
+                    # replacement found -> apply it
+                    working = working[:m_file.start()] + replacement + working[m_file.end():]
+                    changed = True
+                    working = _space_adjacent_wildcards(working)
+                    print(f"{indent}  [pass] replaced {full_token!r} -> {replacement!r}")
 
-        # apply or skip
-        if not replacement or replacement.strip() == full_token:
-            text = text[:m_file.start()] + "" + text[m_file.end():]
-        else:
-            text = text[:m_file.start()] + replacement + text[m_file.end():]
+            return working
 
+        # run single pass
+        new_text = _single_pass(text)
+
+        # restore placeholders to original tokens for next pass attempts
+        if placeholders:
+            for ph, orig in placeholders.items():
+                new_text = new_text.replace(ph, orig)
+            # reset placeholders mapping and counter for subsequent passes
+            placeholders = {}
+            placeholder_counter = 0
+
+        print(f"{indent}After pass {pass_no}: {repr(new_text)} (changed={changed})")
+
+        # if nothing changed during this pass, we are stable — stop
+        if not changed:
+            text = new_text
+            break
+
+        # else continue another pass on the updated text
+        text = new_text
+        # ensure spacing normalization for next pass
         text = _space_adjacent_wildcards(text)
+        continue
 
+    else:
+        # max_passes exhausted
+        print(f"{indent}⚠️ Max passes ({max_passes}) reached; returning current text.")
+
+    # --- Final sweep: try once more to resolve leftover variables/wildcards, then remove leftovers ---
+    text = _final_sweep_resolve(text, seeded_rng, wildcard_dir, _resolved_vars, _depth)
+
+    print(f"{indent}Resolving (depth {_depth}) result: {repr(text)}")
     return text

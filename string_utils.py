@@ -5,17 +5,6 @@ from typing import List, Tuple
 
 LORA_PATTERN = r"<lora:[^>]+>"
 
-class CleanupTags:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "string": ("STRING", {"default": ""}),
-                "remove_empty_tags": ("BOOLEAN", {"default": "False"}),
-
-            }
-        }
-
 class ShuffleTags:
     @classmethod
     def INPUT_TYPES(cls):
@@ -234,31 +223,35 @@ class CleanupTags:
             string = re.sub(LORA_PATTERN, "", string)
 
         # Stage 2: Replace newlines with space
-        # Step 2: Handle newlines
         if cleanup_newlines == "SPACE":
             string = string.replace("\n", " ")
         elif cleanup_newlines == "COMMA":
             string = string.replace("\n", ", ")
 
-        # Stage 3: Remove empty comma sections (", ,", ",    ,", etc.)
+        # Stage 3: Remove empty comma sections
         if cleanup_commas:
-            # Remove commas at start or end with only whitespace after/before
-            string = re.sub(r"^\s*,\s*", "", string)  # Start
-            string = re.sub(r"\s*,\s*$", "", string)  # End
+            # Iteratively remove leading commas
+            while re.match(r"^[ \t]*,[ \t]*", string):
+                string = re.sub(r"^[ \t]*,[ \t]*", "", string)
 
-            # Remove commas with only whitespace between them
-            string = re.sub(r",\s*,", ",", string)
-            while re.search(r",\s*,", string):
-                string = re.sub(r",\s*,", ",", string)
+            # Iteratively remove trailing commas
+            while re.search(r"[ \t]*,[ \t]*$", string):
+                string = re.sub(r"[ \t]*,[ \t]*$", "", string)
+
+            # Remove empty comma sections inside the string
+            while re.search(r",[ \t]*,", string):
+                string = re.sub(r",[ \t]*,", ",", string)
 
         # Stage 4: Whitespace cleanup
         if cleanup_whitespace:
-            # Strip leading/trailing whitespace
-            string = string.strip()
-            # Collapse multiple spaces into a single space
-            string = re.sub(r"\s{2,}", " ", string)
-            # Also clean spaces before/after commas to "x, y"
-            string = re.sub(r"\s*,\s*", ", ", string)
+            # Trim only spaces/tabs around the whole string
+            string = string.strip(" \t")
+
+            # Collapse repeating spaces/tabs into one
+            string = re.sub(r"[ \t]{2,}", " ", string)
+
+            # Normalize spacing around commas: "x ,  y" → "x, y"
+            string = re.sub(r"[ \t]*,[ \t]*", ", ", string)
 
         return (string,)
 

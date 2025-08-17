@@ -1,22 +1,23 @@
 # Adaptive Prompts
 
 
-- **August 15, 2025** Established a somewhat working version of these nodes. Currently, while it may not as fleshed out as dynamic-prompts, it exceeds it in other ways by providing the essentials and adding new capabilities. But it seems to be a suitable replacement now.
+> - **17/08/25** Variables and Comments have been added. All nodes passed main stress-tests. Things are looking good so far!
+> - **15/08/25** Established a somewhat working version of these nodes. It's stable enough to use.
 
 ## Introduction
 
-> Adaptive Prompts is a modern reimagining of dynamic prompts for ComfyUI. It lets you randomize, restructure, and clean up prompts with powerful wildcard and string tools. For the sake of consistency, I will still refer to them as Dynamic Prompts.
+Adaptive Prompts is a modern reimagining of dynamic prompts for ComfyUI. It lets you randomize, restructure, and clean up prompts with powerful wildcard and string tools. For the sake of consistency, I will still refer to them as Dynamic Prompts.
 
 Inspired by the legendary [dynamic-prompts](https://github.com/adieyal/dynamicprompts) by adieyal, which has served as the bread and butter of prompt building for years. Unfortunately, it hasn't been updated in years now.
 
-<img src="images/example-1.png"/>
+
 
 
 # ⚡ Quick Node Reference 
 
 | Node | Purpose | Notes |
 |------|---------|-------|
-| 🎨 Prompt Generator | Core dynamic prompt node | Formerly known as "Random Prompts" |
+| 💡 Prompt Generator | Core dynamic prompt node | Formerly known as "Random Prompts" |
 | 📦 Prompt Rewrap | Inverse natural words into respective wildcards | New |
 | 🔁 Prompt Replace | Search & Replace with wildcards | New |
 | ♻️ Shuffle Tags | Randomize tag ordering | New |
@@ -125,18 +126,27 @@ Yes, the possibilities are endless. And these are just the basics of what can be
 
 # New Features and Nodes
 
-## Fixes & Changes
+
+
+## 💡 Prompt Generator
+Formerly known as **Random Prompts**, this is the essential component to dynamic prompting.
+
+It works mostly like you remember, but there are a few twists
 
 ### Wildcards Refresh Instantly
 No more having to restart ComfyUI every time you make a change to wildcards.
 
-### Lora tags with "weird__underscores" no longer break syntax!
+### Brackets Wildcards no longer limit length
+Before, doing ```{4-5$$__shape__|__color__}``` would restrict the output to only 2, such as ```square, green```.
+This is no longer the case. The contents of brackets will always adhere to the length you specify!
+
+### Lora tags with "weird__underscores" no longer break syntax
 
 Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. *cough cough*. So `<lora:coolest__lora__ever__:1.0>` will not break things.
 
 ## Separator Syntax
 
-Separators can now be generated with dynamic prompts as well. Example:
+Dynamic separators are now possible, by allowing for recursion in that text space. Example:
 
 ```{4$$ __and__ $$bob|bertha|benny|bella}``` -> ```bertha with benny and bob plus bella```
 
@@ -162,20 +172,44 @@ B with C and D
 This opens up possibilities for expanding bracket prompts. ```{2-3$${,| }$$this|works|too}```
 
 
-**Chance Weights**
+## ⚖️ Chance Weights
 
 A very simple chance weighting system is included.
+It's not very fleshed out right now, and probably buggy as hell. But it gets the job done.
 Here's a `chance.txt` wildcard example:
 
 ```
-#
+# the %% tokens can be placed in front or behind depending on your preference
 %80% common
 %10% uncommon
 rare  # default is 1
-%0.1% ultrarare
+ultrarare %0.1%
 ```
 
-### Additional Notes
+## #️⃣ Comments
+
+Comments can be placed inside of prompts. This could be useful to make note of various tags or ideas you want to tinker with.
+
+```
+#Hehehe I'm so sneaky# Huh, must have been the wind.
+```
+When passed through Prompt Generator:
+```
+Huh, must have been the wind.
+```
+
+## ⚡Variables
+
+Variables are no-longer daunting. They can be assigned and accessed in a few different ways. They can even be accessed from within wildcards.
+
+Here's an example:
+
+<img src="images/where_be_frodo.png"/>
+
+
+> **Important:** When assigning variables, I strongly recommend placing them in a ```## comment space like this ##```. If you don't, variable calls within nests will easily get lost to the solver and vanish into thin air.
+
+## Additional Notes
 
 * Bracket and file wildcards support **recursive nesting**.
 * You can specify **ranges**, **custom separators**, and even **wildcard separators**.
@@ -187,23 +221,28 @@ rare  # default is 1
 
 
 
+
 ## 📦 Wildcard Rewrap
-Wildcard Rewrap is a new node which can be thought of as the inverse of Prompt Generation. Encapsulates keywords with a wildcard file they exist in. This allows for semantic driven dynamic prompting and even more brainstorming.
-Example Input:
-```
-table and color apple
-```
-Example Output:
-```
-__furniture__ and __color__ __fruit__
-```
+<img src="images/rewrapper_example.png"/>
+
+Wildcard Rewrap is an experimental node which can be thought of as the inverse of Prompt Generation. It encapsulates keywords with a wildcard file they exist in. This allows for semantic driven dynamic prompting and even more brainstorming.
+
+It has the following modes:
+- **Per Word** - Only targets words separated by whitespace 
+- **Per Phrase** - Only targets phrases separated by commas but only if it equals exactly.
+- **Both** - Combines the above methods
+
+
+Notice, in the example image "chicken" belongs to both ```__animal__``` and ```__food__``` wildcards. That's how RNG is used here.
 
 The purpose of this node is to allow you to write with natural language, then wrapping it in a dynamic and creative way.
 
-> Note: Rewrap pre-caches for faster lookups on startup. So if changes are made to wildcards, you'll have to restart.
+> Note: Prompt Rewrap pre-caches for faster lookups on startup. So if changes are made to wildcards, you'll have to restart ComfyUI.
 
 
 ## 🔁 Wildcard Replace
+<img src="images/dynamic_replacement.png"/>
+
 Acts as a standard String Replace function, with a twist. The search string and replace string both accept wildcards.
 
 **String** - The input string to process

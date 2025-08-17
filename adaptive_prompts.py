@@ -14,8 +14,8 @@ class PromptGenerator:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "seed": ("INT", {"default": 0}),
-                "hide_comments": ("BOOLEAN", {"default": True, "tooltip": "Comments can be created using the # token.\nExample: #comment here# will be removed after processing is done.\nVariables can be assigned this way"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "hide_comments": ("BOOLEAN", {"default": True, "tooltip": "Comments can be created using the # token.\nExample: ##comment here## will be removed after processing is done.\nVariables can be assigned stealthily this way.\nExample: ##__fruit^apple__##\nKeep in mind, wildcards within comments affect RNG."}),
             }
         }
 
@@ -25,13 +25,20 @@ class PromptGenerator:
 
     def process(self, prompt, seed, hide_comments):
         rng = SeededRandom(seed)
-        # First resolve all wildcards / variables
-        result = resolve_wildcards(prompt, rng, self.input_dir)
 
-        # Then optionally strip comments
+        # Find comment blocks
+        comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
+        pre_resolved_vars = {}
+
+        for block in comment_blocks:
+            # Resolve the comment block for wildcards and capture variable assignments
+            _ = resolve_wildcards(block, rng, self.input_dir, _resolved_vars=pre_resolved_vars)
         if hide_comments:
-            # Remove everything between #...# (non-greedy)
-            result = re.sub(r"#.*?#", "", result)
+            # Remove comment blocks
+            prompt = re.sub(r"##.*?##", "", prompt)
+
+        result = resolve_wildcards(prompt, rng, self.input_dir, _resolved_vars=pre_resolved_vars)
+
 
         # Clean up extra spaces left by comment removal
         result = " ".join(result.split())
