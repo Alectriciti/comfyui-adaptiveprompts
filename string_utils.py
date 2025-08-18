@@ -3,6 +3,16 @@ import re
 from typing import List, Tuple
 
 
+
+import os
+import json
+import numpy as np
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
+
+import folder_paths
+from comfy.cli_args import args
+
 LORA_PATTERN = r"<lora:[^>]+>"
 
 class ShuffleTags:
@@ -93,7 +103,7 @@ class ShuffleTagsAdvanced:
                 "separator": ("STRING", {"default": ","}),  # use ", " if your input uses spaced commas
                 "shuffle_amount_low": ("INT", {"default": 0, "min": 0, "max": 999}),
                 "shuffle_amount_high": ("INT", {"default": 10, "min": 0, "max": 999}),
-                "mode": (["WALK", "WALK_FORWARD", "WALK_BACKWARD", "JUMP"],),
+                "mode": (["WALK", "WALK_FORWARD", "WALK_BACKWARD", "JUMP"], {"tooltip":"WALK - Travels the tag step by step in a certain direction.\nJUMP - Randomizes the position completely"}),
                 "algorithm": (["RANDOM", "LINEAR_IN", "LINEAR_OUT", "SHUFFLE_DECAY", "SHUFFLE_DECAY_REVERSE"],),
                 "limit": ("INT", {"default": 0, "min": 0, "max": 1000000}),  # 0 = unlimited shuffles
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
@@ -335,8 +345,8 @@ class LoraTagNormalizer:
         return {
             "required": {
                 "string": ("STRING", {"multiline": True, "default": ""}),
-                "total_weight": ("FLOAT", {"default": 1.0, "min": 0.0}),
-                "bounds": (["POSITIVE", "NEGATIVE", "BOTH"], {"default": "BOTH"}),
+                "total_weight": ("FLOAT", {"default": 1.0, "min": 0.0, "tooltip": "The final weight of all the tags combined"}),
+                "bounds": (["POSITIVE", "NEGATIVE", "BOTH"], {"default": "BOTH", "tooltip": "Only includes positive, negative, or both values.\nUsed to have separate control over positive and negative loras."}),
             }
         }
 
@@ -419,3 +429,85 @@ class LoraTagNormalizer:
 
         new_string = pattern.sub(repl, string)
         return (new_string,)
+
+
+
+class SaveImageAndText:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+        self.compress_level = 4
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE", {"tooltip": "The images to save."}),
+                "filename_prefix": ("STRING", {
+                    "default": "ComfyUI",
+                    "tooltip": "The prefix for the file to save. This may include formatting info such as %date:yyyy-MM-dd%."
+                }),
+                "prompt_data": ("STRING", {
+                    "multiline": False,
+                    "default": "",
+                    "tooltip": "Text data to save alongside the image, written into a .txt file."
+                })
+            },
+            "hidden": {
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO"
+            },
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_images_and_text"
+
+    OUTPUT_NODE = True
+    CATEGORY = "image"
+    DESCRIPTION = "Saves input images and also writes a .txt file with user-specified content."
+
+    def save_images_and_text(self, images, filename_prefix="ComfyUI", prompt_data="", prompt=None, extra_pnginfo=None):
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0]
+        )
+
+        results = list()
+        for (batch_number, image) in enumerate(images):
+            # Convert tensor to image
+            i = 255. * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+
+            # Metadata for PNG
+            metadata = None
+            if not args.disable_metadata:
+                metadata = PngInfo()
+                if prompt is not None:
+                    metadata.add_text("prompt", json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+            # Build deterministic filename
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file_base = f"{filename_with_batch_num}_{counter:05}_"
+            img_file = f"{file_base}.png"
+            txt_file = f"{file_base}.txt"
+
+            # Save image
+            img.save(os.path.join(full_output_folder, img_file), pnginfo=metadata, compress_level=self.compress_level)
+
+            # Save text file (only if something provided)
+            if prompt_data is not None and prompt_data.strip() != "":
+                with open(os.path.join(full_output_folder, txt_file), "w", encoding="utf-8") as f:
+                    f.write(prompt_data)
+
+            results.append({
+                "filename": img_file,
+                "subfolder": subfolder,
+                "type": self.type
+            })
+            counter += 1
+
+        return {"ui": {"images": results}}

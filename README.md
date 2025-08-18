@@ -6,28 +6,28 @@
 
 ## Introduction
 
-Adaptive Prompts is a modern reimagining of dynamic prompts for ComfyUI. It lets you randomize, restructure, and clean up prompts with powerful wildcard and string tools. For the sake of consistency, I will still refer to them as Dynamic Prompts.
+Adaptive Prompts is a prompt crafting suite. It allows you to randomize, control, shuffle, and even program your prompts. Inspired by the legendary [Dynamic Prompts](https://github.com/adieyal/comfyui-dynamicprompts) by adieyal, which for many people is an essential tool, but hasn't been updated in quite some time.
 
-Inspired by the legendary [dynamic-prompts](https://github.com/adieyal/dynamicprompts) by adieyal, which has served as the bread and butter of prompt building for years. Unfortunately, it hasn't been updated in years now.
-
-
+Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect the basic features to work as you know them to, but it is  {For the sake of familiarity|In honor of a new chapter} I will ambiguously refer to this system as { Adaptive | Dynamic } Prompts.
 
 
 # ⚡ Quick Node Reference 
 
-| Node | Purpose | Notes |
+| Node | Description | Notes |
 |------|---------|-------|
-| 💡 Prompt Generator | Core dynamic prompt node | Formerly known as "Random Prompts" |
-| 📦 Prompt Rewrap | Inverse natural words into respective wildcards | New |
-| 🔁 Prompt Replace | Search & Replace with wildcards | New |
-| ♻️ Shuffle Tags | Randomize tag ordering | New |
-| 🟰 Normalize Lora Tags | Provides lora weight control | New |
-| 📃 String Merger | Combines multiple strings into one | New|
-| 🧹 Cleanup Tags | Multi-tool: Can tidy up prompts, such as removing whitespace, extra commas, lora tags, etc | New |
+| 💡 Prompt Generator | Creates dynamic prompts based on your input. | Based on "Random Prompts" |
+| 📦 Prompt Rewrap | The inverse of the Prompt Generator. It converts natural words into their respective wildcards. | New / Experimental |
+| 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New / Experimental |
+| ♻️ Shuffle Tags | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | String Utility |
+| 📃 String Merger | Combines multiple strings into one | String Management |
+| 🧹 Cleanup Tags | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc | String Utility |
+| 🟰 Normalize Lora Tags | Provides lora weight control by normalizing the values of lora tags. (Lora Tag Loader not included)| Lora Tag Utility |
+| 🖼️ SaveImageAndText | Comfy's Image Saver, but saves a .txt file with contents of your choosing. | Prompt Saving|
+
 
 
 # Dynamic Prompting Quickstart Guide
-> *(This does not include new features, so feel free to skip this section if you're already familiar with how dynamic-prompts works.)*
+> *(This does not mention new features, so feel free to skip this section if you're already familiar with dynamic prompts)*
 <details>
   <summary><b>Quickstart Guide</b></summary>
   
@@ -103,7 +103,7 @@ sheep and cat and dog
 
 ### 📁 Wildcard Random Selection and Subfolders
 
-Wildcards can be even more randomized, by utilizing the * symbol. Here's an example. Say you have the following folder structure within /wildcards/:
+Wildcards can be even more randomized with glob matching by utilizing the * symbol. Here's an example. Say you have the following folder structure within /wildcards/:
 
 ```
 lighting.txt
@@ -191,7 +191,7 @@ ultrarare %0.1%
 Comments can be placed inside of prompts. This could be useful to make note of various tags or ideas you want to tinker with.
 
 ```
-#Hehehe I'm so sneaky# Huh, must have been the wind.
+##  Hehehe I'm so sneaky...## Huh, must have been the wind.
 ```
 When passed through Prompt Generator:
 ```
@@ -222,7 +222,7 @@ Here's an example:
 
 
 
-## 📦 Wildcard Rewrap
+## 📦 Prompt Rewrap
 <img src="images/rewrapper_example.png"/>
 
 Wildcard Rewrap is an experimental node which can be thought of as the inverse of Prompt Generation. It encapsulates keywords with a wildcard file they exist in. This allows for semantic driven dynamic prompting and even more brainstorming.
@@ -237,10 +237,13 @@ Notice, in the example image "chicken" belongs to both ```__animal__``` and ```_
 
 The purpose of this node is to allow you to write with natural language, then wrapping it in a dynamic and creative way.
 
+Many users have wildcards for everything, even simple phrasing. I personally have an ```__and__``` tag which I use as a separator token. However, when utilizing Prompt Rewrap
+The blacklist file is a list of words or wildcards you want this system to ignore.
+
 > Note: Prompt Rewrap pre-caches for faster lookups on startup. So if changes are made to wildcards, you'll have to restart ComfyUI.
 
 
-## 🔁 Wildcard Replace
+## 🔁 Prompt Replace
 <img src="images/dynamic_replacement.png"/>
 
 Acts as a standard String Replace function, with a twist. The search string and replace string both accept wildcards.
@@ -272,16 +275,16 @@ the quick brown cow and pig jumped over the lazy cat
   - Can be used as a regular Search and Replace
   - Allows for multi-line inputs for searching, allowing for many different keywords to be swapped out in one go.
 
-# String Utilities
+# Extra Utilities
 
->These are simple but useful nodes that apply to any prompt, and can serve as a powerful post-processing for dynamic prompts.
+>These are simple but useful nodes that can apply to most comfy workflow, and can serve as powerful post-processing nodes for adaptive prompts.
 
 ## ♻️ **Shuffle Tags**
   - A very simple shuffler which can randomize ordering of a prompt, a limit can be set
 ## ♻️ **Shuffle Tags (Advanced)**
   - Same as above, but can follow various algorithms such as "walk" to allow tags to travel, utilize decay, and many other things.
 ## 🧹 **Cleanup Tags**
-  - Sometimes, dynamic prompts gets messy. This little guy can help clean up broken prompts by removing empty tags, extra whitespace, and even remove straight-up remove lora tags that failed to process by other nodes.
+  - Sometimes, adaptive prompts gets messy. This little guy can help clean up broken prompts by removing empty tags, extra whitespace, and even remove straight-up remove lora tags that failed to process by other nodes.
 ## 🟰 **Normalize Lora Tags**
   - Worry less about the oversaturation of lora tags with this node which helps normalize the values automatically.
   - Positive and Negative values can be assigned independently or combined.
@@ -297,8 +300,9 @@ the quick brown cow and pig jumped over the lazy cat
 
 
 ## Randomized Lora Weights
-A neat trick you can do is create a wildcard as the weight of a lora. This means you can establish randomized lora weights.
+A neat trick i've been using for awhile is placing a weighted wildcard as the weight of a lora. ```<lora:cool_lora:__weight__>``` Like this. This is a useful way to establish randomized lora weights.
 This works well if you're using [Lora Tag Loader](#Links).
+And it works even better now with the Normalize Lora Tags node.
 
 rlow.txt:
 ```
@@ -320,7 +324,7 @@ Consider combining this with the Lora Tag Normalizer.
 
 # Links
 
-  ### [Custom Scripts by pythongosssss](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
+  ### [🐍 Custom Scripts by pythongosssss](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
   Provides a handful of useful nodes. Honestly, a must-have. These are ones I use often:
   - Show Text (simple and practically essential)
   - String Function (for appending or replacing strings)
@@ -328,12 +332,14 @@ Consider combining this with the Lora Tag Normalizer.
   ### [Lora Tag Loader by badjeff](https://github.com/badjeff/comfyui_lora_tag_loader)
   This loads loras using the classic ```<lora:sharpness_enhancer:1.0>``` syntax, providing a model and clip node, as well as preserving the string. Works excellently with dynamic prompts.
 
+# Installation
 
+Install like any other ComfyUI Node pack. Download the Zip and place in /ComfyUI/custome_nodes/
 
 ## Disclaimer
 
-I do not intend to recreate Dynamic Prompts one-to-one. Rather, I'll be utilizing the core concepts and syntax as a starting point.
+This project is a proof of concept and experimental.
 
-Python is not my primary programming language. And although the code words, that doesn't make it optimized. Take that for what you will.
+Python is not my primary programming language. As such, this code was assisted by an LLM. Although I have a decent understanding of optimizing code, this project may fall short in some aspects. The code works, so take that for what you will.
 
-I also have no plans to adapt this to A1111 / Forge.
+I also have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.

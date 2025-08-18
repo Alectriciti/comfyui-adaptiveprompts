@@ -15,7 +15,7 @@ class PromptGenerator:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "hide_comments": ("BOOLEAN", {"default": True, "tooltip": "Comments can be created using the # token.\nExample: ##comment here## will be removed after processing is done.\nVariables can be assigned stealthily this way.\nExample: ##__fruit^apple__##\nKeep in mind, wildcards within comments affect RNG."}),
+                "hide_comments": ("BOOLEAN", {"default": True, "tooltip": "Comments can be created ## like this##\nIt's recommmended to instantiate variables within comments"}),
             }
         }
 
@@ -44,27 +44,3 @@ class PromptGenerator:
         result = " ".join(result.split())
         return (result,)
 
-
-NODE_CLASS_MAPPINGS = {
-    "PromptGenerator": PromptGenerator,
-    "PromptRewrap": PromptRewrap,
-    "PromptReplace": PromptReplace,
-    "ShuffleTags": ShuffleTags,
-    "ShuffleTagsAdvanced": ShuffleTagsAdvanced,
-    "CleanupTags": CleanupTags,
-    "NormalizeLoraTags": LoraTagNormalizer,
-    "StringAppend4": StringAppend4,
-    "StringAppend8": StringAppend8
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "PromptGenerator": "Prompt Generator 🎨",
-    "PromptRewrap": "Prompt Rewrap 📦",
-    "PromptReplace": "Prompt Replace 🔁",
-    "ShuffleTags": "Shuffle Tags ♻️",
-    "ShuffleTagsAdvanced": "Shuffle Tags ♻️ (Advanced)",
-    "CleanupTags": "Cleanup Tags 🧹",
-    "NormalizeLoraTags": "Normalize Lora Tags 🟰",
-    "StringAppend4": "String Append (4)",
-    "StringAppend8": "String Append (8)"
-}
