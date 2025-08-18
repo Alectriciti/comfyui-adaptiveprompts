@@ -15,13 +15,13 @@ from comfy.cli_args import args
 
 LORA_PATTERN = r"<lora:[^>]+>"
 
-class ShuffleTags:
+class PromptShuffle:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "string": ("STRING", {"default": ""}),
-                "separator": ("STRING", {"default": ","}),
+                "separator": ("STRING", {"multiline": True, "default": ","}),
                 "limit": ("INT", {"default": 3, "min": 1, "max": 100}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
@@ -94,13 +94,13 @@ def _apply_decay(actual_delta_steps: int, max_amount: int, n: int, decay_state: 
     used = float(abs(actual_delta_steps)) / float(denom)
     decay_state["budget"] = max(0.0, decay_state.get("budget", 1.0) - used)
 
-class ShuffleTagsAdvanced:
+class PromptShuffleAdvanced:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "string": ("STRING", {"default": ""}),
-                "separator": ("STRING", {"default": ","}),  # use ", " if your input uses spaced commas
+                "separator": ("STRING", {"multiline": True, "default": ","}),  # use ", " if your input uses spaced commas
                 "shuffle_amount_low": ("INT", {"default": 0, "min": 0, "max": 999}),
                 "shuffle_amount_high": ("INT", {"default": 10, "min": 0, "max": 999}),
                 "mode": (["WALK", "WALK_FORWARD", "WALK_BACKWARD", "JUMP"], {"tooltip":"WALK - Travels the tag step by step in a certain direction.\nJUMP - Randomizes the position completely"}),
@@ -209,7 +209,11 @@ class ShuffleTagsAdvanced:
         shuffled_string = separator.join(final_tokens)
         return (shuffled_string,)
 
-class CleanupTags:
+import re
+
+LORA_PATTERN = re.compile(r"<lora:[^>]+>")
+
+class PromptCleanup:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -218,7 +222,8 @@ class CleanupTags:
                 "cleanup_commas": ("BOOLEAN", {"default": True, "tooltip": "cleans up extra commas if there is no tag present between them"}),
                 "cleanup_whitespace": ("BOOLEAN", {"default": True, "tooltip": "cleans up leading/trailing whitespace, then excessive whitespace"}),
                 "remove_lora_tags": ("BOOLEAN", {"default": False, "tooltip": "completely removes lora tags from the string"}),
-                "cleanup_newlines": (["FALSE", "SPACE", "COMMA"], {"default": "FALSE", "tooltip": "replaces newlines (\\n) with a space or comma"}),
+                "cleanup_newlines": (["false", "space", "comma"], {"default": "false", "tooltip": "replaces newlines (\\n) with a space or comma"}),
+                "fix_brackets": (["false", "(parenthesis)", "[brackets]", "([both])"], {"default": "([both])", "tooltip": "removes stray, unpaired brackets/parentheses"}),
             }
         }
 
@@ -227,15 +232,36 @@ class CleanupTags:
     CATEGORY = "Custom"
 
     @staticmethod
-    def process(string, cleanup_commas, cleanup_newlines, cleanup_whitespace, remove_lora_tags):
+    def _remove_unmatched(s: str, open_ch: str, close_ch: str) -> str:
+        """Removes unmatched brackets of one type while preserving valid pairs."""
+        stack = []
+        remove_idx = set()
+
+        for i, ch in enumerate(s):
+            if ch == open_ch:
+                stack.append(i)
+            elif ch == close_ch:
+                if stack:
+                    stack.pop()  # matched → keep both
+                else:
+                    remove_idx.add(i)  # unmatched close → remove later
+
+        # any opens still in stack are unmatched → remove them
+        remove_idx.update(stack)
+
+        # build cleaned string
+        return "".join(ch for i, ch in enumerate(s) if i not in remove_idx)
+
+    @staticmethod
+    def process(string, cleanup_commas, cleanup_newlines, cleanup_whitespace, remove_lora_tags, fix_brackets):
         # Stage 1: Remove LoRA tags
         if remove_lora_tags:
             string = re.sub(LORA_PATTERN, "", string)
 
         # Stage 2: Replace newlines with space
-        if cleanup_newlines == "SPACE":
+        if cleanup_newlines == "space":
             string = string.replace("\n", " ")
-        elif cleanup_newlines == "COMMA":
+        elif cleanup_newlines == "comma":
             string = string.replace("\n", ", ")
 
         # Stage 3: Remove empty comma sections
@@ -252,18 +278,21 @@ class CleanupTags:
             while re.search(r",[ \t]*,", string):
                 string = re.sub(r",[ \t]*,", ",", string)
 
-        # Stage 4: Whitespace cleanup
+        # Stage 4: Fix stray brackets
+        if fix_brackets != "false":
+            if fix_brackets in ("(parenthesis)", "([both])"):
+                string = PromptCleanup._remove_unmatched(string, "(", ")")
+            if fix_brackets in ("[brackets]", "([both])"):
+                string = PromptCleanup._remove_unmatched(string, "[", "]")
+
+        # Stage 5: Whitespace cleanup
         if cleanup_whitespace:
-            # Trim only spaces/tabs around the whole string
             string = string.strip(" \t")
-
-            # Collapse repeating spaces/tabs into one
-            string = re.sub(r"[ \t]{2,}", " ", string)
-
-            # Normalize spacing around commas: "x ,  y" → "x, y"
-            string = re.sub(r"[ \t]*,[ \t]*", ", ", string)
+            string = re.sub(r"[ \t]{2,}", " ", string)              # collapse spaces/tabs
+            string = re.sub(r"[ \t]*,[ \t]*", ", ", string)         # normalize comma spacing
 
         return (string,)
+
 
 
 class StringAppend4:
@@ -446,7 +475,7 @@ class SaveImageAndText:
                 "images": ("IMAGE", {"tooltip": "The images to save."}),
                 "filename_prefix": ("STRING", {
                     "default": "ComfyUI",
-                    "tooltip": "The prefix for the file to save. This may include formatting info such as %date:yyyy-MM-dd%."
+                    "tooltip": "The prefix for the files to save. This may include formatting info such as %date:yyyy-MM-dd%.\nThe .txt file will be saved with the same name."
                 }),
                 "prompt_data": ("STRING", {
                     "multiline": False,

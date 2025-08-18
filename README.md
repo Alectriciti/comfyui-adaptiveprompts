@@ -32,7 +32,7 @@ Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect 
   <summary><b>Quickstart Guide</b></summary>
   
   
-### 💡 Basic Example
+### Basic Example
 There are two primary methods to randomize a prompt:
 
 1. **Brackets:** ```{red|green|blue}``` randomly chooses between "red", "green", and "blue"
@@ -239,6 +239,16 @@ The purpose of this node is to allow you to write with natural language, then wr
 
 Many users have wildcards for everything, even simple phrasing. I personally have an ```__and__``` tag which I use as a separator token. However, when utilizing Prompt Rewrap
 The blacklist file is a list of words or wildcards you want this system to ignore.
+
+**Limitations**: It currently only supports drawing a wildcard if the matched phrase/word equals the line in the wildcard file. In other words: provide the string: ```harry_potter and luke_skywalker```
+```
+# /wildcards/character.txt
+luke_skywalker
+{harry_potter|ron_weasly}
+```
+The result would be: ```harry_potter and __character__```
+
+
 
 > Note: Prompt Rewrap pre-caches for faster lookups on startup. So if changes are made to wildcards, you'll have to restart ComfyUI.
 

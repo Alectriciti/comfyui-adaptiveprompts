@@ -4,7 +4,6 @@ from .generator import resolve_wildcards, SeededRandom
 from .prompt_rewrap import PromptRewrap
 from .prompt_replace import PromptReplace
 
-
 class PromptGenerator:
     def __init__(self):
         self.input_dir = os.path.join(os.path.dirname(__file__), "wildcards")

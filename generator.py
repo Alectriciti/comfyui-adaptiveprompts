@@ -1,7 +1,6 @@
 import re
 import os
 import random
-import sys
 
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 
