@@ -1,7 +1,7 @@
 import os
 from .string_utils import *
 from .generator import resolve_wildcards, SeededRandom
-from .prompt_rewrap import PromptRewrap
+from .prompt_repack import PromptRepack
 from .prompt_replace import PromptReplace
 
 class PromptGenerator:

@@ -1,3 +1,9 @@
+"""
+Adaptive Prompts: generator
+The brain of parsing bracket/file wildcards
+Designed by Alectriciti
+"""
+
 import re
 import os
 import random
@@ -18,9 +24,33 @@ class SeededRandom:
         self.seed = base_seed
 
     def next_rng(self) -> random.Random:
-        # Each call advances the seed and returns a new Random instance
+        """
+        Advances the seed and returns a new Random instance.
+        """
         self.seed += 1
         return random.Random(self.seed)
+
+    def uniform(self, a: float, b: float) -> float:
+        """
+        Returns a random float N such that a <= N <= b using the current seed.
+        Each call advances the seed to ensure deterministic but unique output.
+        """
+        rng = self.next_rng()
+        return rng.uniform(a, b)
+
+    def randint(self, a: int, b: int) -> int:
+        """
+        Returns a random integer N such that a <= N <= b.
+        """
+        rng = self.next_rng()
+        return rng.randint(a, b)
+
+    def choice(self, seq):
+        """
+        Returns a random element from a non-empty sequence.
+        """
+        rng = self.next_rng()
+        return rng.choice(seq)
 
 def is_file_wildcard(choice: str) -> bool:
     return bool(FILE_PATTERN.fullmatch(choice.strip()))
@@ -29,7 +59,7 @@ def is_file_wildcard(choice: str) -> bool:
 
 def _find_top_level_dollars(s: str) -> list[int]:
     """
-    Return indices where top-level '$$' occurs (i.e., not inside nested {...} groups).
+    Return indices where top-level '$$' occurs
     """
     indices = []
     depth = 0
@@ -56,7 +86,7 @@ def _find_top_level_dollars(s: str) -> list[int]:
 def _split_top_level_pipes(s: str) -> list[str]:
     """
     Split string on '|' tokens that are at top level (not inside nested {...}).
-    Returns list of segments (trimmed).
+    Returns list of segments.
     """
     parts = []
     buf = []
@@ -92,8 +122,8 @@ def process_bracket(content: str,
                     _resolved_vars=None) -> str:
     """
     Handles bracket syntax with:
-      - count and optional custom separator using top-level $$ markers
-      - choices split at top-level '|'
+      - count and optional custom separators using $$ markers
+      - choices split with '|'
       - nested bracket/wildcard resolution for both choices and separators
     """
     # Default
@@ -170,7 +200,7 @@ def process_bracket(content: str,
                 if file_wildcards:
                     pick = rng.choice(file_wildcards)
                 else:
-                    # nothing usable; reset and retry
+                    # nothing usable... reset and retry
                     used_non_file.clear()
                     continue
 

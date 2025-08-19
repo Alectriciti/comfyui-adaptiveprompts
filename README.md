@@ -15,12 +15,13 @@ Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect 
 
 | Node | Description | Notes |
 |------|---------|-------|
-| 💡 Prompt Generator | Creates dynamic prompts based on your input. | Based on "Random Prompts" |
-| 📦 Prompt Rewrap | The inverse of the Prompt Generator. It converts natural words into their respective wildcards. | New / Experimental |
+| 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Based on "Random Prompts" |
+| 📦 Prompt Repack | The inverse of the Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New / Experimental |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New / Experimental |
-| ♻️ Shuffle Tags | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | String Utility |
+| ♻️ Prompt Shuffle | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | String Utility |
+| 🏋️‍♀️ Weight Lifter | Randomly or Procedurally applies weights to tags | New / Experimental |
 | 📃 String Merger | Combines multiple strings into one | String Management |
-| 🧹 Cleanup Tags | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc | String Utility |
+| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc | String Utility |
 | 🟰 Normalize Lora Tags | Provides lora weight control by normalizing the values of lora tags. (Lora Tag Loader not included)| Lora Tag Utility |
 | 🖼️ SaveImageAndText | Comfy's Image Saver, but saves a .txt file with contents of your choosing. | Prompt Saving|
 
@@ -129,6 +130,9 @@ Yes, the possibilities are endless. And these are just the basics of what can be
 
 
 ## 💡 Prompt Generator
+
+<img src="images/prompt_generator_variables_example.png"/>
+
 Formerly known as **Random Prompts**, this is the essential component to dynamic prompting.
 
 It works mostly like you remember, but there are a few twists
@@ -172,7 +176,7 @@ B with C and D
 This opens up possibilities for expanding bracket prompts. ```{2-3$${,| }$$this|works|too}```
 
 
-## ⚖️ Chance Weights
+### ⚖️ Chance Weights
 
 A very simple chance weighting system is included.
 It's not very fleshed out right now, and probably buggy as hell. But it gets the job done.
@@ -186,69 +190,108 @@ rare  # default is 1
 ultrarare %0.1%
 ```
 
-## #️⃣ Comments
+### #️⃣ Comments
 
 Comments can be placed inside of prompts. This could be useful to make note of various tags or ideas you want to tinker with.
 
-```
-##  Hehehe I'm so sneaky...## Huh, must have been the wind.
-```
-When passed through Prompt Generator:
-```
-Huh, must have been the wind.
-```
+Input: ```##  Hehehe I'm so sneaky...## Huh, must have been the wind.```
+
+Output: ```Huh, must have been the wind.```
 
 ## ⚡Variables
 
-Variables are no-longer daunting. They can be assigned and accessed in a few different ways. They can even be accessed from within wildcards.
+Variables can be assigned and accessed in a few different ways. They can even be accessed from within wildcards. They can technically be set within wildcards, but i wouldn't recommend it due to how the ordering is done.
 
-Here's an example:
+### ✏️ Variable Assignment 
+```
+## {variables|can|be|assigned|like|this}^alpha ##
+## or can be assigned like this: __character^awesome__ ##
 
-<img src="images/where_be_frodo.png"/>
+Note: the comment blocks not only prevent the resulting text from being included in the output,
+but ensure they are calculated before the rest of the prompt is executed.
+this is technically a limitation, but also a feature. you can run it without the comment blocks, but variable retrievals might return nothing.
+```
+
+### 🔍 Variable Retrieval
+```
+Now that we've initialized our variables, we can retrieve them like this:
+__^alpha__, __^awesome__,
+we can use glob matching with * since they both start with the letter 'a':
+__^a*__
+We could even randomly retrieve any assigned variable in this prompt instance:
+__^*__
+With this in mind, clever variable naming conventions could go a long way.
+```
 
 
-> **Important:** When assigning variables, I strongly recommend placing them in a ```## comment space like this ##```. If you don't, variable calls within nests will easily get lost to the solver and vanish into thin air.
+### 🔗 Linked Variables
+If you so desire, you can assign multiple values to the same variable. Retrieving them allows for further randomization.
+```
+First, assign the variables:
+__character^x__
+__color^x__
+__fruit^x__
 
-## Additional Notes
+Now calling that variable will retrieve one of the results randomly:
+{3$$__^x__}
+Example Output: Yellow, Kermit, Apple
+```
 
-* Bracket and file wildcards support **recursive nesting**.
-* You can specify **ranges**, **custom separators**, and even **wildcard separators**.
-* Comments in wildcard files are supported using `#` at the start of a line.
-* Optional **weights** can be added to lines using `%number%` anywhere in the line to influence selection probability.
-* Escaped percent signs (`\%`) are preserved in the output, if you're so inclined to use them.
+### 💎 Unique Variables
+You can ensure unique variables in one go *(currently only supported by bracket wildcards)*
+```
+You can assign multiple variables which are guaranteed to have unique results:
+{calvin|braxis|celia|deku|esther}^char1^char2^char3
+
+By doing this, we now have 3 variables each with unique assignments!
+For example:
+__^char1__ = celia
+__^char2__ = deku
+__^char3__ = calvin
+
+Great for randomized story/scenario prompts.
+```
+
+> **Important:** When assigning variables, I strongly recommend placing them in a ```## comment space like this ##```. This is because the Prompt Generator seeks out comment lines and executes the brackets/wildcards in there first. If you don't do this, things might work, but depending on the complexity of your prompt, you variable retrievals might yield null.
 
 ---
 
 
+## 📦 Prompt Repack
+<img src="images/prompt_repack_example.png"/>
 
+Prompt Repack is an experimental node which can be thought of as the inverse of Prompt Generation. It encapsulates keywords with a wildcard file they exist in. This allows for semantic driven dynamic prompting and even more brainstorming.
 
-## 📦 Prompt Rewrap
-<img src="images/rewrapper_example.png"/>
+A good example of how powerful this system can be is the word "chicken". It belongs to both ```__animal__``` and ```__food__``` wildcards. This can lead to some pretty creative results when rewrapping it.
 
-Wildcard Rewrap is an experimental node which can be thought of as the inverse of Prompt Generation. It encapsulates keywords with a wildcard file they exist in. This allows for semantic driven dynamic prompting and even more brainstorming.
+Prompt Repack has the following modes. In order to explain them, keep this context in mind: ```, this is a phrase and this_is_a_tag, ...```
+- **Per Word**
+  > Only targets words separated by whitespace. Extremely fast and lightweight. 
+- **Per Phrase**
+  > Only targets phrases separated by commas but only if it equals exactly. This can be tags or phrases, but it has to match exactly. Pretty solid if you're only building simple prompts where each phrase or tag is separated by a comma.
+- **Both**
+  > Combines the above methods: 1. Detect Phrase 2. Do a second pass to detect remaining words.
+- **Both With Tags**
+  > Same as above, but will also attempt matching the tags. It does this by replacing the entire phrase's whitespace with underscores, then attempts matching. Not very well tested but thought I'd leave it in.
+- **Detect All**
+  > Extremely aggressive and the most computationally demanding. It attempts finding phrases through various methods, see above image example.
 
-It has the following modes:
-- **Per Word** - Only targets words separated by whitespace 
-- **Per Phrase** - Only targets phrases separated by commas but only if it equals exactly.
-- **Both** - Combines the above methods
-
-
-Notice, in the example image "chicken" belongs to both ```__animal__``` and ```__food__``` wildcards. That's how RNG is used here.
 
 The purpose of this node is to allow you to write with natural language, then wrapping it in a dynamic and creative way.
 
 Many users have wildcards for everything, even simple phrasing. I personally have an ```__and__``` tag which I use as a separator token. However, when utilizing Prompt Rewrap
 The blacklist file is a list of words or wildcards you want this system to ignore.
 
-**Limitations**: It currently only supports drawing a wildcard if the matched phrase/word equals the line in the wildcard file. In other words: provide the string: ```harry_potter and luke_skywalker```
+**Current Limitations (as of 18/08/2025)**: It currently only supports drawing a wildcard if the matched phrase/word equals the line in the wildcard file. In other words: provide the string: ```harry_potter and luke_skywalker```
 ```
 # /wildcards/character.txt
 luke_skywalker
 {harry_potter|ron_weasly}
 ```
 The result would be: ```harry_potter and __character__```
+This is planned to be fixed.
 
-
+>**Warning:** If you have wildcards with extremely long names,
 
 > Note: Prompt Rewrap pre-caches for faster lookups on startup. So if changes are made to wildcards, you'll have to restart ComfyUI.
 
@@ -285,21 +328,31 @@ the quick brown cow and pig jumped over the lazy cat
   - Can be used as a regular Search and Replace
   - Allows for multi-line inputs for searching, allowing for many different keywords to be swapped out in one go.
 
-# Extra Utilities
+# 🛠️ Extra Utilities
 
 >These are simple but useful nodes that can apply to most comfy workflow, and can serve as powerful post-processing nodes for adaptive prompts.
 
-## ♻️ **Shuffle Tags**
-  - A very simple shuffler which can randomize ordering of a prompt, a limit can be set
-## ♻️ **Shuffle Tags (Advanced)**
-  - Same as above, but can follow various algorithms such as "walk" to allow tags to travel, utilize decay, and many other things.
-## 🧹 **Cleanup Tags**
-  - Sometimes, adaptive prompts gets messy. This little guy can help clean up broken prompts by removing empty tags, extra whitespace, and even remove straight-up remove lora tags that failed to process by other nodes.
+## ♻️ **Prompt Shuffle**
+  - A very simple shuffler which can randomize ordering of a prompt.
+  - Unlike the advanced version, the ```limit``` parameter limits the number of tags output.
+## ♻️ **Prompt Shuffle (Advanced)**
+  - Similar function as above, but utilizes logic to shuffle the tags, which helps greatly with the decaying emphasis nature of prompts.
+  - WALK allows tags to travel per action, utilize decay, and many other things.
+## 🧹 **Prompt Cleanup**
+<img src="images/prompt_cleanup_example.png"/>
+
+A simple prompt swiss-army knife. Sometimes, dynamic prompts get messy. This little guy can help clean them up.
+  - Can remove excess commas
+  - Can remove excess whitespace
+  - Can remove lora tags that may have slipped by other processors.
+  - Can remove remove stray parenthesis, square brackets, or both.
+  - Can replace newlines with space or commas
 ## 🟰 **Normalize Lora Tags**
   - Worry less about the oversaturation of lora tags with this node which helps normalize the values automatically.
   - Positive and Negative values can be assigned independently or combined.
   - Lora Tag Parser. I recommend: [Lora Tag Loader by badjeff](https://github.com/badjeff/comfyui_lora_tag_loader)
 ## **String Merger**
+  - A lightweight merger for strings
   - Has a (4) version and a (12) version
   - Combines strings separated with a new-line.
 
@@ -344,12 +397,16 @@ Consider combining this with the Lora Tag Normalizer.
 
 # Installation
 
-Install like any other ComfyUI Node pack. Download the Zip and place in /ComfyUI/custome_nodes/
+Install like any other ComfyUI Node pack. Download the Zip and place in ```/ComfyUI/custom_nodes/```
 
-## Disclaimer
+## Disclaimers
 
-This project is a proof of concept and experimental.
+This project is a proof of concept and experimental. 
 
-Python is not my primary programming language. As such, this code was assisted by an LLM. Although I have a decent understanding of optimizing code, this project may fall short in some aspects. The code works, so take that for what you will.
+I've been programming for quite a long time and have a good understanding off logical flow and optimization, but I am not very experiened with python. Much of this code was AI-Assisted. As such, this project may fall short in certain aspects. But the code works, so take that for what you will.
 
-I also have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.
+I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.
+
+---
+
+Created by **Alectriciti** | 🎵 [Check out my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 

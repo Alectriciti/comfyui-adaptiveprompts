@@ -1,15 +1,17 @@
 import os
 from .string_utils import *
 from .generator import resolve_wildcards, SeededRandom
-from .prompt_rewrap import PromptRewrap
+from .prompt_repack import PromptRepack
 from .prompt_replace import PromptReplace
 from .prompt_generator import PromptGenerator
+from .weight_lifter import WeightLifter
 
 # ---------------- Node Mappings ----------------
 NODE_CLASS_MAPPINGS = {
     "PromptGenerator": PromptGenerator,
-    "PromptRewrap": PromptRewrap,
+    "PromptRepack": PromptRepack,
     "PromptReplace": PromptReplace,
+    "WeightLifter": WeightLifter,
     "PromptShuffle": PromptShuffle,
     "PromptShuffleAdvanced": PromptShuffleAdvanced,
     "PromptCleanup": PromptCleanup,
@@ -22,8 +24,9 @@ NODE_CLASS_MAPPINGS = {
 # ---------------- Display Name Mappings ----------------
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptGenerator": "Prompt Generator 💡",
-    "PromptRewrap": "Prompt Rewrap 📦",
+    "PromptRepack": "Prompt Repack 📦",
     "PromptReplace": "Prompt Replace 🔁",
+    "WeightLifter": "Weight Lifter 🏋️‍♀️",
     "PromptShuffle": "Prompt Shuffle ♻️",
     "PromptShuffleAdvanced": "Prompt Shuffle ♻️ (Advanced)",
     "PromptCleanup": "Prompt Cleanup 🧹",

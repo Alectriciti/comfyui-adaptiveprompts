@@ -2,8 +2,6 @@ import random
 import re
 from typing import List, Tuple
 
-
-
 import os
 import json
 import numpy as np
@@ -22,7 +20,7 @@ class PromptShuffle:
             "required": {
                 "string": ("STRING", {"default": ""}),
                 "separator": ("STRING", {"multiline": True, "default": ","}),
-                "limit": ("INT", {"default": 3, "min": 1, "max": 100}),
+                "limit_output": ("INT", {"default": 0, "min": 1, "max": 200, "tooltip": "The amount of tags to return\n0 = No limit"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
         }
@@ -32,14 +30,14 @@ class PromptShuffle:
     FUNCTION = "shuffle_strings"
     CATEGORY = "Custom Nodes"
 
-    def shuffle_strings(self, string: str, separator: str, limit: int, seed: int) -> Tuple[str]:
+    def shuffle_strings(self, string: str, separator: str, limit_output: int, seed: int) -> Tuple[str]:
     
         if seed is not None:
             random.seed(seed)
         
         parts = string.split(separator)
         random.shuffle(parts)
-        selected_parts = parts[:limit]  # Take only 'limit' number of shuffled parts
+        selected_parts = parts[:limit_output]  # Take only 'limit_output' number of shuffled parts
         shuffled_string = separator.join(selected_parts)
         
         return (shuffled_string,)  # Return as a single string
@@ -101,8 +99,8 @@ class PromptShuffleAdvanced:
             "required": {
                 "string": ("STRING", {"default": ""}),
                 "separator": ("STRING", {"multiline": True, "default": ","}),  # use ", " if your input uses spaced commas
-                "shuffle_amount_low": ("INT", {"default": 0, "min": 0, "max": 999}),
-                "shuffle_amount_high": ("INT", {"default": 10, "min": 0, "max": 999}),
+                "shuffle_amount_start": ("INT", {"default": 0, "min": 0, "max": 999}),
+                "shuffle_amount_end": ("INT", {"default": 10, "min": 0, "max": 999}),
                 "mode": (["WALK", "WALK_FORWARD", "WALK_BACKWARD", "JUMP"], {"tooltip":"WALK - Travels the tag step by step in a certain direction.\nJUMP - Randomizes the position completely"}),
                 "algorithm": (["RANDOM", "LINEAR_IN", "LINEAR_OUT", "SHUFFLE_DECAY", "SHUFFLE_DECAY_REVERSE"],),
                 "limit": ("INT", {"default": 0, "min": 0, "max": 1000000}),  # 0 = unlimited shuffles
@@ -118,8 +116,8 @@ class PromptShuffleAdvanced:
     def shuffleAdvanced(self,
                         string: str,
                         separator: str,
-                        shuffle_amount_low: int,
-                        shuffle_amount_high: int,
+                        shuffle_amount_start: int,
+                        shuffle_amount_end: int,
                         mode: str,
                         algorithm: str,
                         limit: int,
@@ -141,8 +139,8 @@ class PromptShuffleAdvanced:
         if n <= 1:
             return (string,)
 
-        low = max(0, int(shuffle_amount_low))
-        high = max(low, int(shuffle_amount_high))
+        low = max(0, int(shuffle_amount_start))
+        high = max(low, int(shuffle_amount_end))
         mode = mode.upper()
         algorithm = algorithm.upper()
 
