@@ -18,6 +18,7 @@ Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect 
 | 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Based on "Random Prompts" |
 | 📦 Prompt Repack | The inverse of the Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New / Experimental |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New / Experimental |
+| ✂️ Prompt Trimmer | Removes sections of a prompt based on various algorithms | New / Experimental |
 | ♻️ Prompt Shuffle | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | String Utility |
 | 🏋️‍♀️ Weight Lifter | Randomly or Procedurally applies weights to tags | New / Experimental |
 | 📃 String Merger | Combines multiple strings into one | String Management |
@@ -323,10 +324,18 @@ the quick brown cow and pig jumped over the lazy cat
 ```
 
 
-
-
   - Can be used as a regular Search and Replace
   - Allows for multi-line inputs for searching, allowing for many different keywords to be swapped out in one go.
+
+
+# 🏋️‍♀️ Weight Lifter
+
+An experimental node to shuffle up the weights on your nodes.
+
+ ```this text is not strong, it is weak, it needs srs gainz```
+ --->
+ ```(this text is not strong:1.08), (it is weak:1.16), (it needs srs gainz:1.27)```
+
 
 # 🛠️ Extra Utilities
 
@@ -403,7 +412,7 @@ Install like any other ComfyUI Node pack. Download the Zip and place in ```/Comf
 
 This project is a proof of concept and experimental. 
 
-I've been programming for quite a long time and have a good understanding off logical flow and optimization, but I am not very experiened with python. Much of this code was AI-Assisted. As such, this project may fall short in certain aspects. But the code works, so take that for what you will.
+I've been programming for quite a long time and have a good understanding off logical flow and optimization, but I am not very experiened with python. The code works, so take that for what you will.
 
 I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.
 

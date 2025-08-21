@@ -8,6 +8,8 @@ class PromptGenerator:
     def __init__(self):
         self.input_dir = os.path.join(os.path.dirname(__file__), "wildcards")
 
+        
+
     @classmethod
     def INPUT_TYPES(cls):
         return {

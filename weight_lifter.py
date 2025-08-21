@@ -1,18 +1,34 @@
 import re
-import random
+import math
 from .generator import SeededRandom
+
 
 class WeightLifter:
     """
-    🏋🏼 Weight Lifter - Randomizes and manipulates prompt tag weights.
+    🏋🏼 Weight Lifter - Apply systematic or random weights to tags.
 
-    Features:
-    - Random mode: assigns weights between min/max.
-    - Falloff / Falloff Inverse modes: gradually emphasize/de-emphasize tags
-      based on their position in the prompt.
-    - Keyword selection: apply custom weighting logic to matched tags.
-    - Preserves or overrides existing weights.
+    Modes:
+      - UNIFORM: All tags → same baseline.
+      - RANDOM: Independent random weights in [min,max].
+      - GRADIENT: Smooth progression across tags from min→max (or reversed).
+      - WAVE: Sinusoidal variation across tags.
+      - BURST: A single strong bump of emphasis, fading outward.
+      - NOISE: Smooth jittery variation (low-pass filtered random).
+
+    Keyword handling:
+      - NONE: No keyword rules.
+      - ONLY: Only modify keywords.
+      - IGNORE: Skip keywords.
+      - BOOST: Force keywords near max_weight (± keyword_variance).
+      - SUPPRESS: Force non-keywords near min_weight (± keyword_variance).
+
+    Notes:
+      - Whitespace/newlines preserved exactly.
+      - Existing weights preserved if preserve_existing=True.
+      - Baseline defaults to midpoint unless 1.0 is within [min,max].
     """
+
+    DECIMAL_PLACES = 2
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -23,12 +39,21 @@ class WeightLifter:
                 "min_weight": ("FLOAT", {"default": 0.8, "min": 0.0, "max": 10.0, "step": 0.01}),
                 "max_weight": ("FLOAT", {"default": 1.2, "min": 0.0, "max": 10.0, "step": 0.01}),
                 "delimiter": ("STRING", {"default": ","}),
-                "mode": (["RANDOM", "FALLOFF", "FALLOFF_INV"],),
+                "mode": ([
+                    "UNIFORM",
+                    "RANDOM",
+                    "GRADIENT",
+                    "WAVE",
+                    "BURST",
+                    "NOISE",
+                ], {"default": "RANDOM"}),
                 "preserve_existing": ("BOOLEAN", {"default": True}),
                 "limit": ("INT", {"default": 0, "min": 0, "max": 999}),
                 "keyword_selection": ("STRING", {"multiline": False, "default": ""}),
-                "keyword_mode": (["PASS", "MAXIMIZE", "DIMINISH_OTHERS"],),
+                "keyword_mode": (["NONE", "ONLY", "IGNORE", "BOOST", "SUPPRESS"], {"default": "NONE"}),
                 "keyword_variance": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 5.0, "step": 0.01}),
+                "jitter_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01,
+                                               "tooltip": "Extra randomness applied on top of structured modes."}),
             }
         }
 
@@ -36,63 +61,106 @@ class WeightLifter:
     FUNCTION = "process"
     CATEGORY = "prompt"
 
-    def process(
-        self, prompt, seed, min_weight, max_weight, delimiter, mode,
-        preserve_existing, limit, keyword_selection, keyword_mode, keyword_variance
-    ):
+    # ----------------- helpers -----------------
+
+    def _clamp(self, v, lo, hi): return max(lo, min(hi, v))
+    def _fmt_weight(self, w): return f"{w:.{self.DECIMAL_PLACES}f}"
+    def _parse_keywords(self, text): return [k.strip() for k in text.split(",") if k.strip()]
+
+    def _is_keyword(self, tag, kws):
+        t = re.sub(r"\s+", " ", tag.lower()).replace("_", " ")
+        return any(re.sub(r"\s+", " ", k.lower()).replace("_", " ") in t for k in kws)
+
+    def _baseline(self, min_w, max_w): return 1.0 if min_w <= 1.0 <= max_w else (min_w + max_w) / 2.0
+
+    def _smooth_noise(self, rng, n, alpha=0.25):
+        if n <= 0: return []
+        seq = [rng.random()]
+        for _ in range(1, n):
+            seq.append(alpha * rng.random() + (1 - alpha) * seq[-1])
+        mn, mx = min(seq), max(seq)
+        return [(x - mn) / (mx - mn) for x in seq] if mx > mn else [0.5]*n
+
+    # ----------------- main -----------------
+
+    def process(self, prompt, seed, min_weight, max_weight, delimiter, mode,
+                preserve_existing, limit, keyword_selection, keyword_mode,
+                keyword_variance, jitter_strength):
         rng = SeededRandom(seed)
-        tags = [t.strip() for t in prompt.split(delimiter) if t.strip()]
+        parts = re.split(f"({re.escape(delimiter)})", prompt) if delimiter else [prompt]
+        kws = self._parse_keywords(keyword_selection)
 
-        # Preprocess keyword selection
-        keyword_list = [k.strip() for k in keyword_selection.split(",") if k.strip()]
-        def match_keyword(tag):
-            clean_tag = tag.lower().replace("_", " ")
-            return any(k.lower().replace("_", " ") in clean_tag for k in keyword_list)
+        # collect eligible indices
+        eligible = []
+        for i in range(0, len(parts), 2):
+            seg = parts[i]
+            inner = re.match(r'^\(\s*(.*?)\s*\)$', seg.strip())
+            body = inner.group(1) if inner else seg.strip()
+            if not body: continue
+            if preserve_existing and re.search(r':[0-9]', body): continue
+            if kws:
+                is_kw = self._is_keyword(body, kws)
+                if keyword_mode == "ONLY" and not is_kw: continue
+                if keyword_mode == "IGNORE" and is_kw: continue
+            eligible.append(i)
+        if limit: eligible = eligible[:limit]
 
-        results = []
-        n_tags = len(tags)
-        applied = 0
+        total = len(eligible)
+        baseline = self._baseline(min_weight, max_weight)
 
-        for i, tag in enumerate(tags):
-            # Extract existing weight
-            match = re.match(r"^(.*?)(?::([\d.]+))?\)?$", tag)
-            base = match.group(1).strip("() ")
-            current_weight = float(match.group(2)) if match.group(2) else None
-            is_kw = match_keyword(base)
+        # Precompute curves
+        noise_seq = self._smooth_noise(rng, total) if mode == "NOISE" else None
+        burst_center = rng.uniform(0.25, 0.75) if mode == "BURST" else None
 
-            if preserve_existing and current_weight is not None:
-                results.append(tag)
-                continue
+        results, applied = [], 0
+        for i, seg in enumerate(parts):
+            if delimiter and i % 2 == 1:
+                results.append(seg); continue
+            if i not in eligible:
+                results.append(seg); continue
 
-            if limit > 0 and applied >= limit:
-                results.append(tag)
-                continue
+            raw = seg.strip()
+            m_paren = re.match(r'^\(\s*(.*?)\s*\)$', raw)
+            body = m_paren.group(1) if m_paren else raw
+            m_w = re.match(r'^(.*?)(?::\s*([0-9]*\.?[0-9]+))$', body)
+            text = m_w.group(1) if m_w else body
+            existing = float(m_w.group(2)) if m_w else None
+            kw = self._is_keyword(text, kws) if kws else False
 
-            # Determine weight
-            if mode == "RANDOM":
+            base = self._clamp(existing if existing and not preserve_existing else baseline,
+                               min_weight, max_weight)
+
+            t = applied / (total - 1) if total > 1 else 0
+            if mode == "UNIFORM":
+                w = base
+            elif mode == "RANDOM":
                 w = rng.uniform(min_weight, max_weight)
+            elif mode == "GRADIENT":
+                w = min_weight + t * (max_weight - min_weight)
+            elif mode == "WAVE":
+                s = (math.sin(t * math.pi * 2) + 1) / 2
+                w = min_weight + s * (max_weight - min_weight)
+            elif mode == "BURST":
+                dist = abs(t - burst_center) / 0.15
+                s = math.exp(-dist * dist)
+                w = base + (rng.uniform(-1,1) * (max_weight - min_weight) * s)
+            elif mode == "NOISE":
+                s = noise_seq[applied]
+                w = min_weight + s * (max_weight - min_weight)
+            else:
+                w = base
 
-            elif mode == "FALLOFF":
-                t = i / max(1, n_tags - 1)
-                w = min_weight + (max_weight - min_weight) * (1 - t)
+            if jitter_strength > 0:
+                w += rng.uniform(-1,1) * (max_weight-min_weight) * jitter_strength
 
-            elif mode == "FALLOFF_INV":
-                t = i / max(1, n_tags - 1)
-                w = min_weight + (max_weight - min_weight) * t
+            if keyword_mode == "BOOST" and kw:
+                w = max_weight + rng.uniform(-keyword_variance, keyword_variance)
+            elif keyword_mode == "SUPPRESS" and not kw:
+                w = min_weight - rng.uniform(0, keyword_variance)
 
-            # Keyword logic
-            if keyword_list:
-                if keyword_mode == "PASS":
-                    if not is_kw:
-                        results.append(base)
-                        continue
-                elif keyword_mode == "MAXIMIZE" and is_kw:
-                    w = max_weight + rng.uniform(-keyword_variance, keyword_variance)
-                elif keyword_mode == "DIMINISH_OTHERS" and not is_kw:
-                    w = min_weight - rng.uniform(0, keyword_variance)
-
-            w = max(0.0, round(w, 2))  # Clamp + format weight
-            results.append(f"({base}:{w})")
+            w = self._clamp(w, 0.0, 10.0)
+            w_str = self._fmt_weight(w)
+            results.append(f"({text}:{w_str})")
             applied += 1
 
-        return (delimiter.join(results),)
+        return ("".join(results),)

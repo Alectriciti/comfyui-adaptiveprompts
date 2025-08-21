@@ -1,6 +1,8 @@
 import random
 import re
 from typing import List, Tuple
+import random
+import math
 
 import os
 import json
@@ -10,6 +12,7 @@ from PIL.PngImagePlugin import PngInfo
 
 import folder_paths
 from comfy.cli_args import args
+from comfy.comfy_types import ComfyNodeABC, InputTypeDict
 
 LORA_PATTERN = r"<lora:[^>]+>"
 
@@ -293,7 +296,8 @@ class PromptCleanup:
 
 
 
-class StringAppend4:
+
+class StringAppend3:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -301,7 +305,6 @@ class StringAppend4:
                 "string_1": ("STRING", {"default": ""}),
                 "string_2": ("STRING", {"default": ""}),
                 "string_3": ("STRING", {"default": ""}),
-                "string_4": ("STRING", {"default": ""}),
                 "combine_mode": (["NONE", "SPACE", "NEWLINE"], {"default": "NONE"}),
             }
         }
@@ -311,9 +314,9 @@ class StringAppend4:
     CATEGORY = "Custom"
 
     @staticmethod
-    def merge_strings(string_1, string_2, string_3, string_4, combine_mode):
+    def merge_strings(string_1, string_2, string_3, combine_mode):
         # Extract all strings in order
-        strings = [string_1, string_2, string_3, string_4]
+        strings = [string_1, string_2, string_3]
         # Filter out empty strings
         strings = [s for s in strings if s.strip() != ""]
         # Join with newline
@@ -364,7 +367,62 @@ class StringAppend8:
         merged = connector.join(strings)
         return (merged,)
     
+class StringSplit(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypeDict:
+        return {
+            "required": {
+                "text": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "tooltip": "The input string to split."
+                }),
+                "start": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 99999,
+                    "step": 1,
+                    "tooltip": "Index of the first delimiter occurrence to split from."
+                }),
+                "end": ("INT", {
+                    "default": 1,
+                    "min": 0,
+                    "max": 99999,
+                    "step": 1,
+                    "tooltip": "Index of the second delimiter occurrence to split until."
+                }),
+                "delimiter": ("STRING", {
+                    "default": ",",
+                    "tooltip": "The delimiter used to separate sections of the string."
+                }),
+            }
+        }
 
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("String A", "String B", "String C")
+    FUNCTION = "split_string"
+    CATEGORY = "Alectriciti/String"
+
+    def split_string(self, text: str, start: int, end: int, delimiter: str):
+        # Safety: empty delimiter is useless, default to ","
+        if not delimiter:
+            delimiter = ","
+
+        parts = text.split(delimiter)
+
+        # Clamp indices to valid ranges
+        start = max(0, min(start, len(parts)))
+        end = max(0, min(end, len(parts)))
+
+        if start > end:
+            start, end = end, start  # normalize swapped ranges
+
+        # Slice into 3 buckets
+        before = delimiter.join(parts[:start])
+        middle = delimiter.join(parts[start:end])
+        after = delimiter.join(parts[end:])
+
+        return (before, middle, after)
 
 class LoraTagNormalizer:
     @classmethod
@@ -458,83 +516,165 @@ class LoraTagNormalizer:
         return (new_string,)
 
 
-
-class SaveImageAndText:
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type = "output"
-        self.prefix_append = ""
-        self.compress_level = 4
+class PromptTrimmer:
+    """
+    A ComfyUI custom node that trims or keeps parts of a prompt string
+    according to different probabilistic and deterministic strategies.
+    """
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
-                "images": ("IMAGE", {"tooltip": "The images to save."}),
-                "filename_prefix": ("STRING", {
-                    "default": "ComfyUI",
-                    "tooltip": "The prefix for the files to save. This may include formatting info such as %date:yyyy-MM-dd%.\nThe .txt file will be saved with the same name."
+                "string": ("STRING", {"multiline": True}),
+                "quantity": ("INT", {
+                    "default": 1,
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "The number of sections to either KEEP or REMOVE depending on QUANTITY_MODE."
                 }),
-                "prompt_data": ("STRING", {
-                    "multiline": False,
-                    "default": "",
-                    "tooltip": "Text data to save alongside the image, written into a .txt file."
-                })
-            },
-            "hidden": {
-                "prompt": "PROMPT",
-                "extra_pnginfo": "EXTRA_PNGINFO"
-            },
+                "quantity_mode": ([
+                    "REMOVE",
+                    "KEEP"
+                ], {
+                    "default": "REMOVE",
+                    "tooltip": "Determines how 'quantity' is interpreted:\n\n"
+                               "REMOVE: Remove 'quantity' sections based on the selected MODE.\n"
+                               "KEEP: Ensure the final prompt has exactly 'quantity' sections (rest are trimmed)."
+                }),
+                "keep_first_sections": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "The number of sections at the beginning of the prompt to protect.\n"
+                               "These will never be trimmed, even if selected mathematically."
+                }),
+                "mode": ([
+                    "RANDOM",
+                    "RANDOM_GRADUAL",
+                    "RANDOM_EXPONENTIAL",
+                    "RANDOM_SQRT",
+                    "RANDOM_MIDDLE",
+                    "TRIM_BEGINNING",
+                    "TRIM_END",
+                ], {
+                    "default": "RANDOM",
+                    "tooltip":
+                        "RANDOM: Removes random sections.\n\n"
+                        "RANDOM_GRADUAL: Probability of removal increases linearly as position moves forward.\n\n"
+                        "RANDOM_EXPONENTIAL: Very low chance early, then ramps up exponentially towards the end.\n\n"
+                        "RANDOM_SQRT: High chance early, flattens out later.\n\n"
+                        "RANDOM_MIDDLE: Highest chance to trim near the middle of the prompt.\n\n"
+                        "TRIM_BEGINNING: Absolutely removes from the start.\n\n"
+                        "TRIM_END: Absolutely removes from the end."
+                }),
+                "delimiter": ("STRING", {
+                    "default": ",",
+                    "tooltip": "Character or string used to split the prompt into sections."
+                }),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 0x7FFFFFFF,
+                    "tooltip": "Random seed for reproducibility. Use 0 for a random seed each run."
+                }),
+            }
         }
 
-    RETURN_TYPES = ()
-    FUNCTION = "save_images_and_text"
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("Trimmed", "Scraps")
+    FUNCTION = "process"
+    CATEGORY = "Alectriciti/Prompt"
 
-    OUTPUT_NODE = True
-    CATEGORY = "image"
-    DESCRIPTION = "Saves input images and also writes a .txt file with user-specified content."
+    def process(self, string, quantity, quantity_mode, keep_first_sections, mode, delimiter, seed):
+        # Split prompt
+        sections = [s.strip() for s in string.split(delimiter) if s.strip()]
+        if not sections:
+            return "", ""
 
-    def save_images_and_text(self, images, filename_prefix="ComfyUI", prompt_data="", prompt=None, extra_pnginfo=None):
-        filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
-            filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0]
+        # Handle KEEP mode by converting into equivalent "remove count"
+        if quantity_mode == "KEEP":
+            quantity_to_remove = max(0, len(sections) - quantity)
+        else:  # REMOVE mode
+            quantity_to_remove = min(quantity, len(sections))
+
+        # Protect first N sections from trimming
+        protected = sections[:keep_first_sections]
+        candidate_sections = sections[keep_first_sections:]
+
+        if seed != 0:
+            random.seed(seed)
+
+        indices_to_remove = self._select_indices(
+            candidate_sections, quantity_to_remove, mode
         )
 
-        results = list()
-        for (batch_number, image) in enumerate(images):
-            # Convert tensor to image
-            i = 255. * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+        trimmed, scraps = [], []
+        for i, section in enumerate(candidate_sections):
+            if i in indices_to_remove:
+                scraps.append(section)
+            else:
+                trimmed.append(section)
 
-            # Metadata for PNG
-            metadata = None
-            if not args.disable_metadata:
-                metadata = PngInfo()
-                if prompt is not None:
-                    metadata.add_text("prompt", json.dumps(prompt))
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+        # Prepend protected sections back
+        trimmed = protected + trimmed
 
-            # Build deterministic filename
-            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file_base = f"{filename_with_batch_num}_{counter:05}_"
-            img_file = f"{file_base}.png"
-            txt_file = f"{file_base}.txt"
+        trimmed_str = delimiter.join(trimmed)
+        scraps_str = delimiter.join(scraps)
+        return trimmed_str, scraps_str
 
-            # Save image
-            img.save(os.path.join(full_output_folder, img_file), pnginfo=metadata, compress_level=self.compress_level)
+    def _select_indices(self, sections, count, mode):
+        """Select which indices to remove from candidate sections"""
+        n = len(sections)
+        if count <= 0 or n == 0:
+            return set()
 
-            # Save text file (only if something provided)
-            if prompt_data is not None and prompt_data.strip() != "":
-                with open(os.path.join(full_output_folder, txt_file), "w", encoding="utf-8") as f:
-                    f.write(prompt_data)
+        indices = list(range(n))
 
-            results.append({
-                "filename": img_file,
-                "subfolder": subfolder,
-                "type": self.type
-            })
-            counter += 1
+        # Deterministic modes
+        if mode == "TRIM_BEGINNING":
+            return set(indices[:count])
+        elif mode == "TRIM_END":
+            return set(indices[-count:])
 
-        return {"ui": {"images": results}}
+        # Probabilistic weighting
+        weights = []
+        for i in range(n):
+            pos = (i + 1) / n
+            if mode == "RANDOM":
+                weights.append(1.0)
+            elif mode == "RANDOM_GRADUAL":
+                weights.append(pos)
+            elif mode == "RANDOM_EXPONENTIAL":
+                weights.append(pos ** 3)  # stronger ramp
+            elif mode == "RANDOM_SQRT":
+                weights.append(math.sqrt(pos))
+            elif mode == "RANDOM_MIDDLE":
+                mid = 0.5
+                dist = abs(pos - mid)
+                weights.append(1 - dist * 2)  # triangle peak at middle
+            else:
+                weights.append(1.0)
+
+        # Normalize weights
+        total = sum(weights)
+        if total == 0:
+            weights = [1] * n
+            total = n
+        norm_weights = [w / total for w in weights]
+
+        # Pick without replacement
+        chosen = set()
+        while len(chosen) < count and indices:
+            idx = random.choices(indices, weights=norm_weights, k=1)[0]
+            chosen.add(idx)
+            remove_idx = indices.index(idx)
+            indices.pop(remove_idx)
+            norm_weights.pop(remove_idx)
+            if norm_weights:
+                s = sum(norm_weights)
+                norm_weights = [w / s for w in norm_weights]
+
+        return chosen
