@@ -1,12 +1,12 @@
 import os
-from .string_utils import *
-from .prompt_repack import PromptRepack
-from .prompt_replace import PromptReplace
-from .prompt_generator import PromptGenerator
-from .weight_lifter import WeightLifter
-from .image_nodes import SaveImageAndText
-from .misc_utils import ScaledSeedGenerator
-from .tag_alias import PromptAliasSwap
+from .py.prompt_repack import PromptRepack
+from .py.prompt_replace import PromptReplace
+from .py.prompt_generator import PromptGenerator
+from .py.weight_lifter import WeightLifter
+from .py.image_nodes import SaveImageAndText
+from .py.misc_utils import ScaledSeedGenerator
+from .py.tag_alias import PromptAliasSwap
+from .py.string_utils import *
 
 NODE_CLASS_MAPPINGS = {
     "PromptGenerator": PromptGenerator,

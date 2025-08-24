@@ -1,12 +1,11 @@
 import os
-from .string_utils import *
 from .generator import resolve_wildcards, SeededRandom
-from .prompt_repack import PromptRepack
-from .prompt_replace import PromptReplace
+from .string_utils import re
 
 class PromptGenerator:
     def __init__(self):
-        self.input_dir = os.path.join(os.path.dirname(__file__), "wildcards")
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        self.input_dir = os.path.join(base_dir, "wildcards")
 
         
 

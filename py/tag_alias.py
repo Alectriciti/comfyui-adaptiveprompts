@@ -59,7 +59,7 @@ class PromptAliasSwap:
                 }),
                 "alias_file": (alias_files, {
                     "default": "tags.txt",
-                    "tooltip": "Choose a .txt alias file from the 'tag_alias' folder."
+                    "tooltip": "Choose a .tx    t alias file from the 'tag_alias' folder."
                 }),
                 "refresh_file": ("BOOLEAN", {
                     "default": False,
@@ -83,8 +83,8 @@ class PromptAliasSwap:
 
     @classmethod
     def _tag_alias_root(cls) -> str:
-        here = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(here, "tag_alias_files")
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        return os.path.join(base_dir, "tag_alias_files")
 
     @classmethod
     def _resolve_alias_path(cls, name: str) -> Optional[str]:
