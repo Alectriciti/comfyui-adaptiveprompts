@@ -11,7 +11,6 @@ class WeightLifter:
       - UNIFORM: All tags → same baseline.
       - RANDOM: Independent random weights in [min,max].
       - GRADIENT: Smooth progression across tags from min→max (or reversed).
-      - WAVE: Sinusoidal variation across tags.
       - BURST: A single strong bump of emphasis, fading outward.
       - NOISE: Smooth jittery variation (low-pass filtered random).
 
@@ -40,10 +39,8 @@ class WeightLifter:
                 "max_weight": ("FLOAT", {"default": 1.2, "min": 0.0, "max": 10.0, "step": 0.01}),
                 "delimiter": ("STRING", {"default": ","}),
                 "mode": ([
-                    "UNIFORM",
                     "RANDOM",
                     "GRADIENT",
-                    "WAVE",
                     "BURST",
                     "NOISE",
                 ], {"default": "RANDOM"}),
@@ -131,15 +128,10 @@ class WeightLifter:
                                min_weight, max_weight)
 
             t = applied / (total - 1) if total > 1 else 0
-            if mode == "UNIFORM":
-                w = base
-            elif mode == "RANDOM":
+            if mode == "RANDOM":
                 w = rng.uniform(min_weight, max_weight)
             elif mode == "GRADIENT":
                 w = min_weight + t * (max_weight - min_weight)
-            elif mode == "WAVE":
-                s = (math.sin(t * math.pi * 2) + 1) / 2
-                w = min_weight + s * (max_weight - min_weight)
             elif mode == "BURST":
                 dist = abs(t - burst_center) / 0.15
                 s = math.exp(-dist * dist)

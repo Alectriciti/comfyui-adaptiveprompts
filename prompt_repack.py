@@ -40,7 +40,7 @@ class WildcardPreprocessor:
 class PromptRepack:
     def __init__(self):
         self.wildcard_dir = os.path.join(os.path.dirname(__file__), "wildcards")
-        self.rewrapper_dir = os.path.join(os.path.dirname(__file__), "repack")
+        self.rewrapper_dir = os.path.join(os.path.dirname(__file__), "repack_files")
         self.preprocessor = WildcardPreprocessor(self.wildcard_dir)
         self.preprocessor.preprocess()
         self._last_blacklist_file = None
@@ -49,7 +49,7 @@ class PromptRepack:
 
     @classmethod
     def INPUT_TYPES(cls):
-        rewrapper_dir = os.path.join(os.path.dirname(__file__), "repack")
+        rewrapper_dir = os.path.join(os.path.dirname(__file__), "repack_files")
         blacklist_files = [f for f in os.listdir(rewrapper_dir) if f.endswith(".txt")]
         return {
             "required": {

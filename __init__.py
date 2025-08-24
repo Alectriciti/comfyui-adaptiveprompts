@@ -6,6 +6,7 @@ from .prompt_generator import PromptGenerator
 from .weight_lifter import WeightLifter
 from .image_nodes import SaveImageAndText
 from .misc_utils import ScaledSeedGenerator
+from .tag_alias import PromptAliasSwap
 
 NODE_CLASS_MAPPINGS = {
     "PromptGenerator": PromptGenerator,
@@ -16,6 +17,7 @@ NODE_CLASS_MAPPINGS = {
     "PromptShuffle": PromptShuffle,
     "PromptShuffleAdvanced": PromptShuffleAdvanced,
     "PromptCleanup": PromptCleanup,
+    "PromptAliasSwap": PromptAliasSwap,
     "NormalizeLoraTags": LoraTagNormalizer,
     "StringSplit": StringSplit,
     "StringAppend3": StringAppend3,
@@ -34,6 +36,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptShuffle": "Prompt Shuffle ♻️",
     "PromptShuffleAdvanced": "Prompt Shuffle ♻️ (Advanced)",
     "PromptCleanup": "Prompt Cleanup 🧹",
+    "PromptAliasSwap": "Prompt Alias Swap 🏷️",
     "NormalizeLoraTags": "Normalize Lora Tags 🟰",
     "StringSplit": "StringSplit",
     "StringAppend3": "String Append (3)",
