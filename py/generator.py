@@ -691,7 +691,7 @@ def _final_sweep_resolve(text: str,
         text = text[:m.start()] + replacement + text[m.end():]
         i = m.start() + len(replacement)
 
-    print(f"{indent}[final sweep] result: {repr(text)}")
+    #print(f"{indent}[final sweep] result: {repr(text)}")
     return text
 
 def resolve_wildcards(text: str,
@@ -712,7 +712,7 @@ def resolve_wildcards(text: str,
         any remaining variable/wildcard tokens once more; removes ones that cannot be resolved.
     """
     indent = "  " * _depth
-    print(f"{indent}Resolving (depth {_depth}) start: {repr(text)}")
+    #print(f"{indent}Resolving (depth {_depth}) start: {repr(text)}")
 
     if _depth > 80:
         print(f"{indent}⚠️ Max recursion depth reached; returning text as-is.")
@@ -889,12 +889,12 @@ def resolve_wildcards(text: str,
                     ph = next_placeholder()
                     placeholders[ph] = full_token
                     working = working[:m_file.start()] + ph + working[m_file.end():]
-                    print(f"{indent}  [pass] placeholdering unresolved token {full_token!r} -> {ph!r}")
+                    #print(f"{indent}  [pass] placeholdering unresolved token {full_token!r} -> {ph!r}")
                 else:
                     working = working[:m_file.start()] + replacement + working[m_file.end():]
                     changed = True
                     working = _space_adjacent_wildcards(working)
-                    print(f"{indent}  [pass] replaced {full_token!r} -> {replacement!r}")
+                    #print(f"{indent}  [pass] replaced {full_token!r} -> {replacement!r}")
 
             return working
 
@@ -908,7 +908,7 @@ def resolve_wildcards(text: str,
             placeholders = {}
             placeholder_counter = 0
 
-        print(f"{indent}After pass {pass_no}: {repr(new_text)} (changed={changed})")
+        #print(f"{indent}After pass {pass_no}: {repr(new_text)} (changed={changed})")
 
         if not changed:
             text = new_text
@@ -918,10 +918,10 @@ def resolve_wildcards(text: str,
         text = _space_adjacent_wildcards(text)
 
     else:
-        print(f"{indent}⚠️ Max passes ({max_passes}) reached; returning current text.")
+        print(f"{indent}⚠️ Adaptive Prompts reached max passes ({max_passes}) reached; returning current text.")
 
     # Final sweep (no bracket context here on purpose)
     text = _final_sweep_resolve(text, seeded_rng, wildcard_dir, _resolved_vars, _depth)
 
-    print(f"{indent}Resolving (depth {_depth}) result: {repr(text)}")
+    #print(f"{indent}Resolving (depth {_depth}) result: {repr(text)}")
     return text
