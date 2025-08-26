@@ -17,6 +17,7 @@ Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect 
 |------|---------|-------|
 | 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Based on "Random Prompts" |
 | 📦 Prompt Repack | The inverse of the Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New / Experimental |
+| 📚 Prompt Tag Alias | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly, allowing. | New / Experimental |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New / Experimental |
 | ✂️ Prompt Trimmer | Removes sections of a prompt based on various algorithms | New / Experimental |
 | ♻️ Prompt Shuffle | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | String Utility |

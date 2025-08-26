@@ -15,6 +15,11 @@ from comfy.cli_args import args
 from comfy.comfy_types import ComfyNodeABC, InputTypeDict
 
 LORA_PATTERN = r"<lora:[^>]+>"
+import random
+from typing import Tuple
+
+import random
+from typing import Tuple
 
 class PromptShuffle:
     @classmethod
@@ -23,27 +28,64 @@ class PromptShuffle:
             "required": {
                 "string": ("STRING", {"default": ""}),
                 "separator": ("STRING", {"multiline": True, "default": ","}),
-                "limit_output": ("INT", {"default": 0, "min": 1, "max": 200, "tooltip": "The amount of tags to return\n0 = No limit"}),
+                "limit": ("INT", {
+                    "default": 0, "min": 0, "max": 200,
+                    "tooltip": "Number of single-item moves to perform.\n0 = full shuffle (completely randomize order)."
+                }),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
             }
         }
-    
+
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("shuffled_string",)
     FUNCTION = "shuffle_strings"
     CATEGORY = "Custom Nodes"
 
-    def shuffle_strings(self, string: str, separator: str, limit_output: int, seed: int) -> Tuple[str]:
-    
-        if seed is not None:
-            random.seed(seed)
-        
+    def shuffle_strings(self, string: str, separator: str, limit: int, seed: int) -> Tuple[str]:
+        """
+        Shuffle by performing `limit` single-item moves (pop+insert).
+        If limit == 0, perform a full shuffle of all items.
+        Deterministic when seed != 0.
+        """
+        rng = random.Random(seed) if seed != 0 else random.Random()
+
+        if separator == "":
+            return (string,)
+
         parts = string.split(separator)
-        random.shuffle(parts)
-        selected_parts = parts[:limit_output]  # Take only 'limit_output' number of shuffled parts
-        shuffled_string = separator.join(selected_parts)
+        n = len(parts)
+
+        # Nothing to do for empty/one-item lists
+        if n <= 1:
+            return (string,)
         
-        return (shuffled_string,)  # Return as a single string
+        if limit <= 0:
+            rng.shuffle(parts)
+            return (separator.join(parts),)
+
+        # `limit` move operations (pop src, insert at dest)
+        moves_done = 0
+        attempts = 0
+        max_attempts = limit * 10 + 100  # safety cap to avoid loops
+
+        while moves_done < limit and attempts < max_attempts:
+            attempts += 1
+            src = rng.randrange(n)
+            dest = rng.randrange(n)
+            if src == dest:
+                continue  # pick a different target
+
+            # pop and insert (adjust dest if pop occurred before dest)
+            item = parts.pop(src)
+            if src < dest:
+                dest -= 1
+            parts.insert(dest, item)
+
+            moves_done += 1
+
+        return (separator.join(parts),)
+
+
 
 
 def _clamp(x: int, lo: int, hi: int) -> int:
@@ -106,7 +148,7 @@ class PromptShuffleAdvanced:
                 "shuffle_amount_end": ("INT", {"default": 10, "min": 0, "max": 999}),
                 "mode": (["WALK", "WALK_FORWARD", "WALK_BACKWARD", "JUMP"], {"tooltip":"WALK - Travels the tag step by step in a certain direction.\nJUMP - Randomizes the position completely"}),
                 "algorithm": (["RANDOM", "LINEAR_IN", "LINEAR_OUT", "SHUFFLE_DECAY", "SHUFFLE_DECAY_REVERSE"],),
-                "limit": ("INT", {"default": 0, "min": 0, "max": 1000000}),  # 0 = unlimited shuffles
+                "limit": ("INT", {"default": 0, "min": 0, "max": 1000000}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
