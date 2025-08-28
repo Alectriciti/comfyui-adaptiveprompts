@@ -200,7 +200,7 @@ class PromptRepack:
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "repack"
-    CATEGORY = "wildcards"
+    CATEGORY = "adaptiveprompts/generation"
 
     # ------------------- init & paths -------------------
 

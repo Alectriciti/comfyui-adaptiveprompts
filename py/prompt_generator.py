@@ -21,7 +21,7 @@ class PromptGenerator:
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "process"
-    CATEGORY = "prompt"
+    CATEGORY = "adaptiveprompts/generation"
 
     def process(self, prompt, seed, hide_comments):
         rng = SeededRandom(seed)

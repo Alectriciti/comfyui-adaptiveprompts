@@ -59,7 +59,7 @@ class WeightLifter:
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "process"
-    CATEGORY = "prompt"
+    CATEGORY = "adaptiveprompts/processing"
 
     # ----------------- helpers -----------------
 

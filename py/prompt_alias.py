@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple, Optional
 
 class PromptAliasSwap:
     """
-    Prompt Alias Swap 🪞
+    Prompt Alias Swap
     - Loads alias groups once (cached), optionally refreshed live.
     - Finds candidate tags (tokens) per rules and swaps them using the alias group.
     - Preserves all non-tag text (whitespace, punctuation, weights, brackets, etc).
@@ -23,26 +23,17 @@ class PromptAliasSwap:
       • '\(' and '\)' → '(' and ')'
       • '-' treated like '_' (so dash/underscore are interchangeable for matching)
       • spaces are collapsed to '_' (rare in tags, but safe)
-
-    Replacement:
-      • ALWAYS: pick a different alias from the same group (if any alternative exists).
-      • RANDOM: pick uniformly from the whole group (can select original → no change).
-      • CHANCE: probability applied only if the tag exists in the alias map.
     """
 
     # ---------------- ComfyUI node metadata ----------------
     @classmethod
     def INPUT_TYPES(cls):
         mode_tip = (
-            "Swap behavior:\n"
-            "- ALWAYS: Always swap to a different alias from the same group (if possible).\n"
-            "- RANDOM: Randomly choose from the group (may remain unchanged)."
+            "- ALWAYS: Always swap to a different alias from the same group\n"
+            "- RANDOM: Randomly choose from the group, meaning it may re-select itself and the tag remains unchanged\n"
         )
         chance_tip = (
-            "Probability (0.0–1.0) that an eligible token is swapped.\n"
-            "Only rolled if the token exists in the alias map.\n"
-            "1.0 = always attempt to swap (subject to mode).\n"
-            "0.0 = never swap."
+            "The probability that a tag is swapped\n"
         )
 
         alias_dir = cls._tag_alias_root()
@@ -52,14 +43,13 @@ class PromptAliasSwap:
 
         return {
             "required": {
-                "string": ("STRING", {"multiline": True, "tooltip": "The input prompt to process."}),
+                "string": ("STRING", {"multiline": True, "tooltip": "The input prompt to process"}),
                 "seed": ("INT", {
-                    "default": 0, "min": 0, "max": 0x7FFFFFFF,
-                    "tooltip": "Random seed for deterministic results (0 = system RNG)."
+                    "default": 0, "min": 0, "max": 0x7FFFFFFF
                 }),
                 "alias_file": (alias_files, {
                     "default": "tags.txt",
-                    "tooltip": "Choose a .tx    t alias file from the 'tag_alias' folder."
+                    "tooltip": "Choose a .txt alias file from the 'tag_alias' folder.\n.csv format not currently supported"
                 }),
                 "refresh_file": ("BOOLEAN", {
                     "default": False,
@@ -76,7 +66,7 @@ class PromptAliasSwap:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("Aliased String",)
     FUNCTION = "apply"
-    CATEGORY = "prompt/generation"
+    CATEGORY = "adaptiveprompts/generation"
 
     # ---------------- Cache & file handling ----------------
     _CACHE: Dict[str, dict] = {}

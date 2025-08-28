@@ -7,9 +7,9 @@ class PromptReplace:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "string": ("STRING", {"tooltip": "The original string"}),
-                "target_string": ("STRING", {"tooltip": "The keywords to replace, separated by newlines.\nThis can be done with prompts via {1-2$$\n$$__wildcard__}"}),
-                "replace_string": ("STRING", {"tooltip": "The string or wildcard to be replaced with. Each replacement action will re-roll the wildcard"}),
+                "string": ("STRING", {"tooltip": "The original string", "multiline": True}),
+                "target_string": ("STRING", {"tooltip": "The keywords to replace, separated by newlines.\nThis can be done with prompts via {1-2$$\n$$__wildcard__}", "multiline": True}),
+                "replace_string": ("STRING", {"tooltip": "The string or wildcard to be replaced with. Each replacement action will re-roll the wildcard", "multiline": True}),
                 "seed": ("INT", {"default": 0}),
                 "limit": ("INT", {"default": 0}),  # 0 means unlimited
             }
@@ -17,7 +17,7 @@ class PromptReplace:
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "replace"
-    CATEGORY = "String Utilities"
+    CATEGORY = "adaptiveprompts/generation"
 
     def replace(self, string, target_string, replace_string, seed, limit):
         seeded_rng = SeededRandom(seed)
