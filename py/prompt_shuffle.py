@@ -10,7 +10,7 @@ class PromptShuffle:
         return {
             "required": {
                 "string": ("STRING", {"default": ""}),
-                "separator": ("STRING", {"multiline": True, "default": ","}),
+                "separator": ("STRING", {"default": ","}),
                 "limit": ("INT", {
                     "default": 0, "min": 0, "max": 200,
                     "tooltip": "Number of single-item moves to perform.\n0 = full shuffle (completely randomize order)."
@@ -126,7 +126,7 @@ class PromptShuffleAdvanced:
         return {
             "required": {
                 "string": ("STRING", {"default": ""}),
-                "separator": ("STRING", {"multiline": True, "default": ","}),  # use ", " if your input uses spaced commas
+                "separator": ("STRING", {"default": ","}),  # use ", " if your input uses spaced commas
                 "shuffle_amount_start": ("INT", {"default": 0, "min": 0, "max": 999}),
                 "shuffle_amount_end": ("INT", {"default": 10, "min": 0, "max": 999}),
                 "mode": (["WALK", "WALK_FORWARD", "WALK_BACKWARD", "JUMP"], {"tooltip":"WALK - Travels the tag step by step in a certain direction.\nJUMP - Randomizes the position completely"}),

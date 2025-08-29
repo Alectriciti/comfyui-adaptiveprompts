@@ -13,19 +13,32 @@ Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect 
 
 # ⚡ Quick Node Reference 
 
-| Node | Description | Notes |
+## Generation Nodes
+These nodes generate new content in your prompt, either by utilizing dynamic prompt syntax, or some other method of generation.
+
+| Node | Description | Note |
 |------|---------|-------|
-| 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Based on "Random Prompts" |
-| 📦 Prompt Repack | The inverse of the Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New / Experimental |
-| 📚 Prompt Tag Alias | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly, allowing. | New / Experimental |
-| 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New / Experimental |
-| ✂️ Prompt Trimmer | Removes sections of a prompt based on various algorithms | New / Experimental |
-| ♻️ Prompt Shuffle | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | String Utility |
-| 🏋️‍♀️ Weight Lifter | Randomly or Procedurally applies weights to tags | New / Experimental |
-| 📃 String Merger | Combines multiple strings into one | String Management |
-| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc | String Utility |
-| 🟰 Normalize Lora Tags | Provides lora weight control by normalizing the values of lora tags. (Lora Tag Loader not included)| Lora Tag Utility |
-| 🖼️ SaveImageAndText | Comfy's Image Saver, but saves a .txt file with contents of your choosing. | Prompt Saving|
+| 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Originally "Random Prompts" |
+| 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New/Experimental |
+| 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New/Experimental |
+| 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | Does not yet support .csv  |
+
+## Processing Nodes
+| Node | Description | Note |
+|------|---------|-------|
+| 🏋️‍♀️ Weight Lifter | Randomly or Procedurally applies weights to all phrases, "(masterpiece:1.105)" | |
+| ✂️ Prompt Trimmer | Remove or keeps sections of a prompt based on various algorithms. Splits one prompt into two outputs. | |
+| 🥣 Prompt Mix | Takes two prompts and mixes them together with a variety of methods. | |
+| ♻️ Prompt Shuffle | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | |
+| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc | |
+
+## Utility Nodes
+| Node | Description | Note |
+|------|---------|-------|
+| 🔗 String Append | Combines multiple strings into one using a specified separator. Comes in a 3 and 8 version. | |
+| ⛓️‍💥 String Split | Directly splits a prompt into 3 parts to isolate a middle section using start and end. | |
+| 🟰 Normalize Lora Tags | Provides lora weight control by normalizing the values of lora tags. Allowing for flexible inputs. | used w/ Lora Tag Loader |
+| 🖼️ SaveImageAndText | Comfy's Image Saver, but saves a .txt file with contents of your choosing. Intended for saving the resulting prompt. | |
 
 
 
