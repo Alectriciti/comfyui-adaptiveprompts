@@ -9,6 +9,7 @@ class ScaledSeedGenerator(ComfyNodeABC):
         return {
             "required": {
                 "seed": ("INT", {"default": 30000, "min": 0, "max": 2**63-1, "step": 1, "tooltip":"The Base seed - Every other seed is ultimately controlled by this one.\nE.G. A rate of 0.5 will change the seed every 2 increments."}),
+                "rate_a": ("FLOAT", {"default": 1.0, "min": 0.001, "max": 1.0, "step": 0.025}),
                 "rate_b": ("FLOAT", {"default": 0.5, "min": 0.001, "max": 1.0, "step": 0.025}),
                 "rate_c": ("FLOAT", {"default": 0.25, "min": 0.001, "max": 1.0, "step": 0.025}),
                 "rate_d": ("FLOAT", {"default": 0.125, "min": 0.001, "max": 1.0, "step": 0.025}),
@@ -34,14 +35,11 @@ class ScaledSeedGenerator(ComfyNodeABC):
         # Produce a 32-bit integer
         return rng.randint(0, 2**63 - 1)
 
-    def generate(self, seed: int, rate_b: float, rate_c: float, rate_d: float):
-        # Original seed (priority, untouched)
-        random_a = seed
-
-        # Variants (reproducible randoms derived from scaled grouping)
-        random_b = self._scaled_random(seed, rate_b)
-        random_c = self._scaled_random(seed, rate_c)
-        random_d = self._scaled_random(seed, rate_d)
+    def generate(self, seed: int, rate_a: float, rate_b: float, rate_c: float, rate_d: float):
+        random_a = self._scaled_random(seed, rate_a)
+        random_b = self._scaled_random(seed+1, rate_b)
+        random_c = self._scaled_random(seed+2, rate_c)
+        random_d = self._scaled_random(seed+3, rate_d)
 
         return (random_a, random_b, random_c, random_d)
     

@@ -16,6 +16,9 @@ Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect 
 ## Generation Nodes
 These nodes generate new content in your prompt, either by utilizing dynamic prompt syntax, or some other method of generation.
 
+>In these descriptions, a "phrase" can be defined as the space between two commas: *"masterpiece, **this is a phrase**, low quality"*
+
+
 | Node | Description | Note |
 |------|---------|-------|
 | 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Originally "Random Prompts" |
@@ -26,11 +29,12 @@ These nodes generate new content in your prompt, either by utilizing dynamic pro
 ## Processing Nodes
 | Node | Description | Note |
 |------|---------|-------|
-| 🏋️‍♀️ Weight Lifter | Randomly or Procedurally applies weights to all phrases, "(masterpiece:1.105)" | |
-| ✂️ Prompt Trimmer | Remove or keeps sections of a prompt based on various algorithms. Splits one prompt into two outputs. | |
-| 🥣 Prompt Mix | Takes two prompts and mixes them together with a variety of methods. | |
-| ♻️ Prompt Shuffle | A tag randomizer using commas as a delimiter. Has an advanced mode which is pretty powerful. | |
-| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc | |
+| 🏋️‍♀️ Weight Lifter | Randomly or procedurally applies weights to phrases, "(epic masterpiece:1.105), (highres:0.925)" |  |
+| ✂️ Prompt Trimmer | Remove or keeps sections of a prompt based on various algorithms. | |
+| 🥣 Prompt Mix | Takes two prompts and mixes them together with a variety of methods. Useful for sprinkling in processed tags/phrases. | |
+| ♻️ Prompt Shuffle | Randomly shuffles phrases with a limit on how many are shuffled. Lightweight and fast. | |
+| ♻️ Prompt Shuffle (Advanced) | Utilizes techniques such as walking, rather than arbitrarily shuffling the phrases. Useful for subtle variance. | |
+| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc. Usually last in the node chain. | |
 
 ## Utility Nodes
 | Node | Description | Note |
@@ -41,6 +45,9 @@ These nodes generate new content in your prompt, either by utilizing dynamic pro
 | 🖼️ SaveImageAndText | Comfy's Image Saver, but saves a .txt file with contents of your choosing. Intended for saving the resulting prompt. | |
 
 
+
+
+Combining these various nodes can result in highly creative prompts.
 
 # Dynamic Prompting Quickstart Guide
 > *(This does not mention new features, so feel free to skip this section if you're already familiar with dynamic prompts)*
