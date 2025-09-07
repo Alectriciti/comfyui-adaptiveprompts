@@ -501,7 +501,7 @@ I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It 
 
 ---
 
-*With great power commes great responsibility*
+*With great power comes great responsibility*
 ![majora](https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/f4873c6e-a389-4fb9-91bf-80b977784e77/original=true,quality=90/Majora_00043_.jpeg)
 
 
