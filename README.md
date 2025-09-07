@@ -495,6 +495,16 @@ This project took me awhile. I'm still  If you have any optimizations or suggest
 
 I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.
 
+
+
+
+
+---
+
+*With great power commes great responsibility*
+![majora](https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/f4873c6e-a389-4fb9-91bf-80b977784e77/original=true,quality=90/Majora_00043_.jpeg)
+
+
 ---
 
 Created by **Alectriciti** | 🎵 [Check out my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 
