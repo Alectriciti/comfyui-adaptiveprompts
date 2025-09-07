@@ -18,6 +18,7 @@ Think of Adaptive Prompts as a reimagined Dynamic Prompts. You can expect the ba
 # ⚡ Quick Node Reference 
 
 ## Prompt Generation Nodes
+
 These nodes generate new content in your prompt, either by utilizing dynamic prompt syntax, or some other method of generation.
 
 >In these descriptions, a "phrase" can be defined as the space between two commas: *"masterpiece, **this is a phrase**, low quality"*
@@ -148,7 +149,7 @@ Yes, this also means you can use the wildcard ```__*__```. I don't recommend thi
 
 Yes, the possibilities are endless. And these are just the basics of what can be done with dynamic prompts.
 
-> This is the extend of what is currently supported *as of August 16, 2025*.
+> This is the extent of what is currently supported *as of August 16, 2025*.
 
 </details>
 
@@ -183,7 +184,8 @@ Gone are the days of renaming loras due to double underscores. Dynamic prompts n
 
 Folders can be accessed via globbing
 ```
-__colors/*__   ---> retrives any file fromm the /colors/ folder
+__colors/*__   ---> retrives any file from the /colors/ folder
+__colors*__     ---> retrieves from any file that starts with "colors"
 __colors__     ---> retrieves from colors.txt
 ```
 
@@ -198,6 +200,7 @@ Let's say that **and.txt** contains the following:
 and
 with
 or
+plus
 ```
 
 Then we use that wildcard as the separator token for a bracket wildcard:
@@ -233,6 +236,8 @@ Here's a `chance.txt` wildcard example:
 rare  # default is 1
 ultrarare %0.1%
 ```
+
+> This feature is experimental and requires testing
 
 ### #️⃣ Comments
 
@@ -491,13 +496,9 @@ Install like any other ComfyUI Node pack, dropping it into:
 
 ## Disclaimers
 
-This project took me awhile. I'm still  If you have any optimizations or suggestions, please feel free to contribute.
+This project took me awhile. If you have any optimizations or suggestions, please feel free to contribute by creating a new issue.
 
 I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.
-
-
-
-
 
 ---
 
@@ -507,4 +508,4 @@ I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It 
 
 ---
 
-Created by **Alectriciti** | 🎵 [Check out my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 
+Created by **Alectriciti** ⚡ | 🎵 [Listen to my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 
