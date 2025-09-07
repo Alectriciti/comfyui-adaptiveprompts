@@ -4,7 +4,7 @@
 <img src="images/adaptive_prompts_logo.png">
 
 
-
+> - **06/09/25** Adaptive Prompts Release!
 > - **17/08/25** Variables and Comments have been added. All nodes passed main stress-tests. Things are looking good so far!
 > - **15/08/25** Established a somewhat working version of these nodes. It's stable enough to use.
 
@@ -160,11 +160,13 @@ Yes, the possibilities are endless. And these are just the basics of what can be
 
 ## 💡 Prompt Generator
 
-<img src="images/prompt_generator_variables_example.png"/>
+>Reminder: wildcards must be placed at: ```comfyui-adaptiveprompts/wildcards/```
 
-Formerly known as **Random Prompts**, this is the essential component to dynamic prompting.
+<img src="images/prompt_generator.png"/>
 
-It works mostly like you remember, but there are a few twists
+Formerly known as **Random Prompts**. **Prompt Generator** is the essential node of adaptive prompts.
+
+It works mostly like you remember, but there are a few twists...
 
 ### Wildcards Refresh Instantly
 No more having to restart ComfyUI every time you make a change to wildcards.
@@ -175,7 +177,15 @@ This is no longer the case. The contents of brackets will always adhere to the l
 
 ### Lora tags with "weird__underscores" no longer break syntax
 
-Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. So `<lora:coolest__lora__ever__:1.0>` will not break things.
+Gone are the days of renaming loras due to double underscores. Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. So `<lora:coolest__lora__ever__:1.0>` will not break things.
+
+## Wildcard Folder Globbing
+
+Folders can be accessed via globbing
+```
+__colors/*__   ---> retrives any file fromm the /colors/ folder
+__colors__     ---> retrieves from colors.txt
+```
 
 ## Separator Syntax
 
@@ -202,7 +212,12 @@ C and D with B or A
 B with C and D
 ```
 
-This opens up possibilities for expanding bracket prompts. ```{2-3$${,| }$$this|works|too}```
+This opens up possibilities for expanding bracket prompts.
+
+Whitespace can also be used in brackets:
+```
+{2-3$${,| }$$this|works|too}
+```
 
 
 ### ⚖️ Chance Weights
@@ -283,7 +298,10 @@ Great for randomized story/scenario prompts.
 
 > **Important:** When assigning variables, I strongly recommend placing them in a ```## comment space like this ##```. This is because the Prompt Generator seeks out comment lines and executes the brackets/wildcards in there first. If you don't do this, things might work, but depending on the complexity of your prompt, you variable retrievals might yield null.
 
----
+Using all of these tricks, you can achieve some pretty powerful results!
+
+
+<img src="images/prompt_generator_variables_example.png"/>
 
 
 ## 📦 Prompt Repack
@@ -294,22 +312,13 @@ Prompt Repack is an experimental node which can be thought of as the inverse of 
 A good example of how powerful this system can be is the word "chicken". It belongs to both ```__animal__``` and ```__food__``` wildcards. This can lead to some pretty creative results when rewrapping it.
 
 Prompt Repack has the following modes. In order to explain them, keep this context in mind: ```, this is a phrase and this_is_a_tag, ...```
-- **Per Word**
-  > Only targets words separated by whitespace. Extremely fast and lightweight. 
-- **Per Phrase**
-  > Only targets phrases separated by commas but only if it equals exactly. This can be tags or phrases, but it has to match exactly. Pretty solid if you're only building simple prompts where each phrase or tag is separated by a comma.
-- **Both**
-  > Combines the above methods: 1. Detect Phrase 2. Do a second pass to detect remaining words.
-- **Both With Tags**
-  > Same as above, but will also attempt matching the tags. It does this by replacing the entire phrase's whitespace with underscores, then attempts matching. Not very well tested but thought I'd leave it in.
-- **Detect All**
-  > Extremely aggressive and the most computationally demanding. It attempts finding phrases through various methods, see above image example.
 
+This node allows you to write with natural language, then wrapping it in a dynamic and creative way. It is also a way to add more creativity and dynamics to your existing prompts.
 
-The purpose of this node is to allow you to write with natural language, then wrapping it in a dynamic and creative way.
+Many users have wildcards for everything, even simple phrasing. I personally have an ```__and__``` wildcard which I use as a separator token. However, when utilizing Prompt Rewrap, every instance of the word "and" gets caught up in the Repack process.
 
-Many users have wildcards for everything, even simple phrasing. I personally have an ```__and__``` tag which I use as a separator token. However, when utilizing Prompt Rewrap
-The blacklist file is a list of words or wildcards you want this system to ignore.
+That's where the blacklist.txt file comes into play. This is a list of words or wildcards you want this system to ignore. See ```comfyui-adaptiveprompts/repack_files/blacklist.txt``` for examples.
+
 
 **Current Limitations (as of 18/08/2025)**: It currently only supports drawing a wildcard if the matched phrase/word equals the line in the wildcard file. In other words: provide the string: ```harry_potter and luke_skywalker```
 ```
