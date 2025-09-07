@@ -3,18 +3,13 @@ import re
 import random
 
 import numpy as np
+from typing import Tuple
+
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 from comfy.cli_args import args
 from comfy.comfy_types import ComfyNodeABC, InputTypeDict
-
-LORA_PATTERN = r"<lora:[^>]+>"
-import random
-from typing import Tuple
-
-import random
-from typing import Tuple
 
 LORA_PATTERN = re.compile(r"<lora:[^>]+>")
 
@@ -235,95 +230,3 @@ class StringSplit(ComfyNodeABC):
         after = delimiter.join(parts[end:])
 
         return (before, middle, after)
-
-class LoraTagNormalizer:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "string": ("STRING", {"multiline": True, "default": ""}),
-                "total_weight": ("FLOAT", {"default": 1.0, "min": 0.0, "tooltip": "The final weight of all the tags combined"}),
-                "bounds": (["POSITIVE", "NEGATIVE", "BOTH"], {"default": "BOTH", "tooltip": "Only includes positive, negative, or both values.\nUsed to have separate control over positive and negative loras."}),
-            }
-        }
-
-    RETURN_TYPES = ("STRING",)
-    FUNCTION = "normalize"
-    CATEGORY = "adaptiveprompts/utils"
-
-    def normalize(self, string: str, total_weight: float, bounds: str):
-        """
-        Normalize <lora:name:weight> tags.
-
-        - Parses float weights; leaves tags with non-float weights untouched.
-        - Ignores zero weights entirely.
-        - BOUNDS controls which tags participate:
-          POSITIVE: only >0
-          NEGATIVE: only <0
-          BOTH: all (magnitudes normalized, sign preserved)
-        - Multiplies normalized proportions by total_weight.
-        - Rounds output to 3 decimal places.
-        """
-        pattern = re.compile(r"<lora:([^:>]+):([^>]+)>")
-        matches = list(pattern.finditer(string))
-
-        # Collect parseable, non-zero lora entries
-        entries = []
-        for m in matches:
-            full = m.group(0)
-            name = m.group(1)
-            raw_weight = m.group(2).strip()
-            try:
-                w = float(raw_weight)
-            except Exception:
-                # leave unparseable tags unchanged
-                continue
-            if w == 0.0:
-                # explicitly ignore zero-weight tags
-                continue
-            entries.append({"full": full, "name": name, "weight": w})
-
-        # nothing to normalize
-        if not entries:
-            return (string,)
-
-        # Build normalized mapping keyed by the original full tag string
-        normalized_map = {}
-
-        if bounds == "POSITIVE":
-            positives = [e for e in entries if e["weight"] > 0]
-            total_pos = sum(e["weight"] for e in positives)
-            if total_pos == 0:
-                return (string,)
-            for e in positives:
-                new_val = (e["weight"] / total_pos) * total_weight
-                normalized_map[e["full"]] = f"<lora:{e['name']}:{new_val:.3f}>"
-
-        elif bounds == "NEGATIVE":
-            negatives = [e for e in entries if e["weight"] < 0]
-            total_neg_abs = sum(abs(e["weight"]) for e in negatives)
-            if total_neg_abs == 0:
-                return (string,)
-            for e in negatives:
-                # preserve negative sign while distributing by magnitude
-                new_val = (e["weight"] / total_neg_abs) * total_weight
-                normalized_map[e["full"]] = f"<lora:{e['name']}:{new_val:.3f}>"
-
-        else:  # BOTH
-            total_abs = sum(abs(e["weight"]) for e in entries)
-            if total_abs == 0:
-                return (string,)
-            for e in entries:
-                mag = (abs(e["weight"]) / total_abs) * total_weight
-                sign = 1.0 if e["weight"] > 0 else -1.0
-                new_val = mag * sign
-                normalized_map[e["full"]] = f"<lora:{e['name']}:{new_val:.3f}>"
-
-        # Replace tags using the original matched text as the key.
-        def repl(m):
-            orig = m.group(0)
-            return normalized_map.get(orig, orig)
-
-        new_string = pattern.sub(repl, string)
-        return (new_string,)
-

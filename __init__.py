@@ -5,8 +5,8 @@ from .py.prompt_generator import PromptGenerator
 from .py.weight_lifter import WeightLifter
 from .py.image_nodes import SaveImageAndText
 from .py.prompt_alias import PromptAliasSwap
-from .py.prompt_trimmer import PromptTrimmer
-from .py.prompt_mix import PromptMix
+from .py.prompt_splitter import PromptSplitter
+from .py.prompt_mixer import PromptMixer
 from .py.prompt_shuffle import PromptShuffle, PromptShuffleAdvanced
 from .py.string_utils import *
 from .py.misc_utils import *
@@ -18,8 +18,8 @@ NODE_CLASS_MAPPINGS = {
     "PromptAliasSwap": PromptAliasSwap,
     "PromptReplace": PromptReplace,
     "WeightLifter": WeightLifter,
-    "PromptTrimmer": PromptTrimmer,
-    "PromptMix": PromptMix,
+    "PromptSplitter": PromptSplitter,
+    "PromptMixer": PromptMixer,
     "PromptShuffle": PromptShuffle,
     "PromptShuffleAdvanced": PromptShuffleAdvanced,
     "PromptCleanup": PromptCleanup,
@@ -30,9 +30,7 @@ NODE_CLASS_MAPPINGS = {
     "ScaledSeedGenerator": ScaledSeedGenerator,
     "TagCounter": TagCounter,
     "SaveImageAndText": SaveImageAndText,
-    "RandomFloat": RandomFloat,
     "RandomFloats": RandomFloats4,
-    "RandomInteger": RandomInteger,
     "RandomIntegers": RandomIntegers4,
     
 }
@@ -43,8 +41,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptAliasSwap": "Prompt Alias Swap 📚",
     "PromptReplace": "Prompt Replace 🔁",
     "WeightLifter": "Weight Lifter 🏋️‍♀️",
-    "PromptTrimmer": "Prompt Trimmer ✂️",
-    "PromptMix": "Prompt Mix 🥣",
+    "PromptSplitter": "Prompt Splitter ✂️",
+    "PromptMixer": "Prompt Mixer 🥣",
     "PromptShuffle": "Prompt Shuffle ♻️",
     "PromptShuffleAdvanced": "Prompt Shuffle ♻️ (Advanced)",
     "PromptCleanup": "Prompt Cleanup 🧹",
@@ -55,9 +53,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ScaledSeedGenerator": "Scaled Seed Generator 🌱",
     "TagCounter": "Tag Counter",
     "SaveImageAndText": "Save Image And Text",
-    "RandomFloat": "Random Float",
     "RandomFloats": "Random Floats 4",
-    "RandomInteger": "Random Integer",
     "RandomIntegers": "Random Integers 4",
 }
 

@@ -3,7 +3,7 @@ import random
 
 LORA_PATTERN = r"<lora:[^>]+>"
 
-class PromptTrimmer:
+class PromptSplitter:
     """
     A ComfyUI custom node that trims or keeps parts of a prompt string
     according to different probabilistic and deterministic strategies.

@@ -3,20 +3,16 @@ import re
 from typing import Dict, List, Tuple, Optional
 from .generator import SeededRandom
 
-
-# ----------------------------- Wildcard preprocessor -----------------------------
-
 class WildcardPreprocessor:
     """
-    Loads wildcards from /wildcards and keeps a sanitized list of (wildcard_name, raw_line)
-    WITHOUT expanding {brackets}. Expansion (if any) happens later during indexing
-    depending on the `index_brackets` flag.
+    Loads wildcards from /wildcards and keeps a list of (wildcard_name, raw_line)
+    If `index_brackets` flag is true, then the pre-cache process will expand {brackets|like|these} when assigning values
 
     Sanitize rules before indexing:
       - Trim anything after the first '#' on a line (and the '#').
       - Remove all '%...%' segments (weights).
       - Ignore lines that are empty after trimming or that start with '!' or '#'.
-      - RED FLAGS (skip whole line):
+      - Lines that contain any of the following will be ignored:
           1) Any comma present.
           2) Any occurrence of "__" (placeholder-like content).
           3) Any bracket that contains "$$".
@@ -33,8 +29,7 @@ class WildcardPreprocessor:
     @staticmethod
     def _strip_inline_comments(line: str) -> str:
         """
-        Remove everything from the first '#' to the end of line (no escaping).
-        Also trims the result.
+        Remove everything from the first '#' to the end of line
         """
         if not line:
             return line
@@ -46,8 +41,7 @@ class WildcardPreprocessor:
     @staticmethod
     def _strip_weights(line: str) -> str:
         """
-        Remove all %...% segments (used for weights).
-        E.g., 'Epic Ninja %50%' -> 'Epic Ninja'
+        Remove all chance weight %...% segments
         """
         # remove multiple occurrences if present
         return re.sub(r'%[^%]*%', '', line)
@@ -85,7 +79,7 @@ class WildcardPreprocessor:
                         if '$$' in content:
                             has_dollardollar = True
                         start_idx = -1
-        # if depth != 0, unbalanced braces; treat as nested/problematic
+        # if depth != 0, unbalanced braces... treat as nested
         if depth != 0:
             has_nested = True
         return has_nested, has_dollardollar
@@ -144,9 +138,6 @@ class WildcardPreprocessor:
     def get_raw_entries(self) -> List[Tuple[str, str]]:
         return list(self.raw_entries)
 
-
-# ----------------------------- Prompt Repack (optimized redesign) -----------------------------
-
 class PromptRepack:
     """
     detection_mode:
@@ -162,8 +153,6 @@ class PromptRepack:
       - If a value appears in multiple wildcard files, choose a random allowed group per occurrence
         using SeededRandom (deterministic for a given seed).
     """
-
-    # ------------------- ComfyUI metadata -------------------
 
     @classmethod
     def INPUT_TYPES(cls):

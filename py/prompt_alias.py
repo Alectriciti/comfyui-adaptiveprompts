@@ -51,14 +51,14 @@ class PromptAliasSwap:
                     "default": "tags.txt",
                     "tooltip": "Choose a .txt alias file from the 'tag_alias' folder.\n.csv format not currently supported"
                 }),
-                "refresh_file": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "If True, re-read the alias file and refresh cache."
-                }),
                 "mode": (["ALWAYS", "RANDOM"], {"default": "ALWAYS", "tooltip": mode_tip}),
                 "chance": ("FLOAT", {
                     "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,
                     "tooltip": chance_tip
+                }),
+                "refresh_file": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "If True, re-read the alias file and refresh cache."
                 }),
             }
         }

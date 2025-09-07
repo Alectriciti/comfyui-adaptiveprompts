@@ -513,25 +513,36 @@ def process_bracket(content: str,
         except Exception:
             separator = raw_separator
 
-    # Split choices by top-level pipes (ignore nested '|')
-    raw_choices = [c for c in _split_top_level_pipes(choices_str) if c.strip()]
+    # Split choices by top-level pipes (ignore nested '|'), and preserve a single-space choice " " as a valid option.
+    raw_choices = []
+    for c in _split_top_level_pipes(choices_str):
+        if c == " ":
+            # allow exactly one-space to survive as a choice
+            raw_choices.append(c)
+        else:
+            # otherwise require non-empty after stripping
+            if c.strip():
+                raw_choices.append(c)
     rng = seeded_rng.next_rng()
 
     # Canonicalize choice keys so each top-level choice is used once per cycle
     # A key is (kind, canonical, original_string)
     choice_keys = []
     for c in raw_choices:
-        c_stripped = c.strip()
+        # preserve a single-space choice (don't strip it to empty string)
+        if c == " ":
+            c_stripped = " "
+        else:
+            c_stripped = c.strip()
+
         if is_file_wildcard(c_stripped):
             m = FILE_PATTERN.fullmatch(c_stripped)
             wc_name = (m.group(1) or "").strip()
-            # canonical identifier: wildcard *name* as written (so all draws for the same
-            # name share the same deck if they point to the same file).
-            # (Patterns that choose among multiple files still use deck per chosen file.)
             key = ("file", wc_name, c_stripped)
         else:
             key = ("lit", c_stripped, c_stripped)
         choice_keys.append(key)
+
 
     # Unique by key (kind+canonical), then we will shuffle per cycle
     # Keep insertion order first, then shuffle cycle each time for randomness.

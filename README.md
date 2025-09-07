@@ -1,19 +1,23 @@
 # Adaptive Prompts
 
 
+<img src="images/adaptive_prompts_logo.png">
+
+
+
 > - **17/08/25** Variables and Comments have been added. All nodes passed main stress-tests. Things are looking good so far!
 > - **15/08/25** Established a somewhat working version of these nodes. It's stable enough to use.
 
 ## Introduction
 
-Adaptive Prompts is a prompt crafting suite. It allows you to randomize, control, shuffle, and even program your prompts. Inspired by the legendary [Dynamic Prompts](https://github.com/adieyal/comfyui-dynamicprompts) by adieyal, which for many people is an essential tool, but hasn't been updated in quite some time.
+**Adaptive Prompts** is a prompt crafting suite. It allows you to randomize, control, shuffle, and even program your prompts. Inspired by the legendary [Dynamic Prompts](https://github.com/adieyal/comfyui-dynamicprompts) by adieyal, which for many people is an essential tool, but hasn't been updated in quite some time.
 
-Think of Adaptive Prompts as a distant relative Dynamic Prompts. You can expect the basic features to work as you know them to, but it is  {For the sake of familiarity|In honor of a new chapter} I will ambiguously refer to this system as { Adaptive | Dynamic } Prompts.
+Think of Adaptive Prompts as a reimagined Dynamic Prompts. You can expect the basic features to work as you know them to. Unless explicitly stated otherwise, from here on out, I will ambiguously refer to this system as { Dynamic | Adaptive } Prompts.
 
 
 # ⚡ Quick Node Reference 
 
-## Generation Nodes
+## Prompt Generation Nodes
 These nodes generate new content in your prompt, either by utilizing dynamic prompt syntax, or some other method of generation.
 
 >In these descriptions, a "phrase" can be defined as the space between two commas: *"masterpiece, **this is a phrase**, low quality"*
@@ -24,25 +28,28 @@ These nodes generate new content in your prompt, either by utilizing dynamic pro
 | 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Originally "Random Prompts" |
 | 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New/Experimental |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New/Experimental |
-| 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | Does not yet support .csv  |
+| 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | does not currently support .csv  |
 
-## Processing Nodes
+## Prompt Processing Nodes
 | Node | Description | Note |
 |------|---------|-------|
 | 🏋️‍♀️ Weight Lifter | Randomly or procedurally applies weights to phrases, "(epic masterpiece:1.105), (highres:0.925)" |  |
-| ✂️ Prompt Trimmer | Remove or keeps sections of a prompt based on various algorithms. | |
-| 🥣 Prompt Mix | Takes two prompts and mixes them together with a variety of methods. Useful for sprinkling in processed tags/phrases. | |
+| ✂️ Prompt Splitter | Remove or isolates sections of a prompt based on various algorithms. | |
+| 🥣 Prompt Mixer | Takes two prompts and mixes them together with a variety of methods. Useful for sprinkling in processed tags/phrases. | Supports Prompt Generation |
 | ♻️ Prompt Shuffle | Randomly shuffles phrases with a limit on how many are shuffled. Lightweight and fast. | |
 | ♻️ Prompt Shuffle (Advanced) | Utilizes techniques such as walking, rather than arbitrarily shuffling the phrases. Useful for subtle variance. | |
-| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc. Usually last in the node chain. | |
+| 🧹 Prompt Cleanup | A very simple multi-tool. Tidies up prompts, such as removing whitespace, extra commas, lora tags, etc. | |
 
 ## Utility Nodes
 | Node | Description | Note |
 |------|---------|-------|
 | 🔗 String Append | Combines multiple strings into one using a specified separator. Comes in a 3 and 8 version. | |
 | ⛓️‍💥 String Split | Directly splits a prompt into 3 parts to isolate a middle section using start and end. | |
+| ⛓️‍💥 Tag Counter | Directly splits a prompt into 3 parts to isolate a middle section using start and end. | |
 | 🟰 Normalize Lora Tags | Provides lora weight control by normalizing the values of lora tags. Allowing for flexible inputs. | used w/ Lora Tag Loader |
 | 🖼️ SaveImageAndText | Comfy's Image Saver, but saves a .txt file with contents of your choosing. Intended for saving the resulting prompt. | |
+| 🌱 Scaled Seed Generator | Deterministically generates 4 random seeds, allowing for frequency offsets for each seed. | |
+
 
 
 
@@ -168,7 +175,7 @@ This is no longer the case. The contents of brackets will always adhere to the l
 
 ### Lora tags with "weird__underscores" no longer break syntax
 
-Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. *cough cough*. So `<lora:coolest__lora__ever__:1.0>` will not break things.
+Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. So `<lora:coolest__lora__ever__:1.0>` will not break things.
 
 ## Separator Syntax
 
@@ -280,7 +287,7 @@ Great for randomized story/scenario prompts.
 
 
 ## 📦 Prompt Repack
-<img src="images/prompt_repack_example.png"/>
+<img src="images/prompt_repack.png"/>
 
 Prompt Repack is an experimental node which can be thought of as the inverse of Prompt Generation. It encapsulates keywords with a wildcard file they exist in. This allows for semantic driven dynamic prompting and even more brainstorming.
 
@@ -328,7 +335,7 @@ Acts as a standard String Replace function, with a twist. The search string and 
 the quick brown fox jumped over the lazy dog
 ```
 
-**Search** - performs multiple searches based on new lines
+**Search** - performs multiple searches, and new lines will act as additional replace strings:
 ```
 fox
 dog
@@ -349,23 +356,66 @@ the quick brown cow and pig jumped over the lazy cat
   - Allows for multi-line inputs for searching, allowing for many different keywords to be swapped out in one go.
 
 
-# 🏋️‍♀️ Weight Lifter
 
-An experimental node to shuffle up the weights on your nodes.
+## 📚 Prompt Alias Swap
 
- ```this text is not strong, it is weak, it needs srs gainz```
- --->
- ```(this text is not strong:1.08), (it is weak:1.16), (it needs srs gainz:1.27)```
+<img src="images/prompt_alias.png">
+
+This node swaps out similar keywords based on an alias text file. It considers swapping out that tag with its alias. This can be useful for shorthand prompting.
+
+This is intended to be used with "alias.cvs" files. Paste its contents into an alias.txt file.
+
+That folder can be located at:
+```comfyui-adaptiveprompts/tag_alias_files/```
+
+If you wish to set these files up manually:
+```
+kermit, kermit_the_frog, kermit_\(the_muppets\)
+masterpiece, epic_masterpiece, absurd_masterpiece
+```
+
+It utilizes two modes:
+- **ALWAYS** - If a tag can be swapped, it will always be swapped.
+- **RANDOM** - Has a chance of re-rolling the alias that triggered it, leaving it unchanged.
+
+
+Note: Unlike Prompt Repack, this feature does *not* support whitespace of any kind. It is intended to work with booru styled tags.
+
+## 🏋️‍♀️ Weight Lifter
+
+<img src="images/weight_lifter.png">
+
+Weight Lifter is an experimental node which can shuffles the weights in your prompt.
+
+ ```
+ this text is not strong, it is weak, it needs srs gainz
+ ```
+
+ ```
+ (this text is not strong:1.08), (it is weak:1.16), (it needs srs gainz:1.27)
+ ```
+
+This can be useful for applying subtle emphasis or de-emphasis weighting to your prompt. This feature is still being developed, so please try out some of it's parameters.
+
+## 🥣 Prompt Mixer
+<img src="images/prompt_mixer.png"/>
+
+**Prompt Mixer** is a versatile node that takes two prompts: a base prompt and a mix-in prompt, and blends them together using different strategies. It’s especially useful for combining tag sets, sprinkling variations into existing prompts, or making final adjustments to an existing prompt.
+
+>Note: The mix-in string supports dynamic prompting.
 
 
 # 🛠️ Extra Utilities
 
->These are simple but useful nodes that can apply to most comfy workflow, and can serve as powerful post-processing nodes for adaptive prompts.
+These are simple but useful nodes that can apply to most comfy workflow, and can serve as powerful post-processing nodes for adaptive prompts.
 
 ## ♻️ **Prompt Shuffle**
   - A very simple shuffler which can randomize ordering of a prompt.
   - Unlike the advanced version, the ```limit``` parameter limits the number of tags output.
 ## ♻️ **Prompt Shuffle (Advanced)**
+
+<img src = "images/prompt_shuffle.png">
+
   - Similar function as above, but utilizes logic to shuffle the tags, which helps greatly with the decaying emphasis nature of prompts.
   - WALK allows tags to travel per action, utilize decay, and many other things.
 ## 🧹 **Prompt Cleanup**
@@ -427,13 +477,12 @@ Consider combining this with the Lora Tag Normalizer.
 
 # Installation
 
-Install like any other ComfyUI Node pack. Download the Zip and place in ```/ComfyUI/custom_nodes/```
+Install like any other ComfyUI Node pack, dropping it into:
+ ```/ComfyUI/custom_nodes/```
 
 ## Disclaimers
 
-This project is a proof of concept and experimental. 
-
-I've been programming for quite a long time and have a good understanding off logical flow and optimization, but I am not very experiened with python. The code works, so take that for what you will.
+This project took me awhile. I'm still  If you have any optimizations or suggestions, please feel free to contribute.
 
 I have no plans to adapt this to any other UI, as dynamic-prompts for A1111. It didn't need it. It's far more efficient and useful than ComfyUI's implementation.
 

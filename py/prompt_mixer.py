@@ -1,10 +1,14 @@
+import os
 import re
 import math
 from typing import List, Tuple
-from .generator import SeededRandom
+from .generator import resolve_wildcards, SeededRandom
 
 
-class PromptMix:
+class PromptMixer:
+    def __init__(self):
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        self.input_dir = os.path.join(base_dir, "wildcards")
     """
     Prompt Mix - sprinkle tokens from a 'mix' prompt into a base prompt.
 
@@ -186,7 +190,15 @@ class PromptMix:
             seed: int,
             delimiter: str = ",") -> Tuple[str]:
 
+        # Create a SeededRandom for resolve_wildcards (resolver expects this type)
         seeded = SeededRandom(seed)
+
+        # Resolve wildcards inside prompt_mix using the SeededRandom
+        pre_resolved_vars = {}
+        if prompt_mix:
+            prompt_mix = resolve_wildcards(prompt_mix, seeded, self.input_dir, _resolved_vars=pre_resolved_vars)
+
+        # Derive a plain random.Random for local sampling (slot selection, shuffling)
         rng = seeded.next_rng()
 
         # Split tokens, trimming around delimiter
@@ -220,7 +232,7 @@ class PromptMix:
 
         n = len(base_tokens)
 
-        # Cap keep_first to [0, n]
+        # Cap keep_first to [0, n] (so very large keep_first becomes n)
         keep_first = max(0, min(keep_first, n))
 
         # Number of insertion slots available from keep_first .. end (append-at-end included)

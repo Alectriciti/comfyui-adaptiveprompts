@@ -1,5 +1,6 @@
 import re
 import math
+from typing import List, Tuple, Dict
 from .generator import SeededRandom
 
 
@@ -92,16 +93,12 @@ class WeightLifter:
         """Return k unique integer positions in [0, N-1], spread as evenly as possible."""
         if k >= N: return list(range(N))
         if k <= 1: return [N // 2]
-        # Use rounding on linspace-like positions
         pos = [int(round(i * (N - 1) / (k - 1))) for i in range(k)]
-        # Dedup while preserving relative spread; if duplicates, fill gaps
         out, used = [], set()
         for p in pos:
             if p not in used:
                 out.append(p); used.add(p)
-        # Fill if we lost some to dedup
         if len(out) < k:
-            # insert closest missing positions
             for i in range(N):
                 if i not in used:
                     out.append(i); used.add(i)
@@ -123,7 +120,6 @@ class WeightLifter:
         if k == N:
             return list(eligible), {}
 
-        # Map into positions [0..N-1] for selection logic, then translate back.
         pos_all = list(range(N))
 
         if mode in ("RANDOM", "NOISE"):
@@ -136,25 +132,21 @@ class WeightLifter:
             return [eligible[p] for p in pos_sel], {}
 
         if mode == "BURST":
-            # clustered selection: choose 1–3 centers, then pick around them
             centers_count = int(round(1 + rng.random() * 2))  # 1..3
             centers_count = max(1, min(3, centers_count))
             centers = self._rand_sample(rng, pos_all, centers_count)
             centers.sort()
 
-            # window size scales with N and target k
             window = max(1, int(round(max(N * 0.08, k * 0.6 / max(1, centers_count)))))
 
             pos_sel_set = set()
-            # round-robin expanding around centers
             while len(pos_sel_set) < k:
                 for c in centers:
-                    if len(pos_sel_set) >= k: break
-                    # pick an offset near the center
+                    if len(pos_sel_set) >= k:
+                        break
                     offset = int(round(rng.uniform(-window, window)))
                     p = self._clamp(c + offset, 0, N - 1)
                     pos_sel_set.add(p)
-                # safety: if saturated with few options, random backfill
                 if len(pos_sel_set) < k and len(pos_sel_set) == len(set(pos_sel_set)):
                     pos_sel_set |= set(self._rand_sample(rng, pos_all, k - len(pos_sel_set)))
 
@@ -162,7 +154,7 @@ class WeightLifter:
             aux = {"centers": centers, "window": window, "N": N}
             return [eligible[p] for p in pos_sel], aux
 
-        # Fallback: RANDOM
+        # Fallback
         pos_sel = self._rand_sample(rng, pos_all, k)
         pos_sel.sort()
         return [eligible[p] for p in pos_sel], {}
@@ -174,68 +166,90 @@ class WeightLifter:
                 keyword_variance, jitter_strength):
 
         rng = SeededRandom(seed)
+
+        # Keep the parts split such that delimiters are preserved
         parts = re.split(f"({re.escape(delimiter)})", prompt) if delimiter else [prompt]
         kws = self._parse_keywords(keyword_selection)
 
         # Collect eligible tag indices (even positions in parts)
-        eligible = []
-        meta = {}  # index -> dict(meta)
+        eligible: List[int] = []
+        meta: Dict[int, Dict] = {}  # index -> metadata
+
         for i in range(0, len(parts), 2):
-            seg = parts[i]
-            inner = re.match(r'^\(\s*(.*?)\s*\)$', seg.strip())
-            body = inner.group(1) if inner else seg.strip()
-            if not body:
+            seg = parts[i]  # preserve exact whitespace/newlines here
+
+            # If segment is empty or whitespace only, skip
+            if not seg or seg.strip() == "":
                 continue
 
-            # parse existing explicit weight, if any
-            m_w = re.match(r'^(.*?)(?::\s*([0-9]*\.?[0-9]+))$', body)
-            text = m_w.group(1) if m_w else body
-            existing = float(m_w.group(2)) if m_w else None
+            # Preserve leading/trailing whitespace exactly (we'll reuse them when reconstructing)
+            leading_ws = re.match(r'^\s*', seg).group(0)
+            trailing_ws = re.search(r'\s*$', seg).group(0)
+            core = seg[len(leading_ws):len(seg) - len(trailing_ws)]
 
-            # Keyword eligibility
+            # Detect an outer parenthesis group that wraps the whole core (e.g. "(tag:0.7)")
+            m_paren = re.match(r'^\(\s*(.*)\s*\)$', core, flags=re.DOTALL)
+            inner_core = m_paren.group(1) if m_paren else core
+
+            # Detect existing numeric weight at the end: capture text and number
+            m_w = re.match(r'^(.*?)(?:\s*:\s*([0-9]+(?:\.[0-9]+)?))\s*$', inner_core, flags=re.DOTALL)
+            if m_w:
+                text_raw = m_w.group(1)
+                existing = float(m_w.group(2))
+            else:
+                text_raw = inner_core
+                existing = None
+
+            # Trim the internal text edges but preserve internal spacing
+            text = text_raw.strip()
+            if not text:
+                # nothing useful inside, skip
+                continue
+
+            # Keyword gating
             is_kw = self._is_keyword(text, kws) if kws else False
             if keyword_mode == "ONLY" and not is_kw:
                 continue
             if keyword_mode == "IGNORE" and is_kw:
                 continue
 
-            # Existing tag behavior gating
+            # If PRESERVE and there is an existing weight, do not consider this segment eligible
             if existing is not None and existing_tag_behavior == "PRESERVE":
-                # do not modify existing weighted tags in PRESERVE mode
+                # keep unchanged in output; do not add to eligible
                 continue
 
+            # this is eligible for modification
             eligible.append(i)
             meta[i] = {
-                "raw_seg": seg,
-                "has_paren": inner is not None,
+                "leading_ws": leading_ws,
+                "trailing_ws": trailing_ws,
+                "had_paren": bool(m_paren),
                 "text": text,
                 "existing": existing,
                 "is_kw": is_kw,
+                # keep original core for fallback if needed
+                "original_core": core,
             }
 
         # Pre-select which eligible tags to modify based on the mode
         selected, aux = self._select_indices(rng, eligible, mode, limit)
         total = len(selected)
 
-        # Precompute sequences for structured modes over the ORDERED selection
-        # We'll use the order of 'selected' as they appear in the original prompt.
         baseline = self._baseline(min_weight, max_weight)
-
         noise_seq = self._smooth_noise(rng, total) if (mode == "NOISE" and total > 0) else None
-        # For BURST, we already have centers/window in aux (computed in selection)
-
-        # Build a map index -> rank among selected (0..total-1) for gradient/noise
+        # Map selected index -> rank (0..total-1) in selected order
         rank_map = {idx: r for r, idx in enumerate(selected)}
 
-        # Compose output with modifications only on selected indices
-        results = []
+        # Compose output preserving everything not modified
+        results: List[str] = []
         for i, seg in enumerate(parts):
+            # delimiters unchanged
             if delimiter and i % 2 == 1:
                 results.append(seg)
                 continue
 
+            # If not eligible or not selected, keep original seg exactly
             if i not in meta or i not in rank_map:
-                # Not selected (or ineligible) -> keep original
                 results.append(seg)
                 continue
 
@@ -243,13 +257,14 @@ class WeightLifter:
             text = info["text"]
             existing = info["existing"]
             is_kw = info["is_kw"]
+            leading_ws = info["leading_ws"]
+            trailing_ws = info["trailing_ws"]
 
-            # Proposed weight (before existing_tag_behavior application)
-            # Start with a base around the baseline (used by BURST's shape).
+            # Proposed base weight (for shapes that use baseline)
             base = self._clamp(existing if (existing is not None and existing_tag_behavior == "PRESERVE") else baseline,
                                min_weight, max_weight)
 
-            # mode-specific proposal
+            # Generate proposed weight depending on mode and rank among selected
             if mode == "RANDOM":
                 w = rng.uniform(min_weight, max_weight)
 
@@ -264,45 +279,37 @@ class WeightLifter:
                 w = min_weight + s * (max_weight - min_weight)
 
             elif mode == "BURST":
-                # Weight bump around nearest cluster center over eligible positions.
-                # Recompute relative position of this index among the eligible list.
-                # We need its position (0..N-1)
                 if "N" in aux and "centers" in aux and "window" in aux:
-                    # Locate this index's position among eligible
                     N = aux["N"]
                     centers = aux["centers"]
                     window = max(1, aux["window"])
-                    # Build a quick lookup: position in eligible list
-                    # (Do a simple index lookup; eligible is small relative to prompt)
                     pos = next((p for p, idx in enumerate(eligible) if idx == i), 0)
-                    # distance from nearest center (in positions)
                     d = min(abs(pos - c) for c in centers) if centers else 0
-                    s = math.exp(- (d / float(window)) ** 2)  # 1.0 at center, fades outward
+                    s = math.exp(- (d / float(window)) ** 2)
                     w = base + (rng.uniform(-1, 1) * (max_weight - min_weight) * s)
                 else:
-                    # Fallback if aux missing
                     w = rng.uniform(min_weight, max_weight)
 
             else:
                 w = base
 
-            # Optional jitter (applied before keyword shaping)
+            # jitter
             if jitter_strength > 0:
                 w += rng.uniform(-1, 1) * (max_weight - min_weight) * jitter_strength
 
-            # Keyword shaping
+            # Keyword shaping overrides
             if keyword_mode == "BOOST" and is_kw:
                 w = max_weight + rng.uniform(-keyword_variance, keyword_variance)
             elif keyword_mode == "SUPPRESS" and not is_kw:
                 w = min_weight - rng.uniform(0, keyword_variance)
 
-            # Apply existing_tag_behavior
+            # Apply behavior for existing tags
             if existing is not None:
                 if existing_tag_behavior == "PRESERVE":
-                    # Shouldn't happen because PRESERVE excluded existing-weighted from selection,
-                    # but keep the guard to be safe.
+                    # Should not happen because we filtered earlier, but keep guard
                     new_w = existing
                 elif existing_tag_behavior == "MODIFY":
+                    # blend: shift existing by delta(proposed - 1.0)
                     delta = w - 1.0
                     new_w = existing + delta
                 else:  # OVERWRITE
@@ -312,6 +319,10 @@ class WeightLifter:
 
             new_w = self._clamp(new_w, 0.0, 10.0)
             w_str = self._fmt_weight(new_w)
-            results.append(f"({text}:{w_str})")
+
+            # Reconstruct segment. Always wrap result in parentheses around the clean 'text'
+            # and restore the original leading/trailing whitespace exactly.
+            rebuilt = f"{leading_ws}({text}:{w_str}){trailing_ws}"
+            results.append(rebuilt)
 
         return ("".join(results),)
