@@ -340,7 +340,7 @@ This is planned to be fixed.
 
 
 ## 🔁 Prompt Replace
-<img src="images/dynamic_replacement.png"/>
+<img src="images/prompt_replace_example.png"/>
 
 Acts as a standard String Replace function, with a twist. The search string and replace string both accept wildcards.
 
@@ -409,7 +409,20 @@ Weight Lifter is an experimental node which can shuffles the weights in your pro
  (this text is not strong:1.08), (it is weak:1.16), (it needs srs gainz:1.27)
  ```
 
-This can be useful for applying subtle emphasis or de-emphasis weighting to your prompt. This feature is still being developed, so please try out some of it's parameters.
+
+You can choose the behavior of existing tags, whether or not to preserve them, or modify them.
+
+Using ```keyword_selection```, the inputs of this field (separated by commas), will act as a filter. If *any* of these keywords exist in the prompt to any extent, it will amplify the entire phrase.
+
+This filter can be set to:
+ONLY - Variation is only applied to the selected phrases.
+IGNORE - Variation is applied to everything except the selected phrases.
+BOOST - Amplifies the selected phases, everything else gets standard variation
+SUPPRESS - Minimizes the selected phases, everything else gets standard variation
+
+This can be useful for applying subtle emphasis or de-emphasis weighting to your prompt.
+
+> Note: This feature is still being developed. Please try out some of it's parameters. It could absolutely be better, so feedback is welcome.
 
 ## 🥣 Prompt Mixer
 <img src="images/prompt_mixer.png"/>
