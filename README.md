@@ -170,19 +170,34 @@ Formerly known as **Random Prompts**. **Prompt Generator** is the essential node
 It works mostly like you remember, but there are a few twists...
 
 ### Wildcards Refresh Instantly
-No more having to restart ComfyUI every time you make a change to wildcards.
 
-### Brackets Wildcards no longer limit length
-Before, doing ```{4-5$$__shape__|__color__}``` would restrict the output to only 2, such as ```square, green```.
-This is no longer the case. The contents of brackets will always adhere to the length you specify!
+No more having to restart ComfyUI every time you make a change to wildcard files.
+
+### Unlimited Bracket Selection
+Previously, there was a limit on how many selections you could pull if there are multiple wildcards within a bracket selector
+```
+{5$$__space__|__land__}    --->   stars, mountain
+```
+But now, bracket selections will ensure each choice is picked once before looping back around:
+
+```
+{5$$__space__|__land__}    --->    stars, mountain, planets, ocean, nebula
+```
+
+## Unresolved Wildcard Handling
+
+Your generation no longer throws an error if no wildcard is found.
+
 
 ### Lora tags with "weird__underscores" no longer break syntax
 
-Gone are the days of renaming loras due to double underscores. Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. So `<lora:coolest__lora__ever__:1.0>` will not break things.
+Gone are the days of renaming loras due to double underscores. Dynamic prompts no longer completely derail simply because of an unfortunate naming convention by a lora. So ```<lora:coolest__lora__ever__:1.0>``` will not break things.
+
+Note: Wildcards can still be used to assign the weight of a lora, such as: ```<lora:cool_lora:__random_float__>```
 
 ## Wildcard Folder Globbing
 
-Folders can be accessed via globbing
+Folders can still be accessed via simple globbing techniques:
 ```
 __colors/*__   ---> retrives any file from the /colors/ folder
 __colors*__     ---> retrieves from any file that starts with "colors"
@@ -491,6 +506,8 @@ Then I run this through the prompt generator:
 ```
 This allows for wildcards and prompts to handle loras for you.
 Consider combining this with the Lora Tag Normalizer.
+
+
 
 # Links
 
