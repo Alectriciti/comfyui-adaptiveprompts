@@ -18,7 +18,7 @@ class PromptReplace:
                 "replace_string": ("STRING", {"tooltip": "The string or wildcard to be replaced with. Each replacement action will re-roll the wildcard", "multiline": True}),
                 "seed": ("INT", {"default": 0}),
                 "limit": ("INT", {"default": 0}),  # 0 means unlimited
-                "debug": ("BOOLEAN", {"default": True}),
+                #"debug": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "context": ("DICT", {}),  # optional incoming context
@@ -30,7 +30,7 @@ class PromptReplace:
     FUNCTION = "replace"
     CATEGORY = "adaptiveprompts/generation"
 
-    def replace(self, string, target_string, replace_string, seed, limit, debug, context=None):
+    def replace(self, string, target_string, replace_string, seed, limit, context=None):
         seeded_rng = SeededRandom(seed)
 
         # Normalize incoming context into dict-of-dicts (origin->value)
@@ -59,8 +59,8 @@ class PromptReplace:
 
                 # Expand replace_string PER replacement
                 replacement = resolve_wildcards(replace_string, seeded_rng, self.input_dir, _resolved_vars=normalized_context)
-                if debug:
-                    print(f"  replace {replacements_done}: {repr(replacement)}")
+                #if debug:
+                #    print(f"  replace {replacements_done}: {repr(replacement)}")
                 replacements_done += 1
                 return replacement
 

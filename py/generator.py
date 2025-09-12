@@ -7,6 +7,7 @@ Changes:
 - Removed arbitrary strip() in order to preserve likeness to the original prompt
   This allows for prompts like {2$${ and | }$$apple|banana|cherry} to function properly}
 - Newlines are preserved
+- Unified handling for __fruit__, __fruit^var__, and __^var__ tokens.
 """
 
 import re
@@ -60,7 +61,7 @@ def is_file_wildcard(choice: str) -> bool:
     return bool(FILE_PATTERN.fullmatch(choice.strip()))
 
 def _space_adjacent_wildcards(s: str) -> str:
-    # keep this — it just ensures adjacent wildcard tokens are separated by a space
+    # ensures adjacent wildcard tokens are separated by a space
     return ADJ_WC_PATTERN.sub(r"\1 \2", s)
 
 # ---------------------- Top-level split helpers ------------------------------
@@ -129,7 +130,6 @@ def _parse_weighted_options(lines_iterable):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        # Remove inline comments after unescaped '#'
         line = re.split(r'(?<!\\)#', line)[0].strip()
         if not line:
             continue
@@ -428,7 +428,6 @@ def process_bracket(content: str,
     if bracket_ctx is None:
         bracket_ctx = {"allow_overflow": bool(bracket_overflow), "decks": {}}
     else:
-        # ensure allow_overflow is set sensibly
         bracket_ctx.setdefault("allow_overflow", bool(bracket_overflow))
         bracket_ctx.setdefault("decks", {})
 
@@ -436,7 +435,6 @@ def process_bracket(content: str,
     dollar_idxs = _find_top_level_dollars(content)
 
     if not dollar_idxs:
-        # No count/separator notation, entire content is choices
         choices_str = content
     elif len(dollar_idxs) == 1:
         idx1 = dollar_idxs[0]
@@ -476,28 +474,43 @@ def process_bracket(content: str,
 
     rng = seeded_rng.next_rng()
 
-    # Build choice triplets: (kind, canonical, original)
-    # - canonical is used for uniqueness/deduping (strip it for canonical form)
-    # - original is preserved for final resolution (to keep whitespace/newlines)
+    # Build enriched choice triplets.
+    # Each key is a tuple: (kind, canonical, original, var_tok)
+    # kind in {"lit", "file", "var"}
     choice_keys = []
     for c in raw_choices:
-        original = c  # preserve exact content
+        original = c  # exact user text (preserve whitespace/newlines)
         trimmed = c.strip()
-        if is_file_wildcard(trimmed):
+
+        m = None
+        if FILE_PATTERN.fullmatch(trimmed):
             m = FILE_PATTERN.fullmatch(trimmed)
-            wc_name = (m.group(1) or "").strip() if m else trimmed
-            canonical = wc_name
-            key = ("file", canonical, original)
+
+        if m:
+            wc_name = m.group(1)  # may be None for pure var recall
+            var_tok = m.group(2)  # may be None
+            if (wc_name is None or wc_name == "") and var_tok:
+                # pure variable recall token: __^var__
+                kind = "var"
+                canonical = var_tok
+                key = (kind, canonical, original, var_tok)
+            else:
+                # a file wildcard (may include a ^var assignment)
+                kind = "file"
+                canonical = (wc_name or "").strip()
+                key = (kind, canonical, original, var_tok)
         else:
+            kind = "lit"
             canonical = trimmed
-            key = ("lit", canonical, original)
+            key = (kind, canonical, original, None)
+
         choice_keys.append(key)
 
-    # Unique by (kind, canonical) — keep the first occurrence's exact original for resolution
+    # Unique by (kind, canonical, var_tok) to avoid duplicates within the same cycle
     seen = set()
     unique_keys = []
     for k in choice_keys:
-        tup = (k[0], k[1])
+        tup = (k[0], k[1], k[3])
         if tup not in seen:
             seen.add(tup)
             unique_keys.append(k)
@@ -515,8 +528,8 @@ def process_bracket(content: str,
     safety_iters = 0
     max_iters = max(32, count * 8)
 
-    def resolve_choice(key_triplet):
-        kind, canonical, original = key_triplet
+    def resolve_choice(key_quad):
+        kind, canonical, original, var_tok = key_quad
         if kind == "lit":
             # Resolve nested content *preserving* the original spacing exactly
             return resolve_wildcards(
@@ -526,22 +539,49 @@ def process_bracket(content: str,
                 bracket_ctx=bracket_ctx,
                 bracket_overflow=bracket_ctx.get("allow_overflow", True),
             )
-        else:
-            # FILE wildcard: use deck-aware process_file_wildcard
-            m = FILE_PATTERN.fullmatch(canonical)
-            wc_name = (m.group(1) or "").strip() if m else canonical
-            sub_rng = seeded_rng.next_rng()
-            val = process_file_wildcard(wc_name, sub_rng, wildcard_dir, bracket_ctx=bracket_ctx)
-            if not val:
+
+        elif kind == "var":
+            # Pure variable recall (e.g., __^x__) — sample from resolved vars for 'canonical' (var name)
+            rng_local = seeded_rng.next_rng()
+            candidates = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
+            if candidates:
+                return rng_local.choice(candidates)
+            else:
+                # nothing to recall; empty string
                 return ""
-            # resolve nested wildcards inside drawn value (using same bracket_ctx)
-            return resolve_wildcards(
-                val, seeded_rng, wildcard_dir,
+
+        else:  # kind == "file"
+            wc_name = canonical  # file name (may be "")
+            # If wc_name is empty, no real file; treat as empty
+            if not wc_name:
+                return ""
+
+            # Draw from file deck (deck-aware)
+            sub_rng = seeded_rng.next_rng()
+            drawn = process_file_wildcard(wc_name, sub_rng, wildcard_dir, bracket_ctx=bracket_ctx)
+            if not drawn:
+                return ""
+
+            # Resolve nested wildcards inside drawn value (share bracket_ctx to keep deck state)
+            resolved_val = resolve_wildcards(
+                drawn, seeded_rng, wildcard_dir,
                 _resolved_vars=_resolved_vars,
                 _depth=0,
                 bracket_ctx=bracket_ctx,
                 bracket_overflow=bracket_ctx.get("allow_overflow", True),
             )
+
+            # If var_tok present, attempt to assign into _resolved_vars[var_tok][wc_name]
+            if var_tok:
+                # Do not clobber existing assignment for this origin (preserve if present)
+                _ensure_var_bucket(_resolved_vars, var_tok)
+                bucket = _resolved_vars[var_tok]
+                # Use the file name as origin key so recall like __fruit^a__ stores under bucket['a']['fruit']
+                origin_key = wc_name
+                if origin_key not in bucket:
+                    bucket[origin_key] = resolved_val
+                # If already present, we keep old value (do not overwrite)
+            return resolved_val
 
     while produced < count and safety_iters < max_iters:
         safety_iters += 1
@@ -590,7 +630,6 @@ def _final_sweep_resolve(text: str,
     This is executed once after the iterative passes to rescue __^var__ style tokens that
     could not be resolved earlier.
     """
-    indent = "  " * _depth
     i = 0
     while True:
         m = FILE_PATTERN.search(text, i)
@@ -664,8 +703,6 @@ def resolve_wildcards(text: str,
       - After the normal iterative passes, runs a final sweep attempting to resolve
         any remaining variable/wildcard tokens once more; removes ones that cannot be resolved.
     """
-    indent = "  " * _depth
-
     if _depth > 80:
         return text
 
@@ -781,6 +818,7 @@ def resolve_wildcards(text: str,
                 replacement = ""
 
                 if wc_name is None and var_tok:
+                    # pure variable recall __^var__
                     rng_local = seeded_rng.next_rng()
                     candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
                     if candidates:
@@ -789,6 +827,7 @@ def resolve_wildcards(text: str,
                         replacement = None
 
                 elif wc_name is not None and var_tok:
+                    # __file^var__ or __name^var__  (assignment or origin-scoped recall)
                     if "*" in var_tok:
                         rng_local = seeded_rng.next_rng()
                         candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
@@ -801,6 +840,7 @@ def resolve_wildcards(text: str,
                         if wc_name in bucket:
                             replacement = bucket[wc_name]
                         else:
+                            # generate once and store under var_tok[wildcard_name]
                             rng_for_this = seeded_rng.next_rng()
                             generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, bracket_ctx=bracket_ctx)
                             if not generated or generated == full_token or generated.strip() == full_token.strip():
@@ -813,9 +853,12 @@ def resolve_wildcards(text: str,
                                     bracket_overflow=bracket_overflow
                                 )
                                 _ensure_var_bucket(_resolved_vars, var_tok)
-                                _resolved_vars[var_tok][wc_name] = replacement
+                                # do not overwrite existing origin value if present
+                                if wc_name not in _resolved_vars[var_tok]:
+                                    _resolved_vars[var_tok][wc_name] = replacement
 
                 else:
+                    # plain wildcard: __name__
                     rng_for_this = seeded_rng.next_rng()
                     generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, bracket_ctx=bracket_ctx)
                     if not generated or generated == full_token or generated.strip() == full_token.strip():
