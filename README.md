@@ -4,6 +4,7 @@
 <img src="images/adaptive_prompts_logo.png">
 
 
+> - **12/09/25** Context is now chainable, allowing for variables to be instantiated separately. Newline/Whitespace stripping fixed.
 > - **06/09/25** Adaptive Prompts Release!
 > - **17/08/25** Variables and Comments have been added. All nodes passed main stress-tests. Things are looking good so far!
 > - **15/08/25** Established a somewhat working version of these nodes. It's stable enough to use.
@@ -17,12 +18,10 @@ Think of Adaptive Prompts as a reimagined Dynamic Prompts. You can expect the ba
 
 # ⚡ Quick Node Reference 
 
+In these descriptions, a "phrase" can be defined as the space between two commas: *"masterpiece, **this is a phrase**, low quality"*
+
 ## Prompt Generation Nodes
-
-These nodes generate new content in your prompt, either by utilizing dynamic prompt syntax, or some other method of generation.
-
->In these descriptions, a "phrase" can be defined as the space between two commas: *"masterpiece, **this is a phrase**, low quality"*
-
+> These nodes generate content in your prompt, either by utilizing dynamic prompt syntax, or some other method of generation.
 
 | Node | Description | Note |
 |------|---------|-------|
@@ -30,8 +29,11 @@ These nodes generate new content in your prompt, either by utilizing dynamic pro
 | 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New/Experimental |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New/Experimental |
 | 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | does not currently support .csv  |
+| Prompt Context Merge | Combines the context of Prompt Generator, merging the created dictionaries. |  |
 
 ## Prompt Processing Nodes
+> These nodes primarily modify strings, primarily through the use of **phrases**.
+
 | Node | Description | Note |
 |------|---------|-------|
 | 🏋️‍♀️ Weight Lifter | Randomly or procedurally applies weights to phrases, "(epic masterpiece:1.105), (highres:0.925)" |  |
@@ -161,6 +163,8 @@ Yes, the possibilities are endless. And these are just the basics of what can be
 
 ## 💡 Prompt Generator
 
+>9/12/2025 UPDATED: Added context input and output. This allows for chaining prompt generators to preserve variable context. See [variables](#⚡variables) below.
+
 >Reminder: wildcards must be placed at: ```comfyui-adaptiveprompts/wildcards/```
 
 <img src="images/prompt_generator.png"/>
@@ -267,14 +271,18 @@ Output: ```Huh, must have been the wind.```
 Variables can be assigned and accessed in a few different ways. They can even be accessed from within wildcards. They can technically be set within wildcards, but i wouldn't recommend it due to how the ordering is done.
 
 ### ✏️ Variable Assignment 
-```
-## {variables|can|be|assigned|like|this}^alpha ##
-## or can be assigned like this: __character^awesome__ ##
 
-Note: the comment blocks not only prevent the resulting text from being included in the output,
-but ensure they are calculated before the rest of the prompt is executed.
-this is technically a limitation, but also a feature. you can run it without the comment blocks, but variable retrievals might return nothing.
+> As of 9/12/2025, there is a new method to assign variables.
+
+Within a Prompt Generator, you could create the following:
 ```
+Fruit: __fruit^a__
+Color: __color^color__
+Alpha: {variables|can also be|assigned like this}^alpha
+```
+
+The prompt output for this can help you display the variable results.
+The *context* can be linked to another Prompt Generator to preserve the variable data.
 
 ### 🔍 Variable Retrieval
 ```

@@ -1,7 +1,7 @@
 import os
 from .py.prompt_repack import PromptRepack
 from .py.prompt_replace import PromptReplace
-from .py.prompt_generator import PromptGenerator, PromptContextCombiner
+from .py.prompt_generator import PromptGenerator, PromptContextMerge
 from .py.weight_lifter import WeightLifter
 from .py.image_nodes import SaveImageAndText
 from .py.prompt_alias import PromptAliasSwap
@@ -22,7 +22,7 @@ NODE_CLASS_MAPPINGS = {
     "PromptMixer": PromptMixer,
     "PromptShuffle": PromptShuffle,
     "PromptShuffleAdvanced": PromptShuffleAdvanced,
-    "PromptContextCombiner": PromptContextCombiner,
+    "PromptContextMerge": PromptContextMerge,
     "PromptCleanup": PromptCleanup,
     "NormalizeLoraTags": LoraTagNormalizer,
     "StringSplit": StringSplit,
@@ -41,7 +41,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptRepack": "Prompt Repack 📦",
     "PromptAliasSwap": "Prompt Alias Swap 📚",
     "PromptReplace": "Prompt Replace 🔁",
-    "PromptContextCombiner": "Prompt Context Combiner",
+    "PromptContextMerge": "Prompt Context Merge",
     "WeightLifter": "Weight Lifter 🏋️‍♀️",
     "PromptSplitter": "Prompt Splitter ✂️",
     "PromptMixer": "Prompt Mixer 🥣",

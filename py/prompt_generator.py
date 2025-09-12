@@ -106,7 +106,7 @@ class PromptGenerator:
         return (result, normalized_context)
 
 
-class PromptContextCombiner:
+class PromptContextMerge:
     """
     Combines up to three incoming contexts into a single context suitable for
     feeding back into PromptGeneratorAdvanced (or resolve_wildcards).

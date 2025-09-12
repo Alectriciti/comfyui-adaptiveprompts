@@ -804,7 +804,8 @@ def resolve_wildcards(text: str,
                         made_assignment = True
 
                     if made_assignment:
-                        working = working[:br_start] + repl + working[replace_end:]
+                        output = ", ".join(chain_assigned_values)
+                        working = working[:br_start] + output + working[replace_end:]
                     else:
                         working = working[:br_start] + repl + working[br_end + 1:]
 
