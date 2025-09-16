@@ -1,0 +1,7 @@
+dagger
+sword
+mace
+longsword
+katana
+bow and arrows
+magical staff

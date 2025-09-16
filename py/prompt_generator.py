@@ -12,7 +12,7 @@ Changes:
 import os
 from .generator import resolve_wildcards, SeededRandom
 from .string_utils import re
-from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options, _default_package_root
+from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options
 
 class PromptGenerator:
     """

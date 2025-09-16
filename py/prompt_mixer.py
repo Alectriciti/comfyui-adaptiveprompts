@@ -195,9 +195,11 @@ class PromptMixer:
 
         # Resolve wildcards inside prompt_mix using the SeededRandom
         pre_resolved_vars = {}
+        if prompt_base:
+            prompt_base = resolve_wildcards(prompt_base, seeded, self.input_dir, _resolved_vars=pre_resolved_vars)
+        rng = seeded.next_rng()
         if prompt_mix:
             prompt_mix = resolve_wildcards(prompt_mix, seeded, self.input_dir, _resolved_vars=pre_resolved_vars)
-
         # Derive a plain random.Random for local sampling (slot selection, shuffling)
         rng = seeded.next_rng()
 

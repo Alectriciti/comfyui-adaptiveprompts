@@ -1,0 +1,7 @@
+__meal__
+__fruit__
+pasta
+salad
+hamburger
+taco
+icecream

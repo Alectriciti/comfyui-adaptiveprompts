@@ -26,6 +26,7 @@ In these descriptions, a "phrase" can be defined as the space between two commas
 | Node | Description | Note |
 |------|---------|-------|
 | 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Originally "Random Prompts" |
+| 💡 Prompt Generator (Advanced) | Includes option to Hide Comments and specify Wildcard Category folder |  |
 | 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New/Experimental |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New/Experimental |
 | 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | does not currently support .csv  |
@@ -162,6 +163,8 @@ Yes, the possibilities are endless. And these are just the basics of what can be
 
 
 ## 💡 Prompt Generator
+
+>9/16/2025 UPDATED: Advanced version now included. Allows for specifying a category /wildcards/ folder, which falls back to default if a ```__wildcard__``` cannot be resolved. Workflow.json file now included showing examples.
 
 >9/12/2025 UPDATED: Added context input and output. This allows for chaining prompt generators to preserve variable context. See [variables](#⚡variables) below.
 

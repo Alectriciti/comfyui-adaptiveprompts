@@ -64,7 +64,7 @@ def build_category_options(base_dir: str | None = None):
     try:
         for name in os.listdir(base_dir):
             path = os.path.join(base_dir, name)
-            if os.path.isdir(path) and name.startswith("wildcards"):
+            if os.path.isdir(path) and name.startswith("wildcard"):
                 folder_names.append(name)
     except Exception:
         folder_names = []

@@ -1,0 +1,12 @@
+{Mario|Super Mario|Dr Mario}
+Princess Peach
+Bowser
+{Zelda|Princess Zelda|princess_zelda_\(legend_of_zelda\)}
+{Link|link_\(legend_of_zelda\)}
+Sonic the Hedgehog
+Bob the Builder
+{Santa Claus|Santos}
+Darth Vader
+{Genera|Princess} Leia
+{Anakin|Luke} Skywalker
+{2-3$$Robbie|Bobbie|Tobbie}

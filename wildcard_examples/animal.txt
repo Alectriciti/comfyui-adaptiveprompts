@@ -1,0 +1,10 @@
+dog
+cat
+chicken
+cow
+fox
+wolf
+rabbit
+frog
+horse
+pony

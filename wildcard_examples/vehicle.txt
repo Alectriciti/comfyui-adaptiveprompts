@@ -1,0 +1,9 @@
+car
+truck
+bus
+motorcycle
+boat
+plane
+bicycle
+motorbike
+helicopter

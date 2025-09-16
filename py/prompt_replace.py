@@ -1,6 +1,7 @@
 import re
 import os
 from .generator import resolve_wildcards, SeededRandom
+from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options
 from .prompt_generator import *
 from .wildcard_utils import *
 
@@ -36,14 +37,14 @@ class PromptReplace:
     FUNCTION = "replace"
     CATEGORY = "adaptiveprompts/generation"
 
-    def replace(self, string, target_string, replace_string, seed, limit, context=None):
+    def replace(self, string, target_string, replace_string, seed, limit, category=None, context=None):
         seeded_rng = SeededRandom(seed)
 
         # Normalize incoming context into dict-of-dicts (origin->value)
-        normalized_context = PromptGenerator._normalize_input_context(context)
+        normalized_context = _normalize_input_context(context)
 
         # Expand target_string ONCE
-        expanded_target = resolve_wildcards(target_string, seeded_rng, self.input_dir, _resolved_vars=normalized_context)
+        expanded_target = resolve_wildcards(target_string, seeded_rng, category, _resolved_vars=normalized_context)
         targets = expanded_target.split("\n")
 
         result = string
@@ -64,7 +65,7 @@ class PromptReplace:
                     return match.group(0)  # No change
 
                 # Expand replace_string PER replacement
-                replacement = resolve_wildcards(replace_string, seeded_rng, self.input_dir, _resolved_vars=normalized_context)
+                replacement = resolve_wildcards(replace_string, seeded_rng, category, _resolved_vars=normalized_context)
                 #if debug:
                 #    print(f"  replace {replacements_done}: {repr(replacement)}")
                 replacements_done += 1
@@ -75,6 +76,6 @@ class PromptReplace:
 
         for k, v in list(normalized_context.items()):
             if not isinstance(v, dict):
-                normalized_context[k] = self._ensure_bucket_dict(v)
+                normalized_context[k] = _ensure_bucket_dict(v)
 
         return (result, normalized_context)
