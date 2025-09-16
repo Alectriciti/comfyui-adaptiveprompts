@@ -1,6 +1,18 @@
+"""
+Adaptive Prompts: prompt_generator
+The front end nodes for Prompt Generator
+Designed by Alectriciti
+
+Changes:
+- Split Prompt Generator into two version, one compact/simple, one advanced
+- Removed "Hide Comments" from the simple version (Hide Comments is true by default)
+- The Advanced version now has the option to Hide Comments, as well as specify a directory for custom wildcards.
+"""
+
 import os
 from .generator import resolve_wildcards, SeededRandom
 from .string_utils import re
+from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options, _default_package_root
 
 class PromptGenerator:
     """
@@ -27,7 +39,6 @@ class PromptGenerator:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "hide_comments": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "context": ("DICT", {}),  # optional incoming context
@@ -39,60 +50,19 @@ class PromptGenerator:
     FUNCTION = "process"
     CATEGORY = "adaptiveprompts/generation"
 
-    # ---------- helpers for normalizing contexts ----------
-    @staticmethod
-    def _ensure_bucket_dict(bucket_like):
-        """
-        Convert incoming bucket to canonical dict(origin->value).
-        Accepts:
-          - dict: assumed origin->value mapping -> returned as-is (copy)
-          - list/tuple: converted to { "__combined_0": v0, "__combined_1": v1, ... }
-          - single value: converted to { "__combined_0": value }
-        """
-        if bucket_like is None:
-            return {}
-        if isinstance(bucket_like, dict):
-            # copy and stringify values
-            out = {}
-            for k, v in bucket_like.items():
-                out[str(k)] = str(v)
-            return out
-        if isinstance(bucket_like, (list, tuple, set)):
-            out = {}
-            i = 0
-            for v in bucket_like:
-                out[f"__combined_{i}"] = str(v)
-                i += 1
-            return out
-        # single scalar
-        return {"__combined_0": str(bucket_like)}
-
-    @staticmethod
-    def _normalize_input_context(ctx):
-        """
-        Convert arbitrary incoming context into dict[var_name] -> dict[origin->value].
-        """
-        if not ctx:
-            return {}
-        normalized = {}
-        for var, bucket in ctx.items():
-            normalized[var] = PromptGenerator._ensure_bucket_dict(bucket)
-        return normalized
-
     # ---------- main ----------
-    def process(self, prompt, seed, hide_comments, context=None):
+    def process(self, prompt, seed, context=None):
         rng = SeededRandom(seed)
 
         # Normalize incoming context into dict-of-dicts (origin->value)
-        normalized_context = self._normalize_input_context(context)
+        normalized_context = _normalize_input_context(context)
 
         comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
         
         for block in comment_blocks:
             _ = resolve_wildcards(block, rng, self.input_dir, _resolved_vars=normalized_context)
         
-        if hide_comments:
-            prompt = re.sub(r"##.*?##", "", prompt)
+        prompt = re.sub(r"##.*?##", "", prompt)
         
         result = resolve_wildcards(prompt, rng, self.input_dir, _resolved_vars=normalized_context)
 
@@ -101,9 +71,82 @@ class PromptGenerator:
 
         for k, v in list(normalized_context.items()):
             if not isinstance(v, dict):
-                normalized_context[k] = self._ensure_bucket_dict(v)
+                normalized_context[k] = _ensure_bucket_dict(v)
 
         return (result, normalized_context)
+
+
+
+class PromptGeneratorAdvanced:
+    """
+    Advanced Prompt Generator that accepts and returns a variable context suitable
+    for chaining nodes. The context format used by generator.py is a mapping:
+      _resolved_vars: { var_name: { origin_key: value_str, ... }, ... }
+
+    This node:
+      - Accepts an optional 'context' input that may be:
+          * dict-of-dicts (origin_key -> value)  <- preferred, passed through
+          * dict-of-lists (list of values)       <- converted to dict-of-dicts
+          * dict-of-single-values                 <- converted to dict-of-dicts
+      - Normalizes input to dict-of-dicts before calling resolve_wildcards
+      - Returns (prompt_string, context_dict) where context_dict is dict-of-dicts.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        # build shared label list / map for wildcards folders
+        labels, mapping, tooltip = build_category_options()
+        cls._CATEGORY_LABELS = labels
+        cls._CATEGORY_MAP = mapping
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "hide_comments": ("BOOLEAN", {"default": True}),
+                "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
+            },
+            "optional": {
+                "context": ("DICT", {}),  # optional incoming context
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "DICT")
+    RETURN_NAMES = ("prompt", "context")
+    FUNCTION = "process"
+    CATEGORY = "adaptiveprompts/generation"
+
+    # ---------- main ----------
+    def process(self, prompt, seed, hide_comments, category=None, context=None):
+        rng = SeededRandom(seed)
+
+        # Normalize incoming context into dict-of-dicts (origin->value)
+        normalized_context = _normalize_input_context(context)
+
+        # Map category label to its folder (string only, no os.path.join here!)
+        category_label = category if category is not None else (
+            getattr(self.__class__, "_CATEGORY_LABELS", ["Default"])[0]
+        )
+        folder_map = getattr(self.__class__, "_CATEGORY_MAP", {}) or {}
+        folder_name = folder_map.get(category_label, "wildcards")
+
+        # ----- handle comment blocks first -----
+        comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
+        for block in comment_blocks:
+            _ = resolve_wildcards(block, rng, folder_name, _resolved_vars=normalized_context)
+
+        if hide_comments:
+            prompt = re.sub(r"##.*?##", "", prompt)
+
+        # ----- resolve main prompt -----
+        result = resolve_wildcards(prompt, rng, folder_name, _resolved_vars=normalized_context)
+
+        # Ensure context buckets are normalized
+        for k, v in list(normalized_context.items()):
+            if not isinstance(v, dict):
+                normalized_context[k] = _ensure_bucket_dict(v)
+
+        return (result, normalized_context)
+
 
 
 class PromptContextMerge:

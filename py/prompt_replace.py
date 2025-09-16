@@ -2,6 +2,7 @@ import re
 import os
 from .generator import resolve_wildcards, SeededRandom
 from .prompt_generator import *
+from .wildcard_utils import *
 
 class PromptReplace:
 
@@ -11,17 +12,22 @@ class PromptReplace:
 
     @classmethod
     def INPUT_TYPES(cls):
+        # build shared label list / map for wildcards folders
+        labels, mapping, tooltip = build_category_options()
+        cls._CATEGORY_LABELS = labels
+        cls._CATEGORY_MAP = mapping
+
         return {
             "required": {
                 "string": ("STRING", {"tooltip": "The original string", "multiline": True}),
                 "target_string": ("STRING", {"tooltip": "The keywords to replace, separated by newlines.\nThis can be done with prompts via {1-2$$\n$$__wildcard__}", "multiline": True}),
                 "replace_string": ("STRING", {"tooltip": "The string or wildcard to be replaced with. Each replacement action will re-roll the wildcard", "multiline": True}),
                 "seed": ("INT", {"default": 0}),
-                "limit": ("INT", {"default": 0}),  # 0 means unlimited
-                #"debug": ("BOOLEAN", {"default": True}),
+                "limit": ("INT", {"default": 0}),
+                "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
             },
             "optional": {
-                "context": ("DICT", {}),  # optional incoming context
+                "context": ("DICT", {}),
             },
         }
 

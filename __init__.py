@@ -1,7 +1,8 @@
 import os
 from .py.prompt_repack import PromptRepack
 from .py.prompt_replace import PromptReplace
-from .py.prompt_generator import PromptGenerator, PromptContextMerge
+from .py.prompt_generator import PromptGenerator, PromptGeneratorAdvanced, PromptContextMerge
+from .py.prompt_sequencer import PromptSequencer
 from .py.weight_lifter import WeightLifter
 from .py.image_nodes import SaveImageAndText
 from .py.prompt_alias import PromptAliasSwap
@@ -14,6 +15,8 @@ from .py.math_utils import *
 
 NODE_CLASS_MAPPINGS = {
     "PromptGenerator": PromptGenerator,
+    "PromptGeneratorAdvanced": PromptGeneratorAdvanced,
+    "PromptSequencer": PromptSequencer,
     "PromptRepack": PromptRepack,
     "PromptAliasSwap": PromptAliasSwap,
     "PromptReplace": PromptReplace,
@@ -38,6 +41,8 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptGenerator": "Prompt Generator 💡",
+    "PromptGeneratorAdvanced": "Prompt Generator 💡 (Advanced)",
+    "PromptSequencer": "Prompt Sequencer 🎞️",
     "PromptRepack": "Prompt Repack 📦",
     "PromptAliasSwap": "Prompt Alias Swap 📚",
     "PromptReplace": "Prompt Replace 🔁",

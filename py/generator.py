@@ -14,6 +14,7 @@ import re
 import os
 import random
 
+
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 
 # Wildcards + variables:
@@ -24,6 +25,10 @@ FILE_PATTERN = re.compile(r"__(?:([a-zA-Z0-9_\-/*]+?))?(?:\^([a-zA-Z0-9_\-\*]+))
 
 # Normalize spacing between adjacent wildcard-ish tokens (allow ^ and *)
 ADJ_WC_PATTERN = re.compile(r"(__[a-zA-Z0-9_\-/*\^\*]+__)(__[a-zA-Z0-9_\-/*\^\*]+__)")
+
+DEFAULT_WILDCARD_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "wildcards")
+)
 
 # -------------------------------- RNG ---------------------------------------
 
@@ -246,55 +251,92 @@ def process_file_wildcard(name: str,
                           wildcard_dir: str,
                           bracket_ctx: dict | None = None) -> str:
     """
-    file patterns supported:
-      __fruit__                  -> wildcards/fruit.txt
-      __fruit*__                 -> any root file starting with 'fruit'
-      __*__                      -> any root file
-      __dir/file__               -> wildcards/dir/file.txt
-      __dir/*__                  -> random file inside wildcards/dir/
-      __dir/prefix*__            -> file in dir with name starting with prefix
-
-    If 'bracket_ctx' is provided, draws are done WITHOUT replacement from a deck
-    (per file) for the lifetime of this bracket.
-    If bracket_ctx provided, this draws WITHOUT replacement per-file deck.
-    Otherwise it does a single weighted draw.
+    file patterns supported (same as before). This version will:
+      - Try to resolve files relative to the provided wildcard_dir first.
+      - If a file/directory is missing there, attempt the equivalent path under
+        DEFAULT_WILDCARD_ROOT (the global '/wildcards/' fallback).
+      - If bracket_ctx is provided, draws are done WITHOUT replacement from a deck
+        (per-file) for the lifetime of this bracket; the deck key is the actual
+        filepath used (primary or fallback).
     """
     if not name:
         return ""
 
-    name = name.strip("/")
+    # Normalize the incoming wildcard_dir (may be absolute path passed from PromptGenerator)
+    primary_dir = wildcard_dir or DEFAULT_WILDCARD_ROOT
+
+    # Helper: given a candidate absolute filepath (built from primary_dir), try using it,
+    # otherwise compute the fallback filepath and use that if it exists.
+    def _resolve_filepath(candidate_fp: str) -> str | None:
+        # If candidate exists, use it
+        if candidate_fp and os.path.exists(candidate_fp):
+            return candidate_fp
+        # Try to compute a fallback path by converting from primary_dir -> DEFAULT_WILDCARD_ROOT
+        try:
+            rel = os.path.relpath(candidate_fp, primary_dir)
+        except Exception:
+            rel = os.path.basename(candidate_fp) if candidate_fp else ""
+        if rel:
+            fallback_fp = os.path.join(DEFAULT_WILDCARD_ROOT, rel)
+            if os.path.exists(fallback_fp):
+                return fallback_fp
+        return None
 
     def draw_from_filepath(filepath: str) -> str:
-        if not filepath or not os.path.exists(filepath):
+        # resolve actual filepath (primary -> fallback)
+        actual_fp = _resolve_filepath(filepath)
+        if not actual_fp:
             return ""
+        # If no bracket context, do legacy single weighted draw
         if bracket_ctx is None:
-            return _read_weighted_line(filepath, rng)
-        else:
-            deck = _ensure_deck_for_file(bracket_ctx, filepath)
-            sub_rng = rng
-            picked = _deck_draw(deck, sub_rng, allow_overflow=bool(bracket_ctx.get("allow_overflow", True)))
-            return picked or ""
+            return _read_weighted_line(actual_fp, rng)
+        # Decked draw (no-repeat in this bracket) keyed by actual filepath
+        deck = _ensure_deck_for_file(bracket_ctx, actual_fp)
+        picked = _deck_draw(deck, rng, allow_overflow=bool(bracket_ctx.get("allow_overflow", True)))
+        return picked or ""
+
+    # If name references a subfolder / file
+    name = name.strip("/")
 
     if "/" in name:
         dir_part, last = name.rsplit("/", 1)
-        dir_path = os.path.join(wildcard_dir, dir_part)
+        dir_path = os.path.join(primary_dir, dir_part)
+
         if last == "" or last == "*" or last.endswith("*"):
             prefix = None if last in ("", "*") else last[:-1]
             chosen = _choose_file_from_dir(dir_path, rng, prefix=prefix)
+            if not chosen:
+                # try fallback directory
+                try:
+                    rel_dir = os.path.relpath(dir_path, primary_dir)
+                except Exception:
+                    rel_dir = os.path.basename(dir_path)
+                fallback_dir = os.path.join(DEFAULT_WILDCARD_ROOT, rel_dir)
+                chosen = _choose_file_from_dir(fallback_dir, rng, prefix=prefix)
             return draw_from_filepath(chosen) if chosen else ""
+
         filepath = os.path.join(dir_path, f"{last}.txt")
+        # try primary then fallback
         return draw_from_filepath(filepath)
 
+    # Root-level cases
     if name == "*":
-        chosen = _choose_file_from_dir(wildcard_dir, rng, prefix=None)
+        chosen = _choose_file_from_dir(primary_dir, rng, prefix=None)
+        if not chosen:
+            # fallback to default root
+            chosen = _choose_file_from_dir(DEFAULT_WILDCARD_ROOT, rng, prefix=None)
         return draw_from_filepath(chosen) if chosen else ""
 
     if name.endswith("*"):
         prefix = name[:-1]
-        chosen = _choose_file_from_dir(wildcard_dir, rng, prefix=prefix)
+        chosen = _choose_file_from_dir(primary_dir, rng, prefix=prefix)
+        if not chosen:
+            # fallback to default root
+            chosen = _choose_file_from_dir(DEFAULT_WILDCARD_ROOT, rng, prefix=prefix)
         return draw_from_filepath(chosen) if chosen else ""
 
-    filepath = os.path.join(wildcard_dir, f"{name}.txt")
+    # Specific file in primary dir -> fallback to default if missing
+    filepath = os.path.join(primary_dir, f"{name}.txt")
     return draw_from_filepath(filepath)
 
 def weighted_choice(options: list[str], rng: random.Random) -> str:
