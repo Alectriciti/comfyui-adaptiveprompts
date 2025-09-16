@@ -3,7 +3,8 @@
 
 <img src="images/adaptive_prompts_logo.png">
 
-
+> - **16/09/25** Prompt Sequencer added: Generates every possible combination of wildcards sequentially.
+> - **15/09/25** Prompt Generator (Advanced) added: Allows specifying a /wildcards/ folder (if the folder starts with "wildcard").
 > - **12/09/25** Context is now chainable, allowing for variables to be instantiated separately. Newline/Whitespace stripping fixed.
 > - **06/09/25** Adaptive Prompts Release!
 > - **17/08/25** Variables and Comments have been added. All nodes passed main stress-tests. Things are looking good so far!
@@ -26,9 +27,10 @@ In these descriptions, a "phrase" can be defined as the space between two commas
 | Node | Description | Note |
 |------|---------|-------|
 | 💡 Prompt Generator | Creates dynamic prompts based on your input. Use {brackets} or \_\_wildcards\_\_ | Originally "Random Prompts" |
-| 💡 Prompt Generator (Advanced) | Includes option to Hide Comments and specify Wildcard Category folder |  |
-| 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | New/Experimental |
-| 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | New/Experimental |
+| 💡 Prompt Generator (Advanced) | Includes option to Hide Comments and specify Wildcard Category folder | New |
+| 🎞️ Prompt Sequencer | Cycles through every possible combination of {brackets} or \_\_wildcards\_\_ sequentially, no randomness. | New |
+| 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | |
+| 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | |
 | 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | does not currently support .csv  |
 | Prompt Context Merge | Combines the context of Prompt Generator, merging the created dictionaries. |  |
 
@@ -334,6 +336,29 @@ Using all of these tricks, you can achieve some pretty powerful results!
 
 <img src="images/prompt_generator_variables_example.png"/>
 
+## 🎞️ Prompt Sequencer
+
+<img src="images/prompt_sequencer.png">
+
+Prompt Sequencer is a Prompt Generator which is capable of resulting all possible combinations of the given prompt. It has some limitations by design.
+
+**Useful For:**
+- Inspecting wildcards
+- Generating combinational prompts
+- Creating simple animations.
+
+**Limitations:**
+- File ```__wildcards__``` will only reach a depth of 1.
+- Brackets can be nested indefinitely. However, random selectors such as ```{2-3$$a|b|c}``` are disabled.
+- Variable Context not supported
+
+
+**Modes**
+- FROM_START - The first wildcard is cycles. Once it completes its loop, the next wildcard is then cycled, and repeat.
+- FROM_END - The final wildcard is cycles. Once it completes its loop, the previous wildcard is then cycled, and repeat.
+- PARALLEL - All prompt wildcards progress together. Varying lengths of their decks allow them to become offset.
+
+Try it out for yourself. If you ever need to make sequential comparisons for keywords/prompts, this is your tool.
 
 ## 📦 Prompt Repack
 <img src="images/prompt_repack.png"/>

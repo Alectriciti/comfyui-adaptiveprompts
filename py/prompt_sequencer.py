@@ -270,7 +270,6 @@ def _select_indices_for_slots(lengths: List[int], index: int, mode: str) -> List
             idxs[j] = 0
     return idxs
 
-# -------------------- ComfyUI-style node class --------------------
 class PromptSequencer:
     @classmethod
     def INPUT_TYPES(cls):
@@ -280,8 +279,8 @@ class PromptSequencer:
         cls._CATEGORY_MAP = mapping
         retn = {
             "required": {
-                "wildcards": ("STRING", {"multiline": True, "default": ""}),
-                "index": ("INT", {"default": 0}),
+                "prompt": ("STRING", {"multiline": True, "default": ""}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "mode": (["FROM_START", "FROM_END", "PARALLEL"], {"default": "FROM_START"}),
                 "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
             }
@@ -292,7 +291,7 @@ class PromptSequencer:
     FUNCTION = "sequence"
     CATEGORY = "adaptiveprompts/generation"
 
-    def sequence(self, wildcards: str, index: int, mode: str, category=None, ):
+    def sequence(self, prompt: str, seed: int, mode: str, category=None, ):
         """
         Generate the result for the given index and mode.
         """
@@ -314,7 +313,7 @@ class PromptSequencer:
             wildcard_dir = default_wildcards
 
         # parse into parts (text + slots)
-        parts = _parse_input_to_parts(wildcards, wildcard_dir)
+        parts = _parse_input_to_parts(prompt, wildcard_dir)
 
         # Collect slot lengths and slot positions
         slot_lengths = []
@@ -326,10 +325,10 @@ class PromptSequencer:
 
         # If there are no slots, just return the input unchanged
         if not slot_positions:
-            return (wildcards,)
+            return (prompt,)
 
         # compute selected index per slot
-        sel_idxs = _select_indices_for_slots(slot_lengths, index, mode)
+        sel_idxs = _select_indices_for_slots(slot_lengths, seed, mode)
 
         # build output by substituting selected items
         out_chunks = []

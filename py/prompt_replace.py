@@ -23,7 +23,7 @@ class PromptReplace:
                 "string": ("STRING", {"tooltip": "The original string", "multiline": True}),
                 "target_string": ("STRING", {"tooltip": "The keywords to replace, separated by newlines.\nThis can be done with prompts via {1-2$$\n$$__wildcard__}", "multiline": True}),
                 "replace_string": ("STRING", {"tooltip": "The string or wildcard to be replaced with. Each replacement action will re-roll the wildcard", "multiline": True}),
-                "seed": ("INT", {"default": 0}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "limit": ("INT", {"default": 0}),
                 "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
             },
