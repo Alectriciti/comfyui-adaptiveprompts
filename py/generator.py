@@ -397,10 +397,12 @@ def _collect_candidates(_resolved_vars: dict,
 def find_next_bracket_span(text: str):
     """
     Parse all bracket spans with a stack and decide which span should be processed next.
+
     Preference logic:
       - If any span has top-level $$ markers and contains nested spans inside its separator region,
         prefer that span (this prevents nested separators from being pre-resolved).
-      - Otherwise, return the innermost span (max depth), earliest by start.
+      - Otherwise, return the outermost span (min depth), earliest by start.
+
     Returns tuple (start_index, end_index) or None.
     """
     stack = []
@@ -415,6 +417,8 @@ def find_next_bracket_span(text: str):
                 spans.append((s, i, depth))
     if not spans:
         return None
+
+    # Existing special-case: find spans with $$ separators that contain nested spans in the separator region
     candidates = []
     for s, e, depth in spans:
         content = text[s+1:e]
@@ -425,16 +429,19 @@ def find_next_bracket_span(text: str):
             for ns, ne, nd in spans:
                 if ns > s and ne < e:
                     nested_local_start = ns - (s + 1)
+                    # nested span falls inside the separator region (between the two $$ markers)
                     if nested_local_start >= idx1 + 2 and nested_local_start < idx2:
                         candidates.append((s, e, depth))
                         break
     if candidates:
         candidates.sort(key=lambda x: x[0])
         return (candidates[0][0], candidates[0][1])
-    max_depth = max(sp[2] for sp in spans)
-    inners = [sp for sp in spans if sp[2] == max_depth]
-    inners.sort(key=lambda x: x[0])
-    return (inners[0][0], inners[0][1])
+
+    # FALLBACK: pick the outermost span (minimum depth), earliest by start.
+    min_depth = min(sp[2] for sp in spans)
+    outers = [sp for sp in spans if sp[2] == min_depth]
+    outers.sort(key=lambda x: x[0])
+    return (outers[0][0], outers[0][1])
 
 # ---------------------- Bracket processing ----------------------------------
 
@@ -513,8 +520,13 @@ def process_bracket(content: str,
 
     # Split choices by top-level pipes (do NOT strip — preserve exact choice content)
     raw_choices = [c for c in _split_top_level_pipes(choices_str) if c != ""]
+    
+    # This isolates all bracket randomness from outer calls while still being deterministic.
+    bracket_seed_source = seeded_rng.next_rng()  # consumes from global RNG
+    bracket_seed_value = bracket_seed_source.getrandbits(64)
+    bracket_seeded = SeededRandom(bracket_seed_value)
 
-    rng = seeded_rng.next_rng()
+    rng = bracket_seeded.next_rng()
 
     # Build enriched choice triplets.
     # Each key is a tuple: (kind, canonical, original, var_tok)
@@ -573,18 +585,25 @@ def process_bracket(content: str,
     def resolve_choice(key_quad):
         kind, canonical, original, var_tok = key_quad
         if kind == "lit":
-            # Resolve nested content *preserving* the original spacing exactly
+            # Each time the outer bracket chooses this literal, evaluate it freshly.
+            # Derive a unique deterministic seed for *this* evaluation from the bracket-local RNG.
+            # This ensures nested brackets re-roll *every time this choice is selected*.
+            # Consume one RNG from bracket_seeded and use its getrandbits() as the seed for the inner eval.
+            eval_rng_source = bracket_seeded.next_rng()
+            eval_seed_val = eval_rng_source.getrandbits(64)
+            eval_seeded = SeededRandom(eval_seed_val)
+
             return resolve_wildcards(
-                original, seeded_rng, wildcard_dir,
+                original, eval_seeded, wildcard_dir,
                 _resolved_vars=_resolved_vars,
                 _depth=0,
-                bracket_ctx=bracket_ctx,
-                bracket_overflow=bracket_ctx.get("allow_overflow", True),
+                bracket_ctx=None,               # fresh deck context per evaluation
+                bracket_overflow=True,
             )
 
         elif kind == "var":
             # Pure variable recall (e.g., __^x__) — sample from resolved vars for 'canonical' (var name)
-            rng_local = seeded_rng.next_rng()
+            rng_local = rng
             candidates = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
             if candidates:
                 return rng_local.choice(candidates)
@@ -599,14 +618,14 @@ def process_bracket(content: str,
                 return ""
 
             # Draw from file deck (deck-aware)
-            sub_rng = seeded_rng.next_rng()
+            sub_rng = rng
             drawn = process_file_wildcard(wc_name, sub_rng, wildcard_dir, bracket_ctx=bracket_ctx)
             if not drawn:
                 return ""
 
             # Resolve nested wildcards inside drawn value (share bracket_ctx to keep deck state)
             resolved_val = resolve_wildcards(
-                drawn, seeded_rng, wildcard_dir,
+                drawn, bracket_seeded, wildcard_dir,
                 _resolved_vars=_resolved_vars,
                 _depth=0,
                 bracket_ctx=bracket_ctx,
@@ -643,8 +662,7 @@ def process_bracket(content: str,
     if results:
         joined = results[0]
         for item in results[1:]:
-            rng_for_sep = seeded_rng.next_rng()
-            sep_seed = rng_for_sep.getrandbits(64)
+            sep_seed = rng.getrandbits(64)
             sep_seeded = SeededRandom(sep_seed)
             sep_resolved = resolve_wildcards(
                 separator, sep_seeded, wildcard_dir,
