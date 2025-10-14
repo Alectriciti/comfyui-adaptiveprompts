@@ -397,12 +397,10 @@ def _collect_candidates(_resolved_vars: dict,
 def find_next_bracket_span(text: str):
     """
     Parse all bracket spans with a stack and decide which span should be processed next.
-
     Preference logic:
       - If any span has top-level $$ markers and contains nested spans inside its separator region,
         prefer that span (this prevents nested separators from being pre-resolved).
-      - Otherwise, return the outermost span (min depth), earliest by start.
-
+      - Otherwise, return the innermost span (max depth), earliest by start.
     Returns tuple (start_index, end_index) or None.
     """
     stack = []
@@ -417,8 +415,6 @@ def find_next_bracket_span(text: str):
                 spans.append((s, i, depth))
     if not spans:
         return None
-
-    # Existing special-case: find spans with $$ separators that contain nested spans in the separator region
     candidates = []
     for s, e, depth in spans:
         content = text[s+1:e]
@@ -429,19 +425,16 @@ def find_next_bracket_span(text: str):
             for ns, ne, nd in spans:
                 if ns > s and ne < e:
                     nested_local_start = ns - (s + 1)
-                    # nested span falls inside the separator region (between the two $$ markers)
                     if nested_local_start >= idx1 + 2 and nested_local_start < idx2:
                         candidates.append((s, e, depth))
                         break
     if candidates:
         candidates.sort(key=lambda x: x[0])
         return (candidates[0][0], candidates[0][1])
-
-    # FALLBACK: pick the outermost span (minimum depth), earliest by start.
-    min_depth = min(sp[2] for sp in spans)
-    outers = [sp for sp in spans if sp[2] == min_depth]
-    outers.sort(key=lambda x: x[0])
-    return (outers[0][0], outers[0][1])
+    max_depth = max(sp[2] for sp in spans)
+    inners = [sp for sp in spans if sp[2] == max_depth]
+    inners.sort(key=lambda x: x[0])
+    return (inners[0][0], inners[0][1])
 
 # ---------------------- Bracket processing ----------------------------------
 
@@ -706,7 +699,14 @@ def _final_sweep_resolve(text: str,
             if candidates:
                 replacement = seeded_rng.next_rng().choice(candidates)
             else:
-                replacement = ""
+                # fallback: try to resolve a wildcard file named var_tok (i.e., __^var__ (if no variable resolved, then -> __var__))
+                rng_for_this = seeded_rng.next_rng()
+                generated = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, bracket_ctx=None)
+                if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
+                    replacement = resolve_wildcards(generated, seeded_rng, wildcard_dir,
+                                                   _depth=_depth + 1, _resolved_vars=_resolved_vars)
+                else:
+                    replacement = ""
         elif wc_name is not None and var_tok:
             if "*" in var_tok:
                 candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
@@ -885,7 +885,18 @@ def resolve_wildcards(text: str,
                     if candidates:
                         replacement = rng_local.choice(candidates)
                     else:
-                        replacement = None
+                        # fallback: try to resolve a wildcard file named var_tok (i.e., __var_tok__)
+                        rng_for_this = seeded_rng.next_rng()
+                        generated = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, bracket_ctx=None)
+                        if generated:
+                            replacement = resolve_wildcards(
+                                generated, seeded_rng, wildcard_dir,
+                                _depth=_depth + 1, _resolved_vars=_resolved_vars,
+                                bracket_ctx=None,
+                                bracket_overflow=bracket_overflow
+                            )
+                        else:
+                            replacement = None
 
                 elif wc_name is not None and var_tok:
                     # __file^var__ or __name^var__  (assignment or origin-scoped recall)

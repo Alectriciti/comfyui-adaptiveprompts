@@ -12,6 +12,7 @@ from .py.prompt_shuffle import PromptShuffle, PromptShuffleAdvanced
 from .py.string_utils import *
 from .py.misc_utils import *
 from .py.math_utils import *
+from .py.lora_tag_loader import *
 
 NODE_CLASS_MAPPINGS = {
     "PromptGenerator": PromptGenerator,
@@ -27,6 +28,7 @@ NODE_CLASS_MAPPINGS = {
     "PromptShuffleAdvanced": PromptShuffleAdvanced,
     "PromptContextMerge": PromptContextMerge,
     "PromptCleanup": PromptCleanup,
+    "LoraTagGenerator": LoraTagGenerator,
     "NormalizeLoraTags": LoraTagNormalizer,
     "StringSplit": StringSplit,
     "StringAppend3": StringAppend3,
@@ -53,6 +55,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptShuffle": "Prompt Shuffle ♻️",
     "PromptShuffleAdvanced": "Prompt Shuffle ♻️ (Advanced)",
     "PromptCleanup": "Prompt Cleanup 🧹",
+    "LoraTagGenerator": "Lora Tag Generator",
     "NormalizeLoraTags": "Normalize Lora Tags 🟰",
     "StringSplit": "String Split ⛓️‍💥",
     "StringAppend3": "String Append 🔗",
