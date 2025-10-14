@@ -463,6 +463,7 @@ def process_bracket(content: str,
     """
     # Default
     count = 1
+    exhaust_all = False   # if True, we will exhaust every item from each top-level choice
     separator = ", "
     choices_str = content
 
@@ -482,14 +483,17 @@ def process_bracket(content: str,
         idx1 = dollar_idxs[0]
         count_part = content[:idx1]
         choices_str = content[idx1 + 2 :]
-        if "-" in count_part:
-            low, high = map(int, count_part.split("-", 1))
-            count = seeded_rng.next_rng().randint(low, high)
+        if count_part is not None and count_part.strip() == "*":
+            exhaust_all = True
         else:
-            try:
-                count = int(count_part)
-            except Exception:
-                count = 1
+            if "-" in count_part:
+                low, high = map(int, count_part.split("-", 1))
+                count = seeded_rng.next_rng().randint(low, high)
+            else:
+                try:
+                    count = int(count_part)
+                except Exception:
+                    count = 1
     else:
         idx1 = dollar_idxs[0]
         idx2 = dollar_idxs[1]
@@ -497,14 +501,17 @@ def process_bracket(content: str,
         raw_separator = content[idx1 + 2 : idx2]
         choices_str = content[idx2 + 2 :]
 
-        if "-" in count_part:
-            low, high = map(int, count_part.split("-", 1))
-            count = seeded_rng.next_rng().randint(low, high)
+        if count_part is not None and count_part.strip() == "*":
+            exhaust_all = True
         else:
-            try:
-                count = int(count_part)
-            except Exception:
-                count = 1
+            if "-" in count_part:
+                low, high = map(int, count_part.split("-", 1))
+                count = seeded_rng.next_rng().randint(low, high)
+            else:
+                try:
+                    count = int(count_part)
+                except Exception:
+                    count = 1
 
         try:
             separator = raw_separator.encode("utf-8").decode("unicode_escape")
@@ -565,6 +572,93 @@ def process_bracket(content: str,
     # If overflow disabled, cap count
     if not bracket_ctx.get("allow_overflow", True):
         count = min(count, len(unique_keys))
+
+    if exhaust_all:
+        results = []
+        # Use deterministic bracket-local RNG seed as earlier (so separators/inner evals are deterministic)
+        bracket_seed_source = seeded_rng.next_rng()
+        bracket_seed_value = bracket_seed_source.getrandbits(64)
+        bracket_seeded = SeededRandom(bracket_seed_value)
+        rng = bracket_seeded.next_rng()
+
+        # Loop unique_keys in the original order (no shuffle) and exhaust each in turn
+        for key in unique_keys:
+            kind, canonical, original, var_tok = key
+
+            if kind == "lit":
+                # Evaluate the literal once (deterministically) and append it
+                eval_rng_source = bracket_seeded.next_rng()
+                eval_seed_val = eval_rng_source.getrandbits(64)
+                eval_seeded = SeededRandom(eval_seed_val)
+                val = resolve_wildcards(
+                    original, eval_seeded, wildcard_dir,
+                    _resolved_vars=_resolved_vars,
+                    _depth=0,
+                    bracket_ctx=None,             # evaluate literal fresh (no shared deck)
+                    bracket_overflow=True,
+                )
+                if val != "":
+                    results.append(val)
+
+            elif kind == "var":
+                # pure var recall __^x__ => append every assigned candidate if present
+                candidates = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
+                if candidates:
+                    # append in deterministic order as returned by _collect_candidates (insertion order)
+                    results.extend(candidates)
+                else:
+                    # fallback: try reading a file named 'canonical' and append all its lines
+                    fp = os.path.join(wildcard_dir or DEFAULT_WILDCARD_ROOT, f"{canonical}.txt")
+                    items, _ = _load_weighted_file(fp)
+                    # items preserves file order (no weights consideration for exhaustive listing)
+                    for itm in items:
+                        # resolve each item (so nested wildcards inside file lines get resolved)
+                        eval_rng_source = bracket_seeded.next_rng()
+                        eval_seed_val = eval_rng_source.getrandbits(64)
+                        eval_seeded = SeededRandom(eval_seed_val)
+                        val = resolve_wildcards(itm, eval_seeded, wildcard_dir,
+                                                _resolved_vars=_resolved_vars, _depth=0,
+                                                bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow)
+                        if val != "":
+                            results.append(val)
+
+            else:  # kind == "file"
+                wc_name = canonical
+                if not wc_name:
+                    continue
+                # Obtain raw items in file order
+                # Try primary dir then fallback handled by process_file_wildcard via _resolve_filepath; however
+                # _load_weighted_file expects an absolute path. Let's use the primary path and fallback manually.
+                primary_fp = os.path.join(wildcard_dir or DEFAULT_WILDCARD_ROOT, f"{wc_name}.txt")
+                # try fallback in DEFAULT_WILDCARD_ROOT if primary missing
+                actual_fp = primary_fp if os.path.exists(primary_fp) else os.path.join(DEFAULT_WILDCARD_ROOT, f"{wc_name}.txt")
+                items, _weights = _load_weighted_file(actual_fp) if os.path.exists(actual_fp) else ([], [])
+                for itm in items:
+                    # For each file line, resolve nested wildcards using the shared bracket_ctx to keep nested deck state
+                    eval_rng_source = bracket_seeded.next_rng()
+                    eval_seed_val = eval_rng_source.getrandbits(64)
+                    eval_seeded = SeededRandom(eval_seed_val)
+                    val = resolve_wildcards(itm, eval_seeded, wildcard_dir,
+                                            _resolved_vars=_resolved_vars, _depth=0,
+                                            bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow)
+                    if val != "":
+                        results.append(val)
+
+        # Now join results using separator EXACTLY as specified, evaluating separator per join
+        if not results:
+            return ""
+        joined = results[0]
+        for item in results[1:]:
+            rng_for_sep = bracket_seeded.next_rng()
+            sep_seed = rng_for_sep.getrandbits(64)
+            sep_seeded = SeededRandom(sep_seed)
+            sep_resolved = resolve_wildcards(
+                separator, sep_seeded, wildcard_dir,
+                _resolved_vars=_resolved_vars, _depth=0,
+                bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow
+            )
+            joined += sep_resolved + item
+        return joined
 
     # Shuffle a cycle of unique keys
     cycle = list(unique_keys)

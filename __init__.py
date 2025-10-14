@@ -12,7 +12,7 @@ from .py.prompt_shuffle import PromptShuffle, PromptShuffleAdvanced
 from .py.string_utils import *
 from .py.misc_utils import *
 from .py.math_utils import *
-from .py.lora_tag_loader import *
+from .wip.lora_tag_loader import *
 
 NODE_CLASS_MAPPINGS = {
     "PromptGenerator": PromptGenerator,
