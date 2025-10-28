@@ -69,6 +69,36 @@ def _space_adjacent_wildcards(s: str) -> str:
     # ensures adjacent wildcard tokens are separated by a space
     return ADJ_WC_PATTERN.sub(r"\1 \2", s)
 
+# ---------------------- Wildcard blocking helpers -------------------------
+
+# Regex to capture a backslash-escaped wildcard token: \__name__ or \__name^var__
+_ESC_WC_RE = re.compile(r'\\(__[A-Za-z0-9_\-/*]+(?:\^[A-Za-z0-9_\-\*]+)?__)')
+
+def _protect_escaped_wildcards(text: str, mapping: dict) -> str:
+    """
+    Replace occurrences like \__foo__ with unique placeholders.
+    mapping is mutated: placeholder -> literal (without leading backslash).
+    Returns new text.
+    """
+    if not text:
+        return text
+    def _repl(m):
+        literal = m.group(1)  # e.g., "__foo__" or "__foo^var__"
+        ph = f"<<LIT_WC_{len(mapping)}>>"
+        mapping[ph] = literal
+        return ph
+    return _ESC_WC_RE.sub(_repl, text)
+
+def _restore_escaped_wildcards(text: str, mapping: dict) -> str:
+    """
+    Replace placeholders back with their original literal wildcard text.
+    """
+    if not mapping:
+        return text
+    # Simple replace; placeholders are unique tokens unlikely to appear otherwise.
+    for ph, literal in mapping.items():
+        text = text.replace(ph, literal)
+    return text
 # ---------------------- Top-level split helpers ------------------------------
 
 def _find_top_level_dollars(s: str) -> list[int]:
@@ -520,6 +550,14 @@ def process_bracket(content: str,
 
     # Split choices by top-level pipes (do NOT strip — preserve exact choice content)
     raw_choices = [c for c in _split_top_level_pipes(choices_str) if c != ""]
+
+    # Determine "all-mode" (user used '*' as count spec: {*$$ ...})
+    all_mode = False
+    try:
+        if isinstance(count_part, str) and count_part.strip() == "*":
+            all_mode = True
+    except NameError:
+        all_mode = False
     
     # This isolates all bracket randomness from outer calls while still being deterministic.
     bracket_seed_source = seeded_rng.next_rng()  # consumes from global RNG
@@ -559,6 +597,57 @@ def process_bracket(content: str,
             key = (kind, canonical, original, None)
 
         choice_keys.append(key)
+
+        # This is called if we're using {*$$__var__}
+        if all_mode:
+            flat_results = []
+            only_var_choices = True
+
+            def _values_for_varname(varname):
+                """Return list of stored values for varname from _resolved_vars"""
+                if not _resolved_vars:
+                    return []
+                # prefer exact bucket lookup (preserves insertion order for dicts)
+                bucket = _resolved_vars.get(varname)
+                if bucket is None:
+                    # fallback to the flexible collector (handles patterns like a*, *)
+                    return _collect_candidates(_resolved_vars, varname, origin_filter=None)
+                # bucket present: support dict-of-origins, list/tuple, or scalar
+                if isinstance(bucket, dict):
+                    # dict.values() preserves insertion order
+                    return list(bucket.values())
+                if isinstance(bucket, (list, tuple)):
+                    return list(bucket)
+                # fallback single value
+                return [str(bucket)]
+
+            for k in choice_keys:
+                kind, canonical, original, var_tok = k
+                if kind != "var":
+                    only_var_choices = False
+                else:
+                    vn = canonical.strip() if isinstance(canonical, str) else canonical
+                    vals = _values_for_varname(vn)
+                    # extend with whatever values we found (preserving order)
+                    flat_results.extend(vals)
+
+            # If bracket contains only pure-var choices and we found values,
+            # return all of them joined by the user-specified separator.
+            if only_var_choices and flat_results:
+                joined = flat_results[0]
+                for item in flat_results[1:]:
+                    sep_seed = bracket_seeded.next_rng().getrandbits(64)
+                    sep_seeded = SeededRandom(sep_seed)
+                    sep_resolved = resolve_wildcards(
+                        separator, sep_seeded, wildcard_dir,
+                        _resolved_vars=_resolved_vars,
+                        _depth=0,
+                        bracket_ctx=bracket_ctx,
+                        bracket_overflow=bracket_ctx.get("allow_overflow", True),
+                    )
+                    joined += sep_resolved + item
+                return joined
+            # otherwise fall through to normal cycle logic
 
     # Unique by (kind, canonical, var_tok) to avoid duplicates within the same cycle
     seen = set()
@@ -771,7 +860,8 @@ def _final_sweep_resolve(text: str,
                          seeded_rng: SeededRandom,
                          wildcard_dir: str,
                          _resolved_vars: dict,
-                         _depth: int) -> str:
+                         _depth: int,
+                         escaped_map: dict | None = None) -> str:
     """
     Final left-to-right pass that tries to resolve any remaining variable/wildcard tokens.
     This is executed once after the iterative passes to rescue __^var__ style tokens that
@@ -821,6 +911,8 @@ def _final_sweep_resolve(text: str,
                             _depth=_depth + 1, _resolved_vars=_resolved_vars
                         )
                         _ensure_var_bucket(_resolved_vars, var_tok)
+                        # restore any protected escaped wildcards before storing into context
+                        to_store = _restore_escaped_wildcards(replacement, escaped_map or {})
                         _resolved_vars[var_tok][wc_name] = replacement
                     else:
                         replacement = ""
@@ -865,6 +957,10 @@ def resolve_wildcards(text: str,
 
     # preserve whitespace/newlines: only ensure adjacent wildcard tokens separated
     text = _space_adjacent_wildcards(text)
+
+    # PROTECT escaped wildcards (e.g. "\__color__") so they won't be processed. Will be restored later.
+    _escaped_wildcard_map = {}
+    text = _protect_escaped_wildcards(text, _escaped_wildcard_map)
 
     placeholder_counter = 0
     placeholders = {}
@@ -946,12 +1042,15 @@ def resolve_wildcards(text: str,
                             if value_to_store is None:
                                 value_to_store = last_try if last_try is not None else repl
 
+                        # restore escaped placeholders before storing in context and before appending for output
+                        restored_value = _restore_escaped_wildcards(value_to_store, _escaped_wildcard_map or {})
+
                         _ensure_var_bucket(_resolved_vars, var_name)
                         bucket = _resolved_vars[var_name]
                         origin_key = f"__bracket_{len(bucket)}"
-                        bucket[origin_key] = value_to_store
+                        bucket[origin_key] = restored_value
 
-                        chain_assigned_values.append(value_to_store)
+                        chain_assigned_values.append(restored_value)
 
                         replace_end = pos + 1 + len(var_name)
                         pos = replace_end
@@ -1021,7 +1120,8 @@ def resolve_wildcards(text: str,
                                 _ensure_var_bucket(_resolved_vars, var_tok)
                                 # do not overwrite existing origin value if present
                                 if wc_name not in _resolved_vars[var_tok]:
-                                    _resolved_vars[var_tok][wc_name] = replacement
+                                    to_store = _restore_escaped_wildcards(replacement, _escaped_wildcard_map or {})
+                                    _resolved_vars[var_tok][wc_name] = to_store
 
                 else:
                     # plain wildcard: __name__
@@ -1064,5 +1164,11 @@ def resolve_wildcards(text: str,
         text = _space_adjacent_wildcards(text)
 
     # Final sweep (no bracket context here)
-    text = _final_sweep_resolve(text, seeded_rng, wildcard_dir, _resolved_vars, _depth)
+    # Final sweep (no bracket context here)
+    text = _final_sweep_resolve(
+        text, seeded_rng, wildcard_dir, _resolved_vars, _depth,
+        escaped_map=_escaped_wildcard_map
+    )
+    # RESTORE any protected escaped wildcard placeholders back to literal text
+    text = _restore_escaped_wildcards(text, _escaped_wildcard_map)
     return text
