@@ -26,6 +26,9 @@ FILE_PATTERN = re.compile(r"__(?:([a-zA-Z0-9_\-/*]+?))?(?:\^([a-zA-Z0-9_\-\*]+))
 # Normalize spacing between adjacent wildcard-ish tokens (allow ^ and *)
 ADJ_WC_PATTERN = re.compile(r"(__[a-zA-Z0-9_\-/*\^\*]+__)(__[a-zA-Z0-9_\-/*\^\*]+__)")
 
+# marker used to separate adjacent wildcard tokens internally (removed at the end)
+_ADJ_WC_MARKER = "<<ZWC>>"
+
 DEFAULT_WILDCARD_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "wildcards")
 )
@@ -66,8 +69,10 @@ def is_file_wildcard(choice: str) -> bool:
     return bool(FILE_PATTERN.fullmatch(choice.strip()))
 
 def _space_adjacent_wildcards(s: str) -> str:
-    # ensures adjacent wildcard tokens are separated by a space
-    return ADJ_WC_PATTERN.sub(r"\1 \2", s)
+    if not s:
+        return s
+    # Insert marker between the two matched wildcard tokens.
+    return ADJ_WC_PATTERN.sub(r"\1" + _ADJ_WC_MARKER + r"\2", s)
 
 # ---------------------- Wildcard blocking helpers -------------------------
 
@@ -816,7 +821,7 @@ def process_bracket(content: str,
                 # Use the file name as origin key so recall like __fruit^a__ stores under bucket['a']['fruit']
                 origin_key = wc_name
                 if origin_key not in bucket:
-                    bucket[origin_key] = resolved_val
+                    bucket[origin_key] = resolved_val.replace(_ADJ_WC_MARKER, "")
                 # If already present, we keep old value (do not overwrite)
             return resolved_val
 
@@ -913,7 +918,7 @@ def _final_sweep_resolve(text: str,
                         _ensure_var_bucket(_resolved_vars, var_tok)
                         # restore any protected escaped wildcards before storing into context
                         to_store = _restore_escaped_wildcards(replacement, escaped_map or {})
-                        _resolved_vars[var_tok][wc_name] = replacement
+                        _resolved_vars[var_tok][wc_name] = to_store.replace(_ADJ_WC_MARKER, "")
                     else:
                         replacement = ""
         else:
@@ -1044,6 +1049,8 @@ def resolve_wildcards(text: str,
 
                         # restore escaped placeholders before storing in context and before appending for output
                         restored_value = _restore_escaped_wildcards(value_to_store, _escaped_wildcard_map or {})
+                        # strip internal adjacent-wildcard marker before storing/returning
+                        restored_value = restored_value.replace(_ADJ_WC_MARKER, "")
 
                         _ensure_var_bucket(_resolved_vars, var_name)
                         bucket = _resolved_vars[var_name]
@@ -1171,4 +1178,5 @@ def resolve_wildcards(text: str,
     )
     # RESTORE any protected escaped wildcard placeholders back to literal text
     text = _restore_escaped_wildcards(text, _escaped_wildcard_map)
+    text = text.replace(_ADJ_WC_MARKER, "")
     return text
