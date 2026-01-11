@@ -554,7 +554,7 @@ def process_bracket(content: str,
             separator = raw_separator
 
     # Split choices by top-level pipes (do NOT strip — preserve exact choice content)
-    raw_choices = [c for c in _split_top_level_pipes(choices_str) if c != ""]
+    raw_choices = [c for c in _split_top_level_pipes(choices_str)]
 
     # Determine "all-mode" (user used '*' as count spec: {*$$ ...})
     all_mode = False
