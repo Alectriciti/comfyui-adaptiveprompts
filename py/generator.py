@@ -106,13 +106,18 @@ def _restore_escaped_wildcards(text: str, mapping: dict) -> str:
     return text
 # ---------------------- Top-level split helpers ------------------------------
 
-def _find_top_level_dollars(s: str) -> list[int]:
-    indices = []
+def _find_top_level_separators(s: str) -> list[tuple[int, str]]:
+    """
+    Returns a list of (index, token) where token is '$$' or '??'
+    """
+    results = []
     depth = 0
     i = 0
     L = len(s)
+
     while i < L:
         c = s[i]
+
         if c == "{":
             depth += 1
             i += 1
@@ -122,12 +127,20 @@ def _find_top_level_dollars(s: str) -> list[int]:
                 depth -= 1
             i += 1
             continue
-        if depth == 0 and s.startswith("$$", i):
-            indices.append(i)
-            i += 2
-            continue
+
+        if depth == 0:
+            if s.startswith("$$", i):
+                results.append((i, "$$"))
+                i += 2
+                continue
+            if s.startswith("??", i):
+                results.append((i, "??"))
+                i += 2
+                continue
+
         i += 1
-    return indices
+
+    return results
 
 def _split_top_level_pipes(s: str) -> list[str]:
     """
@@ -159,6 +172,23 @@ def _split_top_level_pipes(s: str) -> list[str]:
     return parts
 
 # ------------------------ Weighted file helpers -----------------------------
+
+_WEIGHT_RE = re.compile(r'(?<!\\)%([0-9]*\.?[0-9]+)')
+
+def _extract_choice_weight(choice: str) -> tuple[str, float]:
+    """
+    Extract trailing %weight from a bracket choice.
+    Returns (clean_choice, weight).
+    If no weight is present, weight defaults to 1.0.
+    """
+    m = _WEIGHT_RE.search(choice)
+    if not m:
+        return choice, 1.0
+
+    weight = float(m.group(1))
+    # remove ONLY the matched %weight token
+    cleaned = choice[:m.start()] + choice[m.end():]
+    return cleaned, weight
 
 def _parse_weighted_options(lines_iterable):
     """
@@ -427,7 +457,7 @@ def _collect_candidates(_resolved_vars: dict,
                 add_values_for_var(vname)
     return candidates
 
-# ---------------------- New: select bracket to process -----------------------
+# ---------------------- Select Bracket to process -----------------------
 
 def find_next_bracket_span(text: str):
     """
@@ -453,10 +483,10 @@ def find_next_bracket_span(text: str):
     candidates = []
     for s, e, depth in spans:
         content = text[s+1:e]
-        dollar_idxs = _find_top_level_dollars(content)
-        if len(dollar_idxs) >= 2:
-            idx1 = dollar_idxs[0]
-            idx2 = dollar_idxs[1]
+        separators  = _find_top_level_separators(content)
+        if len(separators ) >= 2:
+            idx1, _ = separators[0]
+            idx2, _ = separators[1]
             for ns, ne, nd in spans:
                 if ns > s and ne < e:
                     nested_local_start = ns - (s + 1)
@@ -510,7 +540,7 @@ def process_bracket(content: str,
         bracket_ctx.setdefault("decks", {})
 
     # Find top-level $$ markers (ignoring nested brackets)
-    dollar_idxs = _find_top_level_dollars(content)
+    dollar_idxs = _find_top_level_separators(content)
 
     if not dollar_idxs:
         choices_str = content
@@ -556,6 +586,15 @@ def process_bracket(content: str,
     # Split choices by top-level pipes (do NOT strip — preserve exact choice content)
     raw_choices = [c for c in _split_top_level_pipes(choices_str)]
 
+    # Applies weight to each bracket selection
+    weighted_choices = []
+    weights = []
+
+    for c in raw_choices:
+        clean, w = _extract_choice_weight(c)
+        weighted_choices.append(clean)
+        weights.append(w)
+
     # Determine "all-mode" (user used '*' as count spec: {*$$ ...})
     all_mode = False
     try:
@@ -575,7 +614,7 @@ def process_bracket(content: str,
     # Each key is a tuple: (kind, canonical, original, var_tok)
     # kind in {"lit", "file", "var"}
     choice_keys = []
-    for c in raw_choices:
+    for c in weighted_choices:
         original = c  # exact user text (preserve whitespace/newlines)
         trimmed = c.strip()
 
@@ -754,9 +793,15 @@ def process_bracket(content: str,
             joined += sep_resolved + item
         return joined
 
-    # Shuffle a cycle of unique keys
-    cycle = list(unique_keys)
-    rng.shuffle(cycle)
+    # Shuffle a cycle of unique keys by weight
+    use_weighted = any(w != 1.0 for w in weights)
+    if use_weighted:
+        # build weighted cycle indices
+        idx = _weighted_index(weights, rng)
+        cycle = [unique_keys[idx]]
+    else:
+        cycle = list(unique_keys)
+        rng.shuffle(cycle)
 
     results = []
     produced = 0
