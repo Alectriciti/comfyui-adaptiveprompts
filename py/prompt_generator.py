@@ -62,7 +62,7 @@ class PromptGenerator:
         for block in comment_blocks:
             _ = resolve_wildcards(block, rng, self.input_dir, _resolved_vars=normalized_context)
         
-        prompt = re.sub(r"##.*?##", "", prompt)
+        prompt = re.sub(r"##.*?##", "", prompt, flags=re.DOTALL)
         
         result = resolve_wildcards(prompt, rng, self.input_dir, _resolved_vars=normalized_context)
 

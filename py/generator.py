@@ -510,397 +510,202 @@ def process_bracket(content: str,
                     bracket_ctx: dict | None = None,
                     bracket_overflow: bool = True) -> str:
     """
-    Handles bracket syntax with:
-      - count and optional custom separators using $$ markers
+    Handles bracket syntax:
+      - Deck Mode (using $$ as the separator) utilizes NO-REPEAT until all possible options have been exhausted.
+      - Roulette Mode (using ?? as the separator) only considers the weights. Repeats are possible.
       - choices split with '|'
+      - consider choice weights with %#.###
       - nested bracket/wildcard resolution for both choices and separators
-      - NO-REPEAT within this bracket using a per-bracket deck context:
-          * For file wildcards: draw without replacement from that file until exhausted.
-          * For top-level choices: each is used once before any repeats.
-        Repeats are allowed only if bracket_overflow=True.
-
-    Examples:
-      {4$$__fruit__}                              -> one of each fruit first, then repeats if needed
-      {6$$__fruit__}                              -> use all fruits once, then start repeating
-      {10$$__fruit__|__instrument__}              -> mix, both files use their own decks
-      {5$$__fruit__|__instrument__|__animal__}    -> first 3 cover each choice once in random order,
-                                                     remaining 2 only if overflow=True
     """
-    # Default
     count = 1
-    exhaust_all = False   # if True, we will exhaust every item from each top-level choice
+    exhaust_all = False
     separator = ", "
     choices_str = content
 
-    # Ensure/seed a bracket context for deck/no-repeat behavior
     if bracket_ctx is None:
         bracket_ctx = {"allow_overflow": bool(bracket_overflow), "decks": {}}
     else:
         bracket_ctx.setdefault("allow_overflow", bool(bracket_overflow))
         bracket_ctx.setdefault("decks", {})
 
-    # Find top-level $$ markers (ignoring nested brackets)
-    dollar_idxs = _find_top_level_separators(content)
+    separators = _find_top_level_separators(content)
+    token = "$$"
 
-    if not dollar_idxs:
-        choices_str = content
-    elif len(dollar_idxs) == 1:
-        idx1 = dollar_idxs[0]
-        count_part = content[:idx1]
-        choices_str = content[idx1 + 2 :]
-        if count_part is not None and count_part.strip() == "*":
-            exhaust_all = True
+    if separators:
+        if len(separators) == 1:
+            idx, token = separators[0]
+            count_part = content[:idx]
+            choices_str = content[idx + 2:]
         else:
-            if "-" in count_part:
-                low, high = map(int, count_part.split("-", 1))
-                count = seeded_rng.next_rng().randint(low, high)
-            else:
-                try:
-                    count = int(count_part)
-                except Exception:
-                    count = 1
-    else:
-        idx1 = dollar_idxs[0]
-        idx2 = dollar_idxs[1]
-        count_part = content[:idx1]
-        raw_separator = content[idx1 + 2 : idx2]
-        choices_str = content[idx2 + 2 :]
+            idx1, token = separators[0]
+            idx2, _ = separators[1]
+            count_part = content[:idx1]
+            raw_separator = content[idx1 + 2:idx2]
+            choices_str = content[idx2 + 2:]
 
-        if count_part is not None and count_part.strip() == "*":
+            try:
+                separator = raw_separator.encode("utf-8").decode("unicode_escape")
+            except Exception:
+                separator = raw_separator
+
+        if count_part.strip() == "*":
             exhaust_all = True
+        elif "-" in count_part:
+            lo, hi = map(int, count_part.split("-", 1))
+            count = seeded_rng.next_rng().randint(lo, hi)
         else:
-            if "-" in count_part:
-                low, high = map(int, count_part.split("-", 1))
-                count = seeded_rng.next_rng().randint(low, high)
-            else:
-                try:
-                    count = int(count_part)
-                except Exception:
-                    count = 1
+            try:
+                count = int(count_part)
+            except Exception:
+                pass
 
-        try:
-            separator = raw_separator.encode("utf-8").decode("unicode_escape")
-        except Exception:
-            separator = raw_separator
+    selection_mode = "roulette" if token == "??" else "deck"
 
-    # Split choices by top-level pipes (do NOT strip — preserve exact choice content)
-    raw_choices = [c for c in _split_top_level_pipes(choices_str)]
+    raw_choices = _split_top_level_pipes(choices_str)
 
-    # Applies weight to each bracket selection
-    weighted_choices = []
+    choice_keys = []
     weights = []
 
     for c in raw_choices:
         clean, w = _extract_choice_weight(c)
-        weighted_choices.append(clean)
         weights.append(w)
 
-    # Determine "all-mode" (user used '*' as count spec: {*$$ ...})
-    all_mode = False
-    try:
-        if isinstance(count_part, str) and count_part.strip() == "*":
-            all_mode = True
-    except NameError:
-        all_mode = False
-    
-    # This isolates all bracket randomness from outer calls while still being deterministic.
-    bracket_seed_source = seeded_rng.next_rng()  # consumes from global RNG
-    bracket_seed_value = bracket_seed_source.getrandbits(64)
-    bracket_seeded = SeededRandom(bracket_seed_value)
-
-    rng = bracket_seeded.next_rng()
-
-    # Build enriched choice triplets.
-    # Each key is a tuple: (kind, canonical, original, var_tok)
-    # kind in {"lit", "file", "var"}
-    choice_keys = []
-    for c in weighted_choices:
-        original = c  # exact user text (preserve whitespace/newlines)
-        trimmed = c.strip()
-
-        m = None
-        if FILE_PATTERN.fullmatch(trimmed):
-            m = FILE_PATTERN.fullmatch(trimmed)
+        trimmed = clean.strip()
+        m = FILE_PATTERN.fullmatch(trimmed)
 
         if m:
-            wc_name = m.group(1)  # may be None for pure var recall
-            var_tok = m.group(2)  # may be None
-            if (wc_name is None or wc_name == "") and var_tok:
-                # pure variable recall token: __^var__
-                kind = "var"
-                canonical = var_tok
-                key = (kind, canonical, original, var_tok)
+            wc_name = m.group(1)
+            var_tok = m.group(2)
+            if wc_name is None and var_tok:
+                key = ("var", var_tok, clean, var_tok)
             else:
-                # a file wildcard (may include a ^var assignment)
-                kind = "file"
-                canonical = (wc_name or "").strip()
-                key = (kind, canonical, original, var_tok)
+                key = ("file", wc_name.strip() if wc_name else "", clean, var_tok)
         else:
-            kind = "lit"
-            canonical = trimmed
-            key = (kind, canonical, original, None)
+            key = ("lit", trimmed, clean, None)
 
         choice_keys.append(key)
 
-        # This is called if we're using {*$$__var__}
-        if all_mode:
-            flat_results = []
-            only_var_choices = True
+    # Remove deduplication entirely
+    unique_keys = choice_keys.copy()
 
-            def _values_for_varname(varname):
-                """Return list of stored values for varname from _resolved_vars"""
-                if not _resolved_vars:
-                    return []
-                # prefer exact bucket lookup (preserves insertion order for dicts)
-                bucket = _resolved_vars.get(varname)
-                if bucket is None:
-                    # fallback to the flexible collector (handles patterns like a*, *)
-                    return _collect_candidates(_resolved_vars, varname, origin_filter=None)
-                # bucket present: support dict-of-origins, list/tuple, or scalar
-                if isinstance(bucket, dict):
-                    # dict.values() preserves insertion order
-                    return list(bucket.values())
-                if isinstance(bucket, (list, tuple)):
-                    return list(bucket)
-                # fallback single value
-                return [str(bucket)]
-
-            for k in choice_keys:
-                kind, canonical, original, var_tok = k
-                if kind != "var":
-                    only_var_choices = False
-                else:
-                    vn = canonical.strip() if isinstance(canonical, str) else canonical
-                    vals = _values_for_varname(vn)
-                    # extend with whatever values we found (preserving order)
-                    flat_results.extend(vals)
-
-            # If bracket contains only pure-var choices and we found values,
-            # return all of them joined by the user-specified separator.
-            if only_var_choices and flat_results:
-                joined = flat_results[0]
-                for item in flat_results[1:]:
-                    sep_seed = bracket_seeded.next_rng().getrandbits(64)
-                    sep_seeded = SeededRandom(sep_seed)
-                    sep_resolved = resolve_wildcards(
-                        separator, sep_seeded, wildcard_dir,
-                        _resolved_vars=_resolved_vars,
-                        _depth=0,
-                        bracket_ctx=bracket_ctx,
-                        bracket_overflow=bracket_ctx.get("allow_overflow", True),
-                    )
-                    joined += sep_resolved + item
-                return joined
-            # otherwise fall through to normal cycle logic
-
-    # Unique by (kind, canonical, var_tok) to avoid duplicates within the same cycle
-    seen = set()
-    unique_keys = []
-    for k in choice_keys:
-        tup = (k[0], k[1], k[3])
-        if tup not in seen:
-            seen.add(tup)
-            unique_keys.append(k)
-
-    # If overflow disabled, cap count
-    if not bracket_ctx.get("allow_overflow", True):
-        count = min(count, len(unique_keys))
-
+    # --- Handle * (exhaust all) mode ---
     if exhaust_all:
         results = []
-        # Use deterministic bracket-local RNG seed as earlier (so separators/inner evals are deterministic)
-        bracket_seed_source = seeded_rng.next_rng()
-        bracket_seed_value = bracket_seed_source.getrandbits(64)
-        bracket_seeded = SeededRandom(bracket_seed_value)
-        rng = bracket_seeded.next_rng()
 
-        # Loop unique_keys in the original order (no shuffle) and exhaust each in turn
         for key in unique_keys:
             kind, canonical, original, var_tok = key
 
-            if kind == "lit":
-                # Evaluate the literal once (deterministically) and append it
-                eval_rng_source = bracket_seeded.next_rng()
-                eval_seed_val = eval_rng_source.getrandbits(64)
-                eval_seeded = SeededRandom(eval_seed_val)
-                val = resolve_wildcards(
-                    original, eval_seeded, wildcard_dir,
+            if kind == "var":
+                # Pull every assigned value for this variable
+                vals = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
+                results.extend(vals)
+            else:
+                eval_seed = seeded_rng.next_rng().getrandbits(64)
+                eval_rng = SeededRandom(eval_seed)
+                resolved = resolve_wildcards(
+                    original, eval_rng, wildcard_dir,
                     _resolved_vars=_resolved_vars,
-                    _depth=0,
-                    bracket_ctx=None,             # evaluate literal fresh (no shared deck)
-                    bracket_overflow=True,
+                    bracket_ctx=bracket_ctx if kind == "file" else None,
+                    bracket_overflow=True
                 )
-                if val != "":
-                    results.append(val)
+                if resolved != "":
+                    results.append(resolved)
 
-            elif kind == "var":
-                # pure var recall __^x__ => append every assigned candidate if present
-                candidates = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
-                if candidates:
-                    # append in deterministic order as returned by _collect_candidates (insertion order)
-                    results.extend(candidates)
-                else:
-                    # fallback: try reading a file named 'canonical' and append all its lines
-                    fp = os.path.join(wildcard_dir or DEFAULT_WILDCARD_ROOT, f"{canonical}.txt")
-                    items, _ = _load_weighted_file(fp)
-                    # items preserves file order (no weights consideration for exhaustive listing)
-                    for itm in items:
-                        # resolve each item (so nested wildcards inside file lines get resolved)
-                        eval_rng_source = bracket_seeded.next_rng()
-                        eval_seed_val = eval_rng_source.getrandbits(64)
-                        eval_seeded = SeededRandom(eval_seed_val)
-                        val = resolve_wildcards(itm, eval_seeded, wildcard_dir,
-                                                _resolved_vars=_resolved_vars, _depth=0,
-                                                bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow)
-                        if val != "":
-                            results.append(val)
-
-            else:  # kind == "file"
-                wc_name = canonical
-                if not wc_name:
-                    continue
-                # Obtain raw items in file order
-                # Try primary dir then fallback handled by process_file_wildcard via _resolve_filepath; however
-                # _load_weighted_file expects an absolute path. Let's use the primary path and fallback manually.
-                primary_fp = os.path.join(wildcard_dir or DEFAULT_WILDCARD_ROOT, f"{wc_name}.txt")
-                # try fallback in DEFAULT_WILDCARD_ROOT if primary missing
-                actual_fp = primary_fp if os.path.exists(primary_fp) else os.path.join(DEFAULT_WILDCARD_ROOT, f"{wc_name}.txt")
-                items, _weights = _load_weighted_file(actual_fp) if os.path.exists(actual_fp) else ([], [])
-                for itm in items:
-                    # For each file line, resolve nested wildcards using the shared bracket_ctx to keep nested deck state
-                    eval_rng_source = bracket_seeded.next_rng()
-                    eval_seed_val = eval_rng_source.getrandbits(64)
-                    eval_seeded = SeededRandom(eval_seed_val)
-                    val = resolve_wildcards(itm, eval_seeded, wildcard_dir,
-                                            _resolved_vars=_resolved_vars, _depth=0,
-                                            bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow)
-                    if val != "":
-                        results.append(val)
-
-        # Now join results using separator EXACTLY as specified, evaluating separator per join
-        if not results:
+        # Join with separator
+        if results:
+            joined = results[0]
+            for item in results[1:]:
+                sep_seed = seeded_rng.next_rng().getrandbits(64)
+                sep_rng = SeededRandom(sep_seed)
+                sep_resolved = resolve_wildcards(
+                    separator, sep_rng, wildcard_dir,
+                    _resolved_vars=_resolved_vars,
+                    bracket_ctx=bracket_ctx,
+                    bracket_overflow=bracket_ctx["allow_overflow"]
+                )
+                joined += sep_resolved + item
+            return joined
+        else:
             return ""
-        joined = results[0]
-        for item in results[1:]:
-            rng_for_sep = bracket_seeded.next_rng()
-            sep_seed = rng_for_sep.getrandbits(64)
-            sep_seeded = SeededRandom(sep_seed)
-            sep_resolved = resolve_wildcards(
-                separator, sep_seeded, wildcard_dir,
-                _resolved_vars=_resolved_vars, _depth=0,
-                bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow
-            )
-            joined += sep_resolved + item
-        return joined
 
-    # Shuffle a cycle of unique keys by weight
-    use_weighted = any(w != 1.0 for w in weights)
-    if use_weighted:
-        # build weighted cycle indices
-        idx = _weighted_index(weights, rng)
-        cycle = [unique_keys[idx]]
-    else:
-        cycle = list(unique_keys)
-        rng.shuffle(cycle)
+    rng = seeded_rng.next_rng()
+
+    def weighted_pick(pool):
+        idx = _weighted_index(
+            [weights[choice_keys.index(k)] for k in pool],
+            rng
+        )
+        return pool[idx]
+
+    def resolve_choice(key):
+        kind, canonical, original, var_tok = key
+
+        eval_seed = seeded_rng.next_rng().getrandbits(64)
+        eval_rng = SeededRandom(eval_seed)
+
+        if kind == "lit":
+            return resolve_wildcards(
+                original, eval_rng, wildcard_dir,
+                _resolved_vars=_resolved_vars,
+                bracket_ctx=None,
+                bracket_overflow=True
+            )
+
+        if kind == "var":
+            vals = _collect_candidates(_resolved_vars, canonical, None)
+            return rng.choice(vals) if vals else ""
+
+        drawn = process_file_wildcard(canonical, rng, wildcard_dir, bracket_ctx)
+        if not drawn:
+            return ""
+
+        resolved = resolve_wildcards(
+            drawn, eval_rng, wildcard_dir,
+            _resolved_vars=_resolved_vars,
+            bracket_ctx=bracket_ctx,
+            bracket_overflow=bracket_ctx["allow_overflow"]
+        )
+
+        if var_tok:
+            _ensure_var_bucket(_resolved_vars, var_tok)
+            _resolved_vars[var_tok].setdefault(canonical, resolved)
+
+        return resolved
 
     results = []
-    produced = 0
-    safety_iters = 0
-    max_iters = max(32, count * 8)
+    deck = list(unique_keys)
 
-    def resolve_choice(key_quad):
-        kind, canonical, original, var_tok = key_quad
-        if kind == "lit":
-            # Each time the outer bracket chooses this literal, evaluate it freshly.
-            # Derive a unique deterministic seed for *this* evaluation from the bracket-local RNG.
-            # This ensures nested brackets re-roll *every time this choice is selected*.
-            # Consume one RNG from bracket_seeded and use its getrandbits() as the seed for the inner eval.
-            eval_rng_source = bracket_seeded.next_rng()
-            eval_seed_val = eval_rng_source.getrandbits(64)
-            eval_seeded = SeededRandom(eval_seed_val)
+    while len(results) < count:
+        if selection_mode == "deck":
+            if not deck:
+                if not bracket_ctx["allow_overflow"]:
+                    break
+                deck = list(unique_keys)
 
-            return resolve_wildcards(
-                original, eval_seeded, wildcard_dir,
-                _resolved_vars=_resolved_vars,
-                _depth=0,
-                bracket_ctx=None,               # fresh deck context per evaluation
-                bracket_overflow=True,
-            )
+            key = weighted_pick(deck)
+            deck.remove(key)
+        else:
+            key = weighted_pick(unique_keys)
 
-        elif kind == "var":
-            # Pure variable recall (e.g., __^x__) — sample from resolved vars for 'canonical' (var name)
-            rng_local = rng
-            candidates = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
-            if candidates:
-                return rng_local.choice(candidates)
-            else:
-                # nothing to recall; empty string
-                return ""
+        results.append(resolve_choice(key))
 
-        else:  # kind == "file"
-            wc_name = canonical  # file name (may be "")
-            # If wc_name is empty, no real file; treat as empty
-            if not wc_name:
-                return ""
-
-            # Draw from file deck (deck-aware)
-            sub_rng = rng
-            drawn = process_file_wildcard(wc_name, sub_rng, wildcard_dir, bracket_ctx=bracket_ctx)
-            if not drawn:
-                return ""
-
-            # Resolve nested wildcards inside drawn value (share bracket_ctx to keep deck state)
-            resolved_val = resolve_wildcards(
-                drawn, bracket_seeded, wildcard_dir,
-                _resolved_vars=_resolved_vars,
-                _depth=0,
-                bracket_ctx=bracket_ctx,
-                bracket_overflow=bracket_ctx.get("allow_overflow", True),
-            )
-
-            # If var_tok present, attempt to assign into _resolved_vars[var_tok][wc_name]
-            if var_tok:
-                # Do not clobber existing assignment for this origin (preserve if present)
-                _ensure_var_bucket(_resolved_vars, var_tok)
-                bucket = _resolved_vars[var_tok]
-                # Use the file name as origin key so recall like __fruit^a__ stores under bucket['a']['fruit']
-                origin_key = wc_name
-                if origin_key not in bucket:
-                    bucket[origin_key] = resolved_val.replace(_ADJ_WC_MARKER, "")
-                # If already present, we keep old value (do not overwrite)
-            return resolved_val
-
-    while produced < count and safety_iters < max_iters:
-        safety_iters += 1
-
-        if not cycle:
-            if not bracket_ctx.get("allow_overflow", True):
-                break
-            cycle = list(unique_keys)
-            rng.shuffle(cycle)
-
-        key = cycle.pop(0)
-        piece = resolve_choice(key)
-        results.append(piece)
-        produced += 1
-
-    # Join results using the separator EXACTLY as the user specified (resolve any wildcards inside it)
-    if results:
-        joined = results[0]
-        for item in results[1:]:
-            sep_seed = rng.getrandbits(64)
-            sep_seeded = SeededRandom(sep_seed)
-            sep_resolved = resolve_wildcards(
-                separator, sep_seeded, wildcard_dir,
-                _resolved_vars=_resolved_vars,
-                _depth=0,
-                bracket_ctx=bracket_ctx,
-                bracket_overflow=bracket_ctx.get("allow_overflow", True),
-            )
-            joined += sep_resolved + item
-        return joined
-    else:
+    if not results:
         return ""
+
+    joined = results[0]
+    for item in results[1:]:
+        sep_seed = seeded_rng.next_rng().getrandbits(64)
+        sep_rng = SeededRandom(sep_seed)
+        sep_resolved = resolve_wildcards(
+            separator, sep_rng, wildcard_dir,
+            _resolved_vars=_resolved_vars,
+            bracket_ctx=bracket_ctx,
+            bracket_overflow=bracket_ctx["allow_overflow"]
+        )
+        joined += sep_resolved + item
+
+    return joined
+
 
 # ---------------------- Main resolver (iterative passes + final sweep) ------------
 
