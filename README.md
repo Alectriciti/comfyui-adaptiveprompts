@@ -3,6 +3,7 @@
 
 <img src="images/adaptive_prompts_logo.png">
 
+> - **13/01/26** Happy New Year! v0.0.3 released! Added a new bracket selection mode. see releases page for change-log.
 > - **16/09/25** Prompt Sequencer added: Generates every possible combination of wildcards sequentially.
 > - **15/09/25** Prompt Generator (Advanced) added: Allows specifying a /wildcards/ folder (if the folder starts with "wildcard").
 > - **12/09/25** Context is now chainable, allowing for variables to be instantiated separately. Newline/Whitespace stripping fixed.
