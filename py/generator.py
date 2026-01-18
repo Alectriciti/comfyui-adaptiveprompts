@@ -497,9 +497,9 @@ def find_next_bracket_span(text: str):
         candidates.sort(key=lambda x: x[0])
         return (candidates[0][0], candidates[0][1])
     max_depth = max(sp[2] for sp in spans)
-    inners = [sp for sp in spans if sp[2] == max_depth]
-    inners.sort(key=lambda x: x[0])
-    return (inners[0][0], inners[0][1])
+    outers = [sp for sp in spans if sp[2] == 1]
+    outers.sort(key=lambda x: x[0])
+    return (outers[0][0], outers[0][1])
 
 # ---------------------- Bracket processing ----------------------------------
 
