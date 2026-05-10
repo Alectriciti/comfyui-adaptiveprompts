@@ -13,18 +13,25 @@ Changes:
 import re
 import os
 import random
+from collections import deque
 
 
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 
 # Wildcards + variables:
 # - name may include letters/digits/_/-/* and '/'
+# - name may start with one or more ./ or ../ prefixes for source-relative paths
 # - optional ^var after the name (var may include trailing *)
 # - also supports pure variable recall: __^var__
-FILE_PATTERN = re.compile(r"__(?:([a-zA-Z0-9_\-/*]+?))?(?:\^([a-zA-Z0-9_\-\*]+))?__")
+FILE_PATTERN = re.compile(
+    r"__"
+    r"((?:\.{1,2}/)*[a-zA-Z0-9_\-/*]+)?"  # optional name with optional ./.. prefix
+    r"(?:\^([a-zA-Z0-9_\-\*]+))?"         # optional ^var
+    r"__"
+)
 
-# Normalize spacing between adjacent wildcard-ish tokens (allow ^ and *)
-ADJ_WC_PATTERN = re.compile(r"(__[a-zA-Z0-9_\-/*\^\*]+__)(__[a-zA-Z0-9_\-/*\^\*]+__)")
+# Normalize spacing between adjacent wildcard-ish tokens (allow ^, *, and .)
+ADJ_WC_PATTERN = re.compile(r"(__[a-zA-Z0-9_\-/*\^\*.]+__)(__[a-zA-Z0-9_\-/*\^\*.]+__)")
 
 # marker used to separate adjacent wildcard tokens internally (removed at the end)
 _ADJ_WC_MARKER = "<<ZWC>>"
@@ -77,7 +84,7 @@ def _space_adjacent_wildcards(s: str) -> str:
 # ---------------------- Wildcard blocking helpers -------------------------
 
 # Regex to capture a backslash-escaped wildcard token: \__name__ or \__name^var__
-_ESC_WC_RE = re.compile(r'\\(__[A-Za-z0-9_\-/*]+(?:\^[A-Za-z0-9_\-\*]+)?__)')
+_ESC_WC_RE = re.compile(r'\\(__[A-Za-z0-9_\-/*.]+(?:\^[A-Za-z0-9_\-\*]+)?__)')
 
 def _protect_escaped_wildcards(text: str, mapping: dict) -> str:
     """
@@ -311,98 +318,222 @@ def _choose_file_from_dir(dir_path: str,
         return None
     return rng.choice(candidates)
 
-def process_file_wildcard(name: str,
-                          rng: random.Random,
-                          wildcard_dir: str,
-                          bracket_ctx: dict | None = None) -> str:
-    """
-    file patterns supported (same as before). This version will:
-      - Try to resolve files relative to the provided wildcard_dir first.
-      - If a file/directory is missing there, attempt the equivalent path under
-        DEFAULT_WILDCARD_ROOT (the global '/wildcards/' fallback).
-      - If bracket_ctx is provided, draws are done WITHOUT replacement from a deck
-        (per-file) for the lifetime of this bracket; the deck key is the actual
-        filepath used (primary or fallback).
-    """
-    if not name:
-        return ""
+def _draw_text_from_file(filepath: str,
+                         rng: random.Random,
+                         bracket_ctx: dict | None) -> str:
+    """Draw one line from a wildcard file. Honors per-bracket no-repeat deck if provided."""
+    if bracket_ctx is None:
+        return _read_weighted_line(filepath, rng)
+    deck = _ensure_deck_for_file(bracket_ctx, filepath)
+    picked = _deck_draw(deck, rng, allow_overflow=bool(bracket_ctx.get("allow_overflow", True)))
+    return picked or ""
 
-    # Normalize the incoming wildcard_dir (may be absolute path passed from PromptGenerator)
-    primary_dir = wildcard_dir or DEFAULT_WILDCARD_ROOT
 
-    # Helper: given a candidate absolute filepath (built from primary_dir), try using it,
-    # otherwise compute the fallback filepath and use that if it exists.
-    def _resolve_filepath(candidate_fp: str) -> str | None:
-        # If candidate exists, use it
-        if candidate_fp and os.path.exists(candidate_fp):
-            return candidate_fp
-        # Try to compute a fallback path by converting from primary_dir -> DEFAULT_WILDCARD_ROOT
-        try:
-            rel = os.path.relpath(candidate_fp, primary_dir)
-        except Exception:
-            rel = os.path.basename(candidate_fp) if candidate_fp else ""
-        if rel:
-            fallback_fp = os.path.join(DEFAULT_WILDCARD_ROOT, rel)
-            if os.path.exists(fallback_fp):
-                return fallback_fp
+def _find_at_base(name: str,
+                  base: str,
+                  rng: random.Random) -> str | None:
+    """
+    Resolve a (possibly path/glob) wildcard name against a single base directory.
+    Returns the absolute filepath on success, or None.
+    Handles: 'a/b/c', 'a/b/*', 'a/b/prefix*', '*', 'prefix*', 'name'.
+    """
+    if not name or not os.path.isdir(base):
         return None
-
-    def draw_from_filepath(filepath: str) -> str:
-        # resolve actual filepath (primary -> fallback)
-        actual_fp = _resolve_filepath(filepath)
-        if not actual_fp:
-            return ""
-        # If no bracket context, do legacy single weighted draw
-        if bracket_ctx is None:
-            return _read_weighted_line(actual_fp, rng)
-        # Decked draw (no-repeat in this bracket) keyed by actual filepath
-        deck = _ensure_deck_for_file(bracket_ctx, actual_fp)
-        picked = _deck_draw(deck, rng, allow_overflow=bool(bracket_ctx.get("allow_overflow", True)))
-        return picked or ""
-
-    # If name references a subfolder / file
-    name = name.strip("/")
 
     if "/" in name:
         dir_part, last = name.rsplit("/", 1)
-        dir_path = os.path.join(primary_dir, dir_part)
-
+        dir_path = os.path.join(base, dir_part)
         if last == "" or last == "*" or last.endswith("*"):
             prefix = None if last in ("", "*") else last[:-1]
-            chosen = _choose_file_from_dir(dir_path, rng, prefix=prefix)
-            if not chosen:
-                # try fallback directory
-                try:
-                    rel_dir = os.path.relpath(dir_path, primary_dir)
-                except Exception:
-                    rel_dir = os.path.basename(dir_path)
-                fallback_dir = os.path.join(DEFAULT_WILDCARD_ROOT, rel_dir)
-                chosen = _choose_file_from_dir(fallback_dir, rng, prefix=prefix)
-            return draw_from_filepath(chosen) if chosen else ""
-
+            return _choose_file_from_dir(dir_path, rng, prefix=prefix)
         filepath = os.path.join(dir_path, f"{last}.txt")
-        # try primary then fallback
-        return draw_from_filepath(filepath)
+        return filepath if os.path.isfile(filepath) else None
 
-    # Root-level cases
     if name == "*":
-        chosen = _choose_file_from_dir(primary_dir, rng, prefix=None)
-        if not chosen:
-            # fallback to default root
-            chosen = _choose_file_from_dir(DEFAULT_WILDCARD_ROOT, rng, prefix=None)
-        return draw_from_filepath(chosen) if chosen else ""
-
+        return _choose_file_from_dir(base, rng, prefix=None)
     if name.endswith("*"):
-        prefix = name[:-1]
-        chosen = _choose_file_from_dir(primary_dir, rng, prefix=prefix)
-        if not chosen:
-            # fallback to default root
-            chosen = _choose_file_from_dir(DEFAULT_WILDCARD_ROOT, rng, prefix=prefix)
-        return draw_from_filepath(chosen) if chosen else ""
+        return _choose_file_from_dir(base, rng, prefix=name[:-1])
 
-    # Specific file in primary dir -> fallback to default if missing
-    filepath = os.path.join(primary_dir, f"{name}.txt")
-    return draw_from_filepath(filepath)
+    filepath = os.path.join(base, f"{name}.txt")
+    return filepath if os.path.isfile(filepath) else None
+
+
+def _bfs_find_wildcard(name: str, root: str) -> str | None:
+    """
+    Breadth-first search under `root` for a wildcard file.
+      - Bare 'foo'      -> finds any 'foo.txt' anywhere in the tree.
+      - Path 'a/b/foo'  -> finds 'a/b/foo.txt' nested at any depth.
+    Returns the absolute filepath, or None. Caller is responsible for
+    skipping glob names (the meaning would be ambiguous).
+    """
+    if not name or not os.path.isdir(root):
+        return None
+    if "*" in name:
+        return None
+
+    target_rel = name.replace("/", os.sep) + ".txt"
+    queue = deque([root])
+    visited = set()
+
+    while queue:
+        current = queue.popleft()
+        try:
+            current_real = os.path.realpath(current)
+        except OSError:
+            continue
+        if current_real in visited:
+            continue
+        visited.add(current_real)
+
+        candidate = os.path.join(current, target_rel)
+        if os.path.isfile(candidate):
+            return candidate
+
+        try:
+            entries = sorted(os.listdir(current))
+        except OSError:
+            continue
+        for entry in entries:
+            full = os.path.join(current, entry)
+            if os.path.isdir(full):
+                queue.append(full)
+
+    return None
+
+
+def process_file_wildcard(name: str,
+                          rng: random.Random,
+                          wildcard_dir: str,
+                          source_file: str | None,
+                          bracket_ctx: dict | None = None) -> tuple[str, str | None]:
+    """
+    Resolve a wildcard token like __name__, __./name__, __../name__, or __a/b/c__.
+
+    Lookup chain (for unprefixed names):
+      1. The source file's directory (if known) -- so 'cave' next to 'random.txt'
+         finds 'cave.txt' in the same folder.
+      2. The wildcard root (primary_dir; DEFAULT_WILDCARD_ROOT is also tried as a
+         final fallback when primary_dir was overridden).
+      3. BFS through the wildcard tree, looking for `name.txt` (or for path-form
+         names like 'a/b/c', the relative subpath 'a/b/c.txt' nested anywhere).
+
+    Prefix semantics:
+      - './name'  - explicit; only the source directory is tried, no BFS.
+      - '../name' - explicit; only the parent of the source directory is tried,
+                    no BFS. Multiple ../ may be chained.
+      - 'a/b/c'   - path-form; resolved using the full chain above. Inside
+                    'Pokemon/', '__Generation4/weavile__' finds
+                    'Pokemon/Generation4/weavile.txt' at step 1 — relative
+                    paths behave the way they do in any other filesystem.
+                    The path is also used as the search target for BFS, so
+                    '__Pokemon/Generation4/weavile__' can be written from
+                    anywhere and BFS will find the matching subpath.
+
+    Glob patterns (containing '*') always skip BFS; with no concrete name to
+    match, a tree-wide search would be ambiguous.
+
+    Returns:
+        (drawn_text, resolved_filepath)
+        - drawn_text:        the line drawn from the resolved file, or "" if
+                              nothing matched.
+        - resolved_filepath: absolute path of the file actually read, or None
+                              if no file was read. Callers should pass this
+                              back as `source_file` when recursively resolving
+                              the drawn line, so nested wildcards inside it
+                              resolve relative to where they came from.
+    """
+    if not name:
+        return "", None
+
+    primary_dir = wildcard_dir or DEFAULT_WILDCARD_ROOT
+
+    # Source directory (where the current text was drawn from, if known)
+    source_dir = None
+    if source_file:
+        try:
+            sf_abs = os.path.abspath(source_file)
+            if os.path.isfile(sf_abs):
+                source_dir = os.path.dirname(sf_abs)
+        except Exception:
+            source_dir = None
+
+    # --- Parse leading ./ and ../ chains ---
+    explicit_relative = False
+    explicit_base = None
+    walking = name
+    while True:
+        if walking.startswith("./"):
+            walking = walking[2:]
+            explicit_relative = True
+            if explicit_base is None:
+                explicit_base = source_dir or primary_dir
+        elif walking.startswith("../"):
+            walking = walking[3:]
+            explicit_relative = True
+            base = explicit_base if explicit_base is not None else (source_dir or primary_dir)
+            explicit_base = os.path.dirname(base) if base else primary_dir
+        else:
+            break
+
+    name = walking.strip("/")
+    if not name:
+        return "", None
+
+    has_glob = "*" in name
+
+    # --- Build the list of base directories to try, in priority order ---
+    search_bases: list[str] = []
+
+    if explicit_relative:
+        # Explicit ./ or ../ : only try the resolved location.
+        if explicit_base:
+            search_bases.append(explicit_base)
+    else:
+        # Implicit chain:
+        #   - Bare names look in the source dir first (e.g. 'cave' next to 'random.txt').
+        #   - Path-form names ALSO look in the source dir first (e.g. 'Generation4/weavile'
+        #     from inside 'Pokemon/' resolves to 'Pokemon/Generation4/weavile.txt'
+        #     directly, without walking the whole tree).
+        if source_dir is not None:
+            search_bases.append(source_dir)
+        search_bases.append(primary_dir)
+        if os.path.abspath(primary_dir) != os.path.abspath(DEFAULT_WILDCARD_ROOT):
+            search_bases.append(DEFAULT_WILDCARD_ROOT)
+
+    # De-duplicate while preserving order
+    seen = set()
+    deduped = []
+    for b in search_bases:
+        if not b:
+            continue
+        try:
+            key = os.path.abspath(b)
+        except Exception:
+            key = b
+        if key not in seen:
+            seen.add(key)
+            deduped.append(b)
+    search_bases = deduped
+
+    # --- Steps 1 & 2: direct resolution at each base ---
+    for base in search_bases:
+        fp = _find_at_base(name, base, rng)
+        if fp:
+            return _draw_text_from_file(fp, rng, bracket_ctx), fp
+
+    # --- Step 3: BFS fallback ---
+    # Only for implicit lookups, and only for non-glob names.
+    if not explicit_relative and not has_glob:
+        bfs_roots = [primary_dir]
+        if os.path.abspath(primary_dir) != os.path.abspath(DEFAULT_WILDCARD_ROOT):
+            bfs_roots.append(DEFAULT_WILDCARD_ROOT)
+        for root in bfs_roots:
+            bfs_fp = _bfs_find_wildcard(name, root)
+            if bfs_fp:
+                return _draw_text_from_file(bfs_fp, rng, bracket_ctx), bfs_fp
+
+    # --- Step 4: nothing found (silent empty, matching legacy behavior) ---
+    return "", None
 
 def weighted_choice(options: list[str], rng: random.Random) -> str:
     items, weights = _parse_weighted_options(options)
@@ -504,6 +635,7 @@ def find_next_bracket_span(text: str):
 # ---------------------- Bracket processing ----------------------------------
 
 def process_bracket(content: str,
+                    source_file: str,
                     seeded_rng: SeededRandom,
                     wildcard_dir: str,
                     _resolved_vars=None,
@@ -603,7 +735,7 @@ def process_bracket(content: str,
                 eval_seed = seeded_rng.next_rng().getrandbits(64)
                 eval_rng = SeededRandom(eval_seed)
                 resolved = resolve_wildcards(
-                    original, eval_rng, wildcard_dir,
+                    original, source_file, eval_rng, wildcard_dir,
                     _resolved_vars=_resolved_vars,
                     bracket_ctx=bracket_ctx if kind == "file" else None,
                     bracket_overflow=True
@@ -618,7 +750,7 @@ def process_bracket(content: str,
                 sep_seed = seeded_rng.next_rng().getrandbits(64)
                 sep_rng = SeededRandom(sep_seed)
                 sep_resolved = resolve_wildcards(
-                    separator, sep_rng, wildcard_dir,
+                    separator, source_file, sep_rng, wildcard_dir,
                     _resolved_vars=_resolved_vars,
                     bracket_ctx=bracket_ctx,
                     bracket_overflow=bracket_ctx["allow_overflow"]
@@ -645,7 +777,7 @@ def process_bracket(content: str,
 
         if kind == "lit":
             return resolve_wildcards(
-                original, eval_rng, wildcard_dir,
+                original, source_file, eval_rng, wildcard_dir,
                 _resolved_vars=_resolved_vars,
                 bracket_ctx=None,
                 bracket_overflow=True
@@ -655,12 +787,12 @@ def process_bracket(content: str,
             vals = _collect_candidates(_resolved_vars, canonical, None)
             return rng.choice(vals) if vals else ""
 
-        drawn = process_file_wildcard(canonical, rng, wildcard_dir, bracket_ctx)
+        drawn, drawn_fp = process_file_wildcard(canonical, rng, wildcard_dir, source_file, bracket_ctx)
         if not drawn:
             return ""
 
         resolved = resolve_wildcards(
-            drawn, eval_rng, wildcard_dir,
+            drawn, drawn_fp, eval_rng, wildcard_dir,
             _resolved_vars=_resolved_vars,
             bracket_ctx=bracket_ctx,
             bracket_overflow=bracket_ctx["allow_overflow"]
@@ -697,7 +829,7 @@ def process_bracket(content: str,
         sep_seed = seeded_rng.next_rng().getrandbits(64)
         sep_rng = SeededRandom(sep_seed)
         sep_resolved = resolve_wildcards(
-            separator, sep_rng, wildcard_dir,
+            separator, source_file, sep_rng, wildcard_dir,
             _resolved_vars=_resolved_vars,
             bracket_ctx=bracket_ctx,
             bracket_overflow=bracket_ctx["allow_overflow"]
@@ -712,6 +844,7 @@ def process_bracket(content: str,
 _VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 def _final_sweep_resolve(text: str,
+                         source_file: str,
                          seeded_rng: SeededRandom,
                          wildcard_dir: str,
                          _resolved_vars: dict,
@@ -740,9 +873,9 @@ def _final_sweep_resolve(text: str,
             else:
                 # fallback: try to resolve a wildcard file named var_tok (i.e., __^var__ (if no variable resolved, then -> __var__))
                 rng_for_this = seeded_rng.next_rng()
-                generated = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, bracket_ctx=None)
+                generated, generated_fp = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
                 if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
-                    replacement = resolve_wildcards(generated, seeded_rng, wildcard_dir,
+                    replacement = resolve_wildcards(generated, generated_fp, seeded_rng, wildcard_dir,
                                                    _depth=_depth + 1, _resolved_vars=_resolved_vars)
                 else:
                     replacement = ""
@@ -759,10 +892,10 @@ def _final_sweep_resolve(text: str,
                     replacement = bucket[wc_name]
                 else:
                     rng_for_this = seeded_rng.next_rng()
-                    generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, bracket_ctx=None)
+                    generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
                     if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
                         replacement = resolve_wildcards(
-                            generated, seeded_rng, wildcard_dir,
+                            generated, generated_fp,  seeded_rng, wildcard_dir,
                             _depth=_depth + 1, _resolved_vars=_resolved_vars
                         )
                         _ensure_var_bucket(_resolved_vars, var_tok)
@@ -773,10 +906,10 @@ def _final_sweep_resolve(text: str,
                         replacement = ""
         else:
             rng_for_this = seeded_rng.next_rng()
-            generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, bracket_ctx=None)
+            generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
             if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
                 replacement = resolve_wildcards(
-                    generated, seeded_rng, wildcard_dir,
+                    generated, generated_fp, seeded_rng, wildcard_dir,
                     _depth=_depth + 1, _resolved_vars=_resolved_vars
                 )
             else:
@@ -788,6 +921,7 @@ def _final_sweep_resolve(text: str,
     return text
 
 def resolve_wildcards(text: str,
+                      source_file: str | None,
                       seeded_rng: SeededRandom,
                       wildcard_dir: str,
                       _depth=0,
@@ -856,6 +990,7 @@ def resolve_wildcards(text: str,
                     content = working[br_start + 1: br_end]
                     repl = process_bracket(
                         content,
+                        source_file,
                         seeded_rng,
                         wildcard_dir,
                         _resolved_vars=_resolved_vars,
@@ -885,7 +1020,9 @@ def resolve_wildcards(text: str,
                             while attempt < max_attempts:
                                 attempt += 1
                                 candidate = process_bracket(
-                                    content, seeded_rng, wildcard_dir,
+                                    content, source_file,
+                                    seeded_rng,
+                                    wildcard_dir,
                                     _resolved_vars=_resolved_vars,
                                     bracket_ctx=bracket_ctx,
                                     bracket_overflow=bracket_overflow
@@ -937,10 +1074,13 @@ def resolve_wildcards(text: str,
                     else:
                         # fallback: try to resolve a wildcard file named var_tok (i.e., __var_tok__)
                         rng_for_this = seeded_rng.next_rng()
-                        generated = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, bracket_ctx=None)
+                        generated, generated_fp = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
                         if generated:
                             replacement = resolve_wildcards(
-                                generated, seeded_rng, wildcard_dir,
+                                generated,
+                                generated_fp,
+                                seeded_rng,
+                                wildcard_dir,
                                 _depth=_depth + 1, _resolved_vars=_resolved_vars,
                                 bracket_ctx=None,
                                 bracket_overflow=bracket_overflow
@@ -964,12 +1104,14 @@ def resolve_wildcards(text: str,
                         else:
                             # generate once and store under var_tok[wildcard_name]
                             rng_for_this = seeded_rng.next_rng()
-                            generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, bracket_ctx=bracket_ctx)
+                            generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx)
                             if not generated or generated == full_token or generated.strip() == full_token.strip():
                                 replacement = None
                             else:
                                 replacement = resolve_wildcards(
-                                    generated, seeded_rng, wildcard_dir,
+                                    generated, generated_fp,
+                                    seeded_rng,
+                                    wildcard_dir,
                                     _depth=_depth + 1, _resolved_vars=_resolved_vars,
                                     bracket_ctx=bracket_ctx,
                                     bracket_overflow=bracket_overflow
@@ -983,12 +1125,14 @@ def resolve_wildcards(text: str,
                 else:
                     # plain wildcard: __name__
                     rng_for_this = seeded_rng.next_rng()
-                    generated = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, bracket_ctx=bracket_ctx)
+                    generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx)
                     if not generated or generated == full_token or generated.strip() == full_token.strip():
                         replacement = None
                     else:
                         replacement = resolve_wildcards(
-                            generated, seeded_rng, wildcard_dir,
+                            generated, generated_fp,
+                            seeded_rng,
+                            wildcard_dir,
                             _depth=_depth + 1, _resolved_vars=_resolved_vars,
                             bracket_ctx=bracket_ctx,
                             bracket_overflow=bracket_overflow
@@ -1021,9 +1165,8 @@ def resolve_wildcards(text: str,
         text = _space_adjacent_wildcards(text)
 
     # Final sweep (no bracket context here)
-    # Final sweep (no bracket context here)
     text = _final_sweep_resolve(
-        text, seeded_rng, wildcard_dir, _resolved_vars, _depth,
+        text, source_file, seeded_rng, wildcard_dir, _resolved_vars, _depth,
         escaped_map=_escaped_wildcard_map
     )
     # RESTORE any protected escaped wildcard placeholders back to literal text

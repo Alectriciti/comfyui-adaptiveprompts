@@ -60,11 +60,11 @@ class PromptGenerator:
         comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
         
         for block in comment_blocks:
-            _ = resolve_wildcards(block, rng, self.input_dir, _resolved_vars=normalized_context)
+            _ = resolve_wildcards(block, None, rng, self.input_dir, _resolved_vars=normalized_context)
         
         prompt = re.sub(r"##.*?##", "", prompt, flags=re.DOTALL)
         
-        result = resolve_wildcards(prompt, rng, self.input_dir, _resolved_vars=normalized_context)
+        result = resolve_wildcards(prompt, None, rng, self.input_dir, _resolved_vars=normalized_context)
 
         #if cleanup:
         #result = " ".join(result.split())
@@ -132,13 +132,13 @@ class PromptGeneratorAdvanced:
         # ----- handle comment blocks first -----
         comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
         for block in comment_blocks:
-            _ = resolve_wildcards(block, rng, folder_name, _resolved_vars=normalized_context)
+            _ = resolve_wildcards(block, None, rng, folder_name, _resolved_vars=normalized_context)
 
         if hide_comments:
             prompt = re.sub(r"##.*?##", "", prompt)
 
         # ----- resolve main prompt -----
-        result = resolve_wildcards(prompt, rng, folder_name, _resolved_vars=normalized_context)
+        result = resolve_wildcards(prompt, None, rng, folder_name, _resolved_vars=normalized_context)
 
         # Ensure context buckets are normalized
         for k, v in list(normalized_context.items()):
