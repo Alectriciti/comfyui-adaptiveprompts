@@ -44,7 +44,7 @@ class PromptReplace:
         normalized_context = _normalize_input_context(context)
 
         # Expand target_string ONCE
-        expanded_target = resolve_wildcards(target_string, seeded_rng, category, _resolved_vars=normalized_context)
+        expanded_target = resolve_wildcards(target_string, None, seeded_rng, category, _resolved_vars=normalized_context)
         targets = expanded_target.split("\n")
 
         result = string
@@ -65,7 +65,7 @@ class PromptReplace:
                     return match.group(0)  # No change
 
                 # Expand replace_string PER replacement
-                replacement = resolve_wildcards(replace_string, seeded_rng, category, _resolved_vars=normalized_context)
+                replacement = resolve_wildcards(replace_string, None, seeded_rng, category, _resolved_vars=normalized_context)
                 #if debug:
                 #    print(f"  replace {replacements_done}: {repr(replacement)}")
                 replacements_done += 1
