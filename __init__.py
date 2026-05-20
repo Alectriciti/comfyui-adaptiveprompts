@@ -2,13 +2,14 @@ import os
 from .py.prompt_stack_loader import PromptStackLoader
 from .py.prompt_repack import PromptRepack
 from .py.prompt_replace import PromptReplace
-from .py.prompt_generator import PromptGenerator, PromptGeneratorAdvanced, PromptContextMerge, PromptSequencer
+from .py.prompt_generator import PromptGenerator, PromptGeneratorAdvanced, PromptSequencer, PromptContextMerge, PromptSetVariable
 from .py.weight_lifter import WeightLifter
 from .py.image_nodes import SaveImageAndText
 from .py.prompt_alias import PromptAliasSwap
 from .py.prompt_splitter import PromptSplitter
 from .py.prompt_mixer import PromptMixer
 from .py.prompt_shuffle import PromptShuffle, PromptShuffleAdvanced
+from .py.lora_utils import *
 from .py.string_utils import *
 from .py.misc_utils import *
 from .py.math_utils import *
@@ -37,6 +38,8 @@ NODE_CLASS_MAPPINGS = {
     "RandomFloats": RandomFloats4,
     "RandomIntegers": RandomIntegers4,
     "PromptStackLoader": PromptStackLoader,
+    "SetPromptVariable": PromptSetVariable,
+    "LoadLoraTags": LoadLoraTags,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -63,6 +66,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RandomFloats": "Random Floats 4",
     "RandomIntegers": "Random Integers 4",
     "PromptStackLoader": "🥞 Prompt Stack Loader 🥞",
+    "SetPromptVariable": "Set Prompt Variable",
+    "LoadLoraTags": "Load Lora Tags",
 }
 
 def register_nodes(comfy):

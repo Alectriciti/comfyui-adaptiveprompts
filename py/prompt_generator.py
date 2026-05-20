@@ -10,6 +10,7 @@ Changes:
 """
 
 import os
+import copy
 from .generator import resolve_wildcards, SeededRandom, sequence_prompt_elements, evaluate_prompt_core
 from .string_utils import re
 from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options
@@ -137,6 +138,68 @@ class PromptGeneratorAdvanced:
 
 
 
+
+class PromptSequencer:
+    """
+    Deterministic generation node.
+    Sequences top-level wildcards and brackets sequentially based on the seed.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        labels, mapping, tooltip = build_category_options()
+        cls._CATEGORY_LABELS = labels
+        cls._CATEGORY_MAP = mapping
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "mode": (["FROM_START", "FROM_END", "PARALLEL"], {"default": "FROM_START"}),
+                "hide_comments": ("BOOLEAN", {"default": True}),
+                "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
+            },
+            "optional": {
+                "context": ("DICT", {}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "DICT")
+    RETURN_NAMES = ("prompt", "context")
+    FUNCTION = "process"
+    CATEGORY = "adaptiveprompts/generation"
+
+    # ---------- main ----------
+    def process(self, prompt, seed, mode, hide_comments, category=None, context=None):
+        rng = SeededRandom(seed)
+        normalized_context = _normalize_input_context(context)
+
+        category_label = category if category is not None else (
+            getattr(self.__class__, "_CATEGORY_LABELS", ["Default"])[0]
+        )
+        folder_map = getattr(self.__class__, "_CATEGORY_MAP", {}) or {}
+        folder_name = folder_map.get(category_label, "wildcards")
+
+        # ----- handle comment blocks first -----
+        comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
+        for block in comment_blocks:
+            seq_block = sequence_prompt_elements(block, seed, mode, folder_name, normalized_context, rng)
+            _ = resolve_wildcards(seq_block, rng, folder_name, _resolved_vars=normalized_context)
+
+        if hide_comments:
+            prompt = re.sub(r"##.*?##", "", prompt, flags=re.DOTALL)
+
+        # ----- Sequence Main Prompt -----
+        sequenced_prompt = sequence_prompt_elements(prompt, seed, mode, folder_name, normalized_context, rng)
+        
+        # Resolve any remaining nested elements organically
+        result = resolve_wildcards(sequenced_prompt, rng, folder_name, _resolved_vars=normalized_context)
+
+        for k, v in list(normalized_context.items()):
+            if not isinstance(v, dict):
+                normalized_context[k] = _ensure_bucket_dict(v)
+
+        return (result, normalized_context)
+
 class PromptContextMerge:
     """
     Combines up to three incoming contexts into a single context suitable for
@@ -214,63 +277,57 @@ class PromptContextMerge:
 
 
 
-class PromptSequencer:
+class PromptSetVariable:
     """
-    Deterministic generation node.
-    Sequences top-level wildcards and brackets sequentially based on the seed.
+    Manually injects or appends data into a specific variable bucket within the context.
+    This behaves identically to the inline {data}^variable syntax.
     """
 
     @classmethod
     def INPUT_TYPES(cls):
-        labels, mapping, tooltip = build_category_options()
-        cls._CATEGORY_LABELS = labels
-        cls._CATEGORY_MAP = mapping
         return {
             "required": {
-                "prompt": ("STRING", {"multiline": True}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                "mode": (["FROM_START", "FROM_END", "PARALLEL"], {"default": "FROM_START"}),
-                "hide_comments": ("BOOLEAN", {"default": True}),
-                "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
+                "variable": ("STRING", {"default": "var_name"}),
+                "data": ("STRING", {"multiline": True, "default": "data to store"}),
             },
             "optional": {
                 "context": ("DICT", {}),
-            },
+            }
         }
 
-    RETURN_TYPES = ("STRING", "DICT")
-    RETURN_NAMES = ("prompt", "context")
-    FUNCTION = "process"
-    CATEGORY = "adaptiveprompts/generation"
+    RETURN_TYPES = ("DICT",)
+    RETURN_NAMES = ("context",)
+    FUNCTION = "set_variable"
+    CATEGORY = "adaptiveprompts/context"
 
-    # ---------- main ----------
-    def process(self, prompt, seed, mode, hide_comments, category=None, context=None):
-        rng = SeededRandom(seed)
-        normalized_context = _normalize_input_context(context)
-
-        category_label = category if category is not None else (
-            getattr(self.__class__, "_CATEGORY_LABELS", ["Default"])[0]
-        )
-        folder_map = getattr(self.__class__, "_CATEGORY_MAP", {}) or {}
-        folder_name = folder_map.get(category_label, "wildcards")
-
-        # ----- handle comment blocks first -----
-        comment_blocks = re.findall(r"##(.*?)##", prompt, flags=re.DOTALL)
-        for block in comment_blocks:
-            seq_block = sequence_prompt_elements(block, seed, mode, folder_name, normalized_context, rng)
-            _ = resolve_wildcards(seq_block, rng, folder_name, _resolved_vars=normalized_context)
-
-        if hide_comments:
-            prompt = re.sub(r"##.*?##", "", prompt, flags=re.DOTALL)
-
-        # ----- Sequence Main Prompt -----
-        sequenced_prompt = sequence_prompt_elements(prompt, seed, mode, folder_name, normalized_context, rng)
+    def set_variable(self, variable, data, context=None):
+        # 1. Normalize and deepcopy to avoid mutating upstream nodes
+        # Deepcopy is critical in node graphs so parallel branches don't overwrite each other.
+        if context is None:
+            context = {}
         
-        # Resolve any remaining nested elements organically
-        result = resolve_wildcards(sequenced_prompt, rng, folder_name, _resolved_vars=normalized_context)
+        # Deepcopy ensures we aren't mutating the exact dictionary memory address from a previous node
+        normalized_ctx = copy.deepcopy(_normalize_input_context(context))
 
-        for k, v in list(normalized_context.items()):
-            if not isinstance(v, dict):
-                normalized_context[k] = _ensure_bucket_dict(v)
+        var_name = variable.strip()
+        if not var_name:
+            return (normalized_ctx,)
 
-        return (result, normalized_context)
+        # 2. Ensure the variable bucket exists
+        if var_name not in normalized_ctx:
+            normalized_ctx[var_name] = {}
+
+        bucket = normalized_ctx[var_name]
+
+        # 3. Generate a unique origin key for this injection
+        base_key = "__setvar_"
+        counter = 0
+        while f"{base_key}{counter}" in bucket:
+            counter += 1
+
+        unique_key = f"{base_key}{counter}"
+
+        # 4. Assign the data
+        bucket[unique_key] = str(data)
+
+        return (normalized_ctx,)
