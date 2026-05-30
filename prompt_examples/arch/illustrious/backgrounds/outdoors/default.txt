@@ -1,5 +1,0 @@
-## Default exterior physical locations and atmospheric weather conditions.  ##
-{
-  {outdoors, school|outdoors, beach|outdoors, street},
-  {|wind}
-}^background

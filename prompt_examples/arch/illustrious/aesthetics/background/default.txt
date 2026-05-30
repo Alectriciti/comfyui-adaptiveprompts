@@ -1,9 +1,0 @@
-## Default aesthetic modifiers for backgrounds, allowing optional color     ##
-## palette shifts and subject-specific injections.                          ##
-{
-  {|pastel colors|ethereal colors},
-
-  __^subject_background_aesthetic__,
-
-  (light rays: 0.8), (light particles: 0.8)
-}^background_aesthetic

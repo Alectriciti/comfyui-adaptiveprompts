@@ -1,4 +1,0 @@
-## Default interior physical locations. Strictly no weather or sky tags.    ##
-{
-  {indoors, gym|indoors, classroom|indoors, bedroom}
-}^background

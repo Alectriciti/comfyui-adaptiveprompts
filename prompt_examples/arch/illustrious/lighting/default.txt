@@ -1,5 +1,0 @@
-## Universal dynamic lighting conditions and atmospheric light behaviors.   ##
-{
-  {|cinematic lighting|soft lighting|neutral light|rim lighting},
-  {|subsurface scattering}
-}^lighting

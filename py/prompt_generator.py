@@ -90,7 +90,6 @@ class PromptGeneratorAdvanced:
 
     @classmethod
     def INPUT_TYPES(cls):
-        # build shared label list / map for wildcards folders
         labels, mapping, tooltip = build_category_options()
         cls._CATEGORY_LABELS = labels
         cls._CATEGORY_MAP = mapping
@@ -100,9 +99,13 @@ class PromptGeneratorAdvanced:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "hide_comments": ("BOOLEAN", {"default": True}),
                 "category": (labels, {"default": labels[0] if labels else "Default", "tooltip": tooltip}),
+                "rng_mode": (["Adaptive", "Legacy"], {
+                    "default": "Adaptive", 
+                    "tooltip": "Adaptive: Isolated RNG for strict prompt stability, allows re-arrangement.\Legacy: Sequential RNG which cascades changes (classic Dynamic Prompts)"
+                }),
             },
             "optional": {
-                "context": ("DICT", {}),  # optional incoming context
+                "context": ("DICT", {}),
             },
         }
 
@@ -112,8 +115,8 @@ class PromptGeneratorAdvanced:
     CATEGORY = "adaptiveprompts/generation"
 
     # ---------- main ----------
-    def process(self, prompt, seed, hide_comments, category=None, context=None):
-        rng = SeededRandom(seed)
+    def process(self, prompt, rng_mode, seed, hide_comments, category=None, context=None):
+        rng = SeededRandom(seed, mode=rng_mode)
 
         # Normalize incoming context into dict-of-dicts (origin->value)
         normalized_context = _normalize_input_context(context)

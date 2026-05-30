@@ -1,0 +1,6 @@
+{
+    "default_rng_mode": "Adaptive",
+    "search_depth_limit": 80,
+    "hide_comments": true,
+    "enable_bfs": true
+}

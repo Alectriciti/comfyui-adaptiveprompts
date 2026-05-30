@@ -1,7 +1,0 @@
-## Simulates physical cinema camera optics and atmospheric polish. Applies  ##
-## base optical effects and injects subject-specific post-processing.       ##
-{
-  (depth of field, bokeh: 0.7),
-
-  __^subject_finish__
-}^finish

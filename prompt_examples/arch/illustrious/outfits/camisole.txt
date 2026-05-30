@@ -1,5 +1,0 @@
-## Randomized color camisole top.                                           ##
-{
-  camisole,
-  {black camisole|white camisole|purple camisole|magenta camisole|blue camisole}
-}^outfit

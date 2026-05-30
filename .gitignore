@@ -187,3 +187,4 @@ cython_debug/
 /wildcards_bonus
 /wildcards_yaml
 /wildcards_sec
+config.json

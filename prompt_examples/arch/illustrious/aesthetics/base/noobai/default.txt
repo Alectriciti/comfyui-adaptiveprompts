@@ -1,9 +1,0 @@
-## Base quality boosters, subject-specific aesthetics, and physical canvas  ##
-## instructions.                                                            ##
-{
-  artist:, very awa, masterpiece, best quality, recent, newest, absurdres, highres, ultra-detailed,
-  
-  __^subject_aesthetic__,
-  
-  __^subject_aesthetic_technique__
-}^aesthetic

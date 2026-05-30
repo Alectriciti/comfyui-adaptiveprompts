@@ -1,9 +1,0 @@
-## Applies a pastel watercolor aesthetic strictly to the scenery to protect ##
-## the main subject from concept bleed.                                     ##
-{
-  watercolor background, pastel colors,
-
-  __^subject_background_aesthetic__,
-
-  (light rays: 0.8), (light particles: 0.8)
-}^background_aesthetic
