@@ -57,7 +57,6 @@ NODE_CLASS_MAPPINGS = {
     "SaveImageAndText": SaveImageAndText,
     "RandomFloats": RandomFloats4,
     "RandomIntegers": RandomIntegers4,
-    "PromptStackLoader": PromptStackLoader,
     "SetPromptVariable": PromptSetVariable,
     "LoadLoraTags": LoadLoraTags,
 }
@@ -85,7 +84,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveImageAndText": "Save Image And Text",
     "RandomFloats": "Random Floats 4",
     "RandomIntegers": "Random Integers 4",
-    "PromptStackLoader": "🥞 Prompt Stack Loader 🥞",
     "SetPromptVariable": "Set Prompt Variable",
     "LoadLoraTags": "Load Lora Tags",
 }
