@@ -2,5 +2,6 @@
     "default_rng_mode": "Adaptive",
     "search_depth_limit": 80,
     "hide_comments": true,
+    "resolution_strategy": "Scoped",
     "enable_bfs": true
 }

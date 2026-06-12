@@ -6,7 +6,8 @@ CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "con
 DEFAULT_CONFIG = {
     "default_rng_mode": "Adaptive",
     "search_depth_limit": 80,
-    "hide_comments": True
+    "hide_comments": True,
+    "resolution_strategy": "Scoped"  # "Scoped" or "Aggressive"
 }
 
 class AdaptiveConfig:
