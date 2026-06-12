@@ -74,7 +74,7 @@ class LoadLoraTags:
         self.tag_pattern = re.compile(r"<lora:[^>]+>")
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "text": ("STRING", {
