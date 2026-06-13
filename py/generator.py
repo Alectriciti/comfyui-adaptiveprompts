@@ -405,7 +405,8 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
     if match: return match
 
     # Step 4: Aggressive Mode (Full BFS from root)
-    if resolution_strategy == "Aggressive":
+    # FORCED if source_file is None (Top-level Prompt Generator node)
+    if resolution_strategy == "Aggressive" or source_file is None:
         match = bfs_find_file(primary_dir, name)
         if match: return match
 

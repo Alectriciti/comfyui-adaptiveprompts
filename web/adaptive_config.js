@@ -53,6 +53,15 @@ app.registerExtension({
             defaultValue: true,
             category: ["Adaptive Prompts", "Formatting", "Comments"],
             onChange: (value) => syncToBackend("hide_comments", value)
+        },
+        {
+            id: RESOLUTION_STRATEGY,
+            name: "Default Resolution Strategy",
+            type: "combo",
+            options: ["Scoped", "Aggressive"],
+            defaultValue: "Scoped",
+            category: ["Adaptive Prompts", "Generation", "Resolution Strategy"],
+            onChange: (value) => syncToBackend("resolution_strategy", value)
         }
     ],
 
@@ -60,5 +69,6 @@ app.registerExtension({
         syncToBackend("default_rng_mode", app.ui.settings.getSettingValue(SETTING_RNG, "Signature"));
         syncToBackend("search_depth_limit", app.ui.settings.getSettingValue(SETTING_DEPTH, 80));
         syncToBackend("hide_comments", app.ui.settings.getSettingValue(SETTING_COMMENTS, true));
+        syncToBackend("resolution_strategy", app.ui.settings.getSettingValue(RESOLUTION_STRATEGY, "Scoped"));
     }
 });
