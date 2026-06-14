@@ -882,7 +882,7 @@ def _final_sweep_resolve(text: str,
         """Helper to process missing variable/wildcard text and logs based on settings."""
         if missing_mode == "Inject Warning":
             display_name = f"^{name}" if kind == "variable" else name
-            print(f"[Adaptive Prompts] ERROR: {kind} __{display_name}__ not found. origin: {origin_str}")
+            print(f"\033[31m[Adaptive Prompts] ERROR:\033[0m {kind} __{display_name}__ not found. origin: {origin_str}")
             return f"!!!{kind.upper()} \"{name}\" NOT FOUND!!!"
         return ""
     
