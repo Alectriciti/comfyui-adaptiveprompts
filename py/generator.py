@@ -332,7 +332,6 @@ def _choose_file_from_dir(dir_path: str,
         return None
     return rng.choice(candidates)
 
-
 def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, source_file: str | None) -> str | None:
     primary_dir = os.path.abspath(wildcard_dir) if wildcard_dir else DEFAULT_WILDCARD_ROOT
     
@@ -405,7 +404,6 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
     if match: return match
 
     # Step 4: Aggressive Mode (Full BFS from root)
-    # FORCED if source_file is None (Top-level Prompt Generator node)
     if resolution_strategy == "Aggressive" or source_file is None:
         match = bfs_find_file(primary_dir, name)
         if match: return match
@@ -853,6 +851,16 @@ def process_bracket(content: str,
 
 # ---------------------- Main resolver (iterative passes + final sweep) ------------
 
+def _format_origin(source_file: str | None, wildcard_dir: str) -> str:
+    """Helper to format the origin path neatly for the console."""
+    if not source_file:
+        return "root"
+    try:
+        # Returns clean paths like 'characters/face.txt'
+        return os.path.relpath(source_file, wildcard_dir)
+    except ValueError:
+        return source_file
+
 _VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 def _final_sweep_resolve(text: str,
@@ -865,8 +873,19 @@ def _final_sweep_resolve(text: str,
     """
     Final left-to-right pass that tries to resolve any remaining variable/wildcard tokens.
     This is executed once after the iterative passes to rescue __^var__ style tokens that
-    could not be resolved earlier.
+    could not be resolved earlier. Handles error injection for missing tokens.
     """
+    missing_mode = get_config("missing_wildcard_behavior")
+    origin_str = _format_origin(source_file, wildcard_dir)
+    
+    def _handle_missing(kind: str, name: str) -> str:
+        """Helper to process missing variable/wildcard text and logs based on settings."""
+        if missing_mode == "Inject Warning":
+            display_name = f"^{name}" if kind == "variable" else name
+            print(f"[Adaptive Prompts] ERROR: {kind} __{display_name}__ not found. origin: {origin_str}")
+            return f"!!!{kind.upper()} \"{name}\" NOT FOUND!!!"
+        return ""
+    
     i = 0
     while True:
         m = FILE_PATTERN.search(text, i)
@@ -887,21 +906,23 @@ def _final_sweep_resolve(text: str,
             if candidates:
                 replacement = local_rng.next_rng().choice(candidates)
             else:
-                # fallback: try to resolve a wildcard file named var_tok
                 rng_for_this = local_rng.next_rng()
                 generated, generated_fp = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
                 if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
                     replacement = resolve_wildcards(generated, local_rng, wildcard_dir, source_file=generated_fp,
                                                    _depth=_depth + 1, _resolved_vars=_resolved_vars)
                 else:
-                    replacement = ""
+                    # DEFINITELY MISSING VARIABLE
+                    replacement = _handle_missing("variable", var_tok)
+                        
         elif wc_name is not None and var_tok:
             if "*" in var_tok:
                 candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
                 if candidates:
                     replacement = local_rng.next_rng().choice(candidates)
                 else:
-                    replacement = ""
+                    # MISSING WILDCARD (Scoped to variable)
+                    replacement = _handle_missing("wildcard", wc_name)
             else:
                 bucket = _resolved_vars.get(var_tok, {})
                 if wc_name in bucket:
@@ -915,11 +936,11 @@ def _final_sweep_resolve(text: str,
                             _depth=_depth + 1, _resolved_vars=_resolved_vars
                         )
                         _ensure_var_bucket(_resolved_vars, var_tok)
-                        # restore any protected escaped wildcards before storing into context
                         to_store = _restore_escaped_wildcards(replacement, escaped_map or {})
                         _resolved_vars[var_tok][wc_name] = to_store.replace(_ADJ_WC_MARKER, "")
                     else:
-                        replacement = ""
+                        # DEFINITELY MISSING WILDCARD
+                        replacement = _handle_missing("wildcard", wc_name)
         else:
             rng_for_this = local_rng.next_rng()
             generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
@@ -929,7 +950,8 @@ def _final_sweep_resolve(text: str,
                     _depth=_depth + 1, _resolved_vars=_resolved_vars
                 )
             else:
-                replacement = ""
+                # DEFINITELY MISSING WILDCARD
+                replacement = _handle_missing("wildcard", wc_name)
 
         text = text[:m.start()] + replacement + text[m.end():]
         i = m.start() + len(replacement)

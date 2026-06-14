@@ -7,6 +7,8 @@ const SETTING_DEPTH = ID_PREFIX + "search_depth_limit";
 const SETTING_BFS = ID_PREFIX + "enable_bfs";
 const SETTING_RNG = ID_PREFIX + "default_rng_mode";
 const SETTING_COMMENTS = ID_PREFIX + "hide_comments";
+const SETTING_RESOLUTION = ID_PREFIX + "resolution_strategy";
+const SETTING_MISSING = ID_PREFIX + "missing_wildcard_behavior";
 
 // 2. The Python Synchronization Hook
 async function syncToBackend(key, value) {
@@ -55,20 +57,30 @@ app.registerExtension({
             onChange: (value) => syncToBackend("hide_comments", value)
         },
         {
-            id: RESOLUTION_STRATEGY,
+            id: SETTING_RESOLUTION,
             name: "Default Resolution Strategy",
             type: "combo",
             options: ["Scoped", "Aggressive"],
             defaultValue: "Scoped",
             category: ["Adaptive Prompts", "Generation", "Resolution Strategy"],
             onChange: (value) => syncToBackend("resolution_strategy", value)
-        }
+        },
+        {
+            id: SETTING_MISSING,
+            name: "Missing Wildcard Behavior",
+            type: "combo",
+            options: ["Inject Warning", "Silently Fail"],
+            defaultValue: "Inject Warning",
+            category: ["Adaptive Prompts", "Generation", "Error Handling"],
+            onChange: (value) => syncToBackend("missing_wildcard_behavior", value)
+        },
     ],
 
     async setup() {
         syncToBackend("default_rng_mode", app.ui.settings.getSettingValue(SETTING_RNG, "Signature"));
         syncToBackend("search_depth_limit", app.ui.settings.getSettingValue(SETTING_DEPTH, 80));
         syncToBackend("hide_comments", app.ui.settings.getSettingValue(SETTING_COMMENTS, true));
-        syncToBackend("resolution_strategy", app.ui.settings.getSettingValue(RESOLUTION_STRATEGY, "Scoped"));
+        syncToBackend("resolution_strategy", app.ui.settings.getSettingValue(SETTING_RESOLUTION, "Scoped"));
+        syncToBackend("missing_wildcard_behavior", app.ui.settings.getSettingValue(SETTING_MISSING, "Inject Warning"));
     }
 });

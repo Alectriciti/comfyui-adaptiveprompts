@@ -7,7 +7,8 @@ DEFAULT_CONFIG = {
     "default_rng_mode": "Adaptive",
     "search_depth_limit": 80,
     "hide_comments": True,
-    "resolution_strategy": "Scoped"  # "Scoped" or "Aggressive"
+    "resolution_strategy": "Scoped",  # "Scoped" or "Aggressive"
+    "missing_wildcard_mode": "Inject Warning"  
 }
 
 class AdaptiveConfig:
