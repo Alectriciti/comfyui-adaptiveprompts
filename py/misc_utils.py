@@ -8,6 +8,10 @@ from typing import List
 
 from comfy.cli_args import args
 
+
+
+ADAPTIVE_PROMPTS = "\033[1;36m[Adaptive Prompts]\033[0m"
+
 class ScaledSeedGenerator(ComfyNodeABC):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:

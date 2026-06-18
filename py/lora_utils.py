@@ -4,12 +4,14 @@ import folder_paths
 import random
 from pathlib import Path
 import numpy as np
+import logging
 
 # ComfyUI core imports
 import comfy.sd
 import comfy.utils
 
 from .generator import evaluate_prompt_core, SeededRandom
+from .misc_utils import *
 
 DEBUG = False
 
@@ -90,11 +92,11 @@ class LoadLoraTags:
                     "tooltip": "Input text. Supports <lora:name>, <lora:name:weight>, <lora:name:unet:clip>, or <lora:name:unet:clip:keyword>."
                 }),
                 "compression_threshold": ("FLOAT", {
-                    "default": 2.0, "min": 0.1, "max": 10.0, "step": 0.1,
-                    "tooltip": "The maximum combined weight allowed before compression kicks in."
+                    "default": 1.0, "min": 0.1, "max": 10.0, "step": 0.1,
+                    "tooltip": "The maximum combined weight allowed before compression kicks in. This only affects model and clip, not keywords"
                 }),
                 "compression_ratio": ("FLOAT", {
-                    "default": 1.0, "min": 1.0, "max": 100.0, "step": 0.5,
+                    "default": 2.0, "min": 1.0, "max": 100.0, "step": 0.5,
                     "tooltip": "How aggressively to compress excess weight. 1.0 = Off. 2.0 = 2:1 reduction. 100.0 = Hard Limiter."
                 }),
                 "base_keywords": ("INT", {
@@ -190,8 +192,20 @@ class LoadLoraTags:
                 "k": k_weight
             })
 
+        valid_lora_entries = []
+        missing_loras = []
+        loaded_summary = []
+
+        for item in lora_entries:
+            full_path = LoraTagUtility.find_lora_file(item["name"])
+            if full_path:
+                item["full_path"] = full_path # Cache the path so we don't look it up twice
+                valid_lora_entries.append(item)
+            else:
+                missing_loras.append(item['name'])
+
         # 3. Apply Weight Compression Algorithm
-        total_mag = sum(abs(item['u']) for item in lora_entries)
+        total_mag = sum(abs(item['u']) for item in valid_lora_entries)
         compression_factor = 1.0
         
         if total_mag > compression_threshold and compression_ratio > 1.0:
@@ -200,10 +214,11 @@ class LoadLoraTags:
             new_total = compression_threshold + compressed_excess
             compression_factor = new_total / total_mag
             
-            for item in lora_entries:
+            for item in valid_lora_entries:
                 item['u'] *= compression_factor
                 item['c'] *= compression_factor
-                item['k'] *= compression_factor
+                #item['k'] *= compression_factor # uncomment this line to include keywords in compression
+
 
         # 4. Model Loading & Keyword Resolution
         loaded_loras = set()
@@ -214,83 +229,83 @@ class LoadLoraTags:
         resolved_names = []
         tag_replacements = {item["match"]: "" for item in lora_entries}
 
-        for item in lora_entries:
-            full_path = LoraTagUtility.find_lora_file(item["name"])
+        for item in valid_lora_entries:
+            full_path = item["full_path"]
             final_display_name = item["name"]
+
+            # Log success
+            log_entry = f"[{item['name']}:{item['u']:.3f}:{item['c']:.3f}:{item['k']:.3f}]"
+            loaded_summary.append(log_entry)
             
-            if full_path:
-                # --- Model Injection ---
-                if (model_lora is not None or clip_lora is not None) and full_path not in loaded_loras:
-                    # Ignore tags that were explicitly given a 0.0 UNet and CLIP weight
-                    if abs(item['u']) > 0.001 or abs(item['c']) > 0.001:
-                        lora = None
-                        if self.loaded_lora is not None and self.loaded_lora[0] == full_path:
-                            lora = self.loaded_lora[1]
-                        else:
-                            temp = self.loaded_lora
-                            self.loaded_lora = None
-                            del temp
-                            
-                        if lora is None:
-                            lora = comfy.utils.load_torch_file(full_path, safe_load=True)
-                            self.loaded_lora = (full_path, lora)
-
-                        model_lora, clip_lora = comfy.sd.load_lora_for_models(
-                            model_lora, clip_lora, lora, item['u'], item['c']
-                        )
-                        loaded_loras.add(full_path)
-
-                # --- Sidecar Metadata ---
-                metadata_path = Path(full_path).with_suffix('.metadata.json')
-                if metadata_path.exists():
-                    try:
-                        with open(metadata_path, 'r', encoding='utf-8') as m_file:
-                            sidecar_data = json.load(m_file)
-                            if sidecar_data.get("model_name"):
-                                final_display_name = sidecar_data["model_name"]
-                    except Exception as e:
-                        print(f"\033[31m[Adaptive Prompts] Error reading metadata for {item['name']}: {e}\033[0m")
-                
-                # --- Keyword Extraction ---
-                # Only extract if keyword weight is not effectively zero
-                if abs(item['k']) > 0.001:
-                    tags_dict = LoraTagUtility.get_lora_metadata(full_path)
-                    if tags_dict:
-                        quota = max(1, round(base_keywords * abs(item['k'])))
-                        items = list(tags_dict.items())
-                        max_freq = max([v for _, v in items]) if items else 1
+            # --- Model Injection ---
+            if (model_lora is not None or clip_lora is not None) and full_path not in loaded_loras:
+                if abs(item['u']) > 0.001 or abs(item['c']) > 0.001:
+                    lora = None
+                    if self.loaded_lora is not None and self.loaded_lora[0] == full_path:
+                        lora = self.loaded_lora[1]
+                    else:
+                        temp = self.loaded_lora
+                        self.loaded_lora = None
+                        del temp
                         
-                        scored_items = []
-                        for tag, freq in items:
-                            norm_freq = freq / max_freq
-                            random_component = random.random()
-                            # The Blend
-                            score = ((1.0 - keyword_extraction_randomness) * norm_freq) + \
-                                    (keyword_extraction_randomness * random_component)
-                            scored_items.append((tag, score))
-                        
-                        scored_items.sort(key=lambda x: x[1], reverse=True)
-                        
-                        # Select top N based on quota
-                        top_n_tuples = scored_items[:quota]
+                    if lora is None:
+                        lora = comfy.utils.load_torch_file(full_path, safe_load=True)
+                        self.loaded_lora = (full_path, lora)
 
-                        if sort_mode == "Top Frequency":
-                            # Sort by the frequency
-                            top_n_tuples.sort(key=lambda x: x[1], reverse=True)
-                        elif sort_mode == "Weighted Random":
-                            # Sort by frequency * random factor
-                            top_n_tuples.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
-                        elif sort_mode == "Random":
-                            random.shuffle(top_n_tuples)
+                    model_lora, clip_lora = comfy.sd.load_lora_for_models(
+                        model_lora, clip_lora, lora, item['u'], item['c']
+                    )
+                    loaded_loras.add(full_path)
 
-                        # Finally, extract the tag names
-                        local_tags = [t[0] for t in top_n_tuples]
-                        tag_replacements[item["match"]] = ", ".join(local_tags)
-                        
-                        # Extend with the tuples (tag, score) so Global Sorting works
-                        all_selected_keywords.extend(top_n_tuples)
+            # --- Sidecar Metadata ---
+            metadata_path = Path(full_path).with_suffix('.metadata.json')
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path, 'r', encoding='utf-8') as m_file:
+                        sidecar_data = json.load(m_file)
+                        if sidecar_data.get("model_name"):
+                            final_display_name = sidecar_data["model_name"]
+                except Exception as e:
+                    print(f"\033[31m[Adaptive Prompts] Error reading metadata for {item['name']}: {e}\033[0m")
+            
+            # --- Keyword Extraction ---
+            if abs(item['k']) > 0.001:
+                tags_dict = LoraTagUtility.get_lora_metadata(full_path)
+                if tags_dict:
+                    quota = max(1, round(base_keywords * abs(item['k'])))
+                    items = list(tags_dict.items())
+                    max_freq = max([v for _, v in items]) if items else 1
+                    
+                    scored_items = []
+                    for tag, freq in items:
+                        norm_freq = freq / max_freq
+                        random_component = random.random()
+                        score = ((1.0 - keyword_extraction_randomness) * norm_freq) + \
+                                (keyword_extraction_randomness * random_component)
+                        scored_items.append((tag, score))
+                    
+                    scored_items.sort(key=lambda x: x[1], reverse=True)
+                    top_n_tuples = scored_items[:quota]
+
+                    if sort_mode == "Top Frequency":
+                        top_n_tuples.sort(key=lambda x: x[1], reverse=True)
+                    elif sort_mode == "Weighted Random":
+                        top_n_tuples.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
+                    elif sort_mode == "Random":
+                        random.shuffle(top_n_tuples)
+
+                    local_tags = [t[0] for t in top_n_tuples]
+                    tag_replacements[item["match"]] = ", ".join(local_tags)
+                    all_selected_keywords.extend(top_n_tuples)
 
             resolved_names.append(final_display_name)
+
+        # Print logs to console
+        if loaded_summary:
+            logging.info(f"{ADAPTIVE_PROMPTS} Loras Loaded ({len(loaded_summary)}): {', '.join(loaded_summary)}")
+        
+        if missing_loras:
+            logging.error(f"{ADAPTIVE_PROMPTS} Loras Not Found: {', '.join(missing_loras)}")
 
         # 5. Inject Keywords into Prompt
         final_prompt = evaluated_text
