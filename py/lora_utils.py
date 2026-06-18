@@ -5,6 +5,12 @@ import random
 from pathlib import Path
 import numpy as np
 
+# ComfyUI core imports
+import comfy.sd
+import comfy.utils
+
+from .generator import evaluate_prompt_core, SeededRandom
+
 DEBUG = False
 
 # --- UTILITY CLASS ---
@@ -72,6 +78,7 @@ class LoraTagUtility:
 class LoadLoraTags:
     def __init__(self):
         self.tag_pattern = re.compile(r"<lora:[^>]+>")
+        self.loaded_lora = None
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -80,62 +87,155 @@ class LoadLoraTags:
                 "text": ("STRING", {
                     "multiline": True, 
                     "default": "",
-                    "tooltip": "Input text containing <lora:name:weight> tags."
+                    "tooltip": "Input text. Supports <lora:name>, <lora:name:weight>, <lora:name:unet:clip>, or <lora:name:unet:clip:keyword>."
                 }),
-                "VALUE_MODE": (["total_keywords", "per_lora_scaled", "per_lora_exact"], {
-                    "default": "per_lora_scaled",
-                    "tooltip": "How VALUE is applied. 'total_keywords' splits VALUE proportionally among all LoRAs based on weight. 'per_lora_scaled' multiplies VALUE by the LoRA's weight. 'per_lora_exact' ignores weight and gives exactly VALUE tags to each."
+                "compression_threshold": ("FLOAT", {
+                    "default": 2.0, "min": 0.1, "max": 10.0, "step": 0.1,
+                    "tooltip": "The maximum combined weight allowed before compression kicks in."
                 }),
-                "VALUE": ("INT", {
-                    "default": 5, "min": -1, "max": 100,
-                    "tooltip": "The target number of keywords. Set to -1 to extract every available tag from the metadata."
+                "compression_ratio": ("FLOAT", {
+                    "default": 1.0, "min": 1.0, "max": 100.0, "step": 0.5,
+                    "tooltip": "How aggressively to compress excess weight. 1.0 = Off. 2.0 = 2:1 reduction. 100.0 = Hard Limiter."
                 }),
-                "TAG_SELECTION": (["tag_frequency", "random", "weighted_random"], {
-                    "default": "tag_frequency",
-                    "tooltip": "How to pick keywords from the LoRA's pool. 'tag_frequency' grabs the most highly trained words. 'random' picks blindly. 'weighted_random' favors frequent words but allows rare ones to slip in."
+                "base_keywords": ("INT", {
+                    "default": 5, "min": 0, "max": 100,
+                    "tooltip": "The base number of keywords extracted when a LoRA's keyword weight is exactly 1.0."
                 }),
-                "SORTING_MODE": (["tag_frequency", "random", "none", "weighted_random"], {
-                    "default": "tag_frequency",
-                    "tooltip": "How to order the final combined list of keywords. 'tag_frequency' puts the strongest words from all combined LoRAs at the front of the prompt."
+                "extraction_strategy": (["Top Frequency", "Weighted Random", "Random"], {
+                    "default": "Top Frequency",
+                    "tooltip": "How to select the keywords from the LoRA's metadata pool."
+                }),
+                "sort_mode": (["Top Frequency", "Random", "Original Tag Order"], {
+                    "default": "Top Frequency",
+                    "tooltip": "How to sort the combined final list of all extracted keywords."
+                }),
+                "apply_keywords_to_prompt": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "If true, extracted keywords are mixed into the prompt. If false, lora tags are stripped and keywords are ignored, leaving only the prompt text."
                 }),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xffffffffffffffff,
-                    "tooltip": "Locks the randomness for selection and sorting."
+                    "tooltip": "Locks the randomness for prompt evaluation and keyword selection."
                 }),
+            },
+            "optional": {
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
             }
         }
 
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("keywords", "lora_names")
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("model", "clip", "prompt", "keywords", "lora_names")
     FUNCTION = "process"
     CATEGORY = "loaders"
 
-    def process(self, text, VALUE_MODE, VALUE, TAG_SELECTION, SORTING_MODE, seed):
-        random.seed(seed)
+    def process(self, text, compression_threshold, compression_ratio, base_keywords, 
+                extraction_strategy, sort_mode, apply_keywords_to_prompt, seed, model=None, clip=None):
         
-        founds = self.tag_pattern.findall(text)
+        # 1. Adaptive Prompts Core Evaluation (Isolated pass)
+        rng = SeededRandom(seed)
+        evaluated_text = evaluate_prompt_core(
+            prompt=text, 
+            rng=rng, 
+            wildcard_dir="", 
+            resolved_vars={}, 
+            hide_comments=True
+        )
+
+        random.seed(seed)
+        safe_np_seed = seed % (2**32)
+        np.random.seed(safe_np_seed)
+        
+        founds = self.tag_pattern.findall(evaluated_text)
         if not founds: 
-            return ("", "")
+            # Cleanup stray commas and return if no tags found
+            clean_text = re.sub(r'(,\s*){2,}', ', ', evaluated_text)
+            return (model, clip, clean_text, "", "")
 
-        lora_data = []
-        resolved_names = []
-        total_weight = 0
-
+        # 2. Parse Tags & Build Weight Profiles
+        lora_entries = []
         for f in founds:
-            tag = f[1:-1].split(":")
-            if tag[0].lower() != "lora" or len(tag) < 2: 
+            parts = f[1:-1].split(":")
+            if parts[0].lower() != "lora" or len(parts) < 2: 
                 continue
             
-            tag_lora_name = tag[1]
-            weight = float(tag[2]) if len(tag) > 2 else 1.0
+            name = parts[1]
+            u_weight, c_weight, k_weight = 1.0, 1.0, 1.0
+            args = parts[2:]
             
-            full_path = LoraTagUtility.find_lora_file(tag_lora_name)
-            file_found = full_path is not None
+            try:
+                if len(args) == 1:
+                    u_weight = c_weight = k_weight = float(args[0])
+                elif len(args) == 2:
+                    u_weight = float(args[0])
+                    c_weight = float(args[1])
+                    k_weight = u_weight
+                elif len(args) >= 3:
+                    u_weight = float(args[0])
+                    c_weight = float(args[1])
+                    k_weight = float(args[2])
+            except ValueError:
+                pass # Fallback to 1.0 defaults if parsing fails
+                
+            lora_entries.append({
+                "match": f,
+                "name": name,
+                "u": u_weight,
+                "c": c_weight,
+                "k": k_weight
+            })
+
+        # 3. Apply Weight Compression Algorithm
+        total_mag = sum(abs(item['u']) for item in lora_entries)
+        compression_factor = 1.0
+        
+        if total_mag > compression_threshold and compression_ratio > 1.0:
+            excess = total_mag - compression_threshold
+            compressed_excess = excess / compression_ratio
+            new_total = compression_threshold + compressed_excess
+            compression_factor = new_total / total_mag
             
-            # --- Name Resolution ---
-            final_display_name = tag_lora_name
-            if file_found:
-                # Check for sidecar .metadata.json
+            for item in lora_entries:
+                item['u'] *= compression_factor
+                item['c'] *= compression_factor
+                item['k'] *= compression_factor
+
+        # 4. Model Loading & Keyword Resolution
+        loaded_loras = set()
+        model_lora = model
+        clip_lora = clip
+        
+        all_selected_keywords = []
+        resolved_names = []
+        tag_replacements = {item["match"]: "" for item in lora_entries}
+
+        for item in lora_entries:
+            full_path = LoraTagUtility.find_lora_file(item["name"])
+            final_display_name = item["name"]
+            
+            if full_path:
+                # --- Model Injection ---
+                if (model_lora is not None or clip_lora is not None) and full_path not in loaded_loras:
+                    # Ignore tags that were explicitly given a 0.0 UNet and CLIP weight
+                    if abs(item['u']) > 0.001 or abs(item['c']) > 0.001:
+                        lora = None
+                        if self.loaded_lora is not None and self.loaded_lora[0] == full_path:
+                            lora = self.loaded_lora[1]
+                        else:
+                            temp = self.loaded_lora
+                            self.loaded_lora = None
+                            del temp
+                            
+                        if lora is None:
+                            lora = comfy.utils.load_torch_file(full_path, safe_load=True)
+                            self.loaded_lora = (full_path, lora)
+
+                        model_lora, clip_lora = comfy.sd.load_lora_for_models(
+                            model_lora, clip_lora, lora, item['u'], item['c']
+                        )
+                        loaded_loras.add(full_path)
+
+                # --- Sidecar Metadata ---
                 metadata_path = Path(full_path).with_suffix('.metadata.json')
                 if metadata_path.exists():
                     try:
@@ -144,64 +244,69 @@ class LoadLoraTags:
                             if sidecar_data.get("model_name"):
                                 final_display_name = sidecar_data["model_name"]
                     except Exception as e:
-                        if DEBUG: print(f"Error reading sidecar metadata for {tag_lora_name}: {e}")
+                        print(f"\033[31m[Adaptive Prompts] Error reading metadata for {item['name']}: {e}\033[0m")
                 
-                # --- Keyword Resolution ---
-                tags = LoraTagUtility.get_lora_metadata(full_path)
-                if tags:
-                    lora_data.append({"name": tag_lora_name, "weight": weight, "tags": tags})
-                    total_weight += weight
+                # --- Keyword Extraction ---
+                # Only extract if keyword weight is not effectively zero
+                if abs(item['k']) > 0.001:
+                    tags_dict = LoraTagUtility.get_lora_metadata(full_path)
+                    if tags_dict:
+                        quota = max(1, round(base_keywords * abs(item['k'])))
+                        tags_items = list(tags_dict.items())
+                        
+                        if extraction_strategy == "Top Frequency":
+                            tags_items.sort(key=lambda x: x[1], reverse=True)
+                            selected = tags_items[:quota]
+                        elif extraction_strategy == "Random":
+                            selected = random.sample(tags_items, min(quota, len(tags_items)))
+                        elif extraction_strategy == "Weighted Random":
+                            tags, freqs = zip(*tags_items)
+                            total_f = sum(freqs)
+                            probs = [f / total_f for f in freqs]
+                            selected_indices = np.random.choice(len(tags), size=min(quota, len(tags)), p=probs, replace=False)
+                            selected = [tags_items[i] for i in selected_indices]
+                        else:
+                            selected = tags_items[:quota]
+
+                        # Local sorting for inline replacement
+                        local_selected = list(selected)
+                        if sort_mode == "Top Frequency":
+                            local_selected.sort(key=lambda x: x[1], reverse=True)
+                        elif sort_mode == "Weighted Random":
+                            local_selected.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
+                        elif sort_mode == "Random":
+                            random.shuffle(local_selected)
+                        
+                        local_tags = [t[0] for t in local_selected]
+                        tag_replacements[item["match"]] = ", ".join(local_tags)
+                        all_selected_keywords.extend(selected)
 
             resolved_names.append(final_display_name)
 
-        if not lora_data: 
-            return ("", "\n".join(resolved_names))
-
-        # --- Process Keywords ---
-        results = []
-        for item in lora_data:
-            # 1. Determine Quota based on unified VALUE_MODE
-            if VALUE == -1:
-                quota = len(item["tags"])
-            elif VALUE_MODE == "total_keywords":
-                # Distribute the VALUE pool proportionally based on this LoRA's weight
-                quota = max(1, round((item["weight"] / total_weight) * VALUE)) if total_weight > 0 else 1
-            elif VALUE_MODE == "per_lora_exact":
-                # Fixed amount regardless of weight
-                quota = max(1, VALUE)
-            else: # "per_lora_scaled"
-                # Base VALUE multiplied by the LoRA's specific strength
-                quota = max(1, round(VALUE * item["weight"]))
-
-            # 2. Select Tags
-            tags_items = list(item["tags"].items()) 
+        # 5. Inject Keywords into Prompt
+        final_prompt = evaluated_text
+        for f in founds:
+            replacement = tag_replacements.get(f, "")
+            if apply_keywords_to_prompt:
+                final_prompt = final_prompt.replace(f, replacement, 1)
+            else:
+                final_prompt = final_prompt.replace(f, "", 1)
             
-            if TAG_SELECTION == "tag_frequency":
-                tags_items.sort(key=lambda x: x[1], reverse=True)
-                selected = tags_items[:quota]
-            elif TAG_SELECTION == "random":
-                selected = random.sample(tags_items, min(quota, len(tags_items)))
-            elif TAG_SELECTION == "weighted_random":
-                tags, freqs = zip(*tags_items)
-                total_f = sum(freqs)
-                probs = [f / total_f for f in freqs]
-                selected_indices = np.random.choice(len(tags), size=min(quota, len(tags)), p=probs, replace=False)
-                selected = [tags_items[i] for i in selected_indices]
-            else: 
-                selected = tags_items[:quota]
+        # Clean up commas
+        #final_prompt = re.sub(r'(,\s*){2,}', ', ', final_prompt)
+        #final_prompt = re.sub(r'^\s*,\s*', '', final_prompt)
+        #final_prompt = re.sub(r',\s*$', '', final_prompt).strip()
 
-            results.extend(selected)
+        # 6. Global Keyword Sorting
+        if sort_mode == "Top Frequency":
+            all_selected_keywords.sort(key=lambda x: x[1], reverse=True)
+        elif sort_mode == "Weighted Random":
+            all_selected_keywords.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
+        elif sort_mode == "Random":
+            random.shuffle(all_selected_keywords)
+        
+        final_global_tags = [t[0] for t in all_selected_keywords]
 
-        # 3. Sort Final Output
-        if SORTING_MODE == "tag_frequency":
-            results.sort(key=lambda x: x[1], reverse=True)
-        elif SORTING_MODE == "random":
-            random.shuffle(results)
-        elif SORTING_MODE == "weighted_random":
-            results.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
-        
-        final_tags = [t[0] for t in results]
-        
-        return (", ".join(final_tags), "\n".join(resolved_names))
+        return (model_lora, clip_lora, final_prompt, ", ".join(final_global_tags), "\n".join(resolved_names))
 
 
