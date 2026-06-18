@@ -101,13 +101,18 @@ class LoadLoraTags:
                     "default": 5, "min": 0, "max": 100,
                     "tooltip": "The base number of keywords extracted when a LoRA's keyword weight is exactly 1.0."
                 }),
-                "extraction_strategy": (["Top Frequency", "Weighted Random", "Random"], {
-                    "default": "Top Frequency",
-                    "tooltip": "How to select the keywords from the LoRA's metadata pool."
-                }),
-                "sort_mode": (["Top Frequency", "Random", "Original Tag Order"], {
+                "sort_mode": (["Top Frequency", "Weighted Random", "Random"], {
                     "default": "Top Frequency",
                     "tooltip": "How to sort the combined final list of all extracted keywords."
+                }),
+                "keyword_extraction_randomness": ("FLOAT", {
+                    "default": 0.125, "min": 0.0, "max": 1.0, "step": 0.01,
+                    "tooltip": (
+                        "Blend between Frequency and Randomness.\n"
+                        "0.0: Pure Frequency (Always picks top tags).\n"
+                        "1.0: Pure Randomness (Ignores frequency, fully shuffled).\n"
+                        "Values in between blend the two, allowing occasional variety in tag selection."
+                    )
                 }),
                 "apply_keywords_to_prompt": ("BOOLEAN", {
                     "default": True,
@@ -130,7 +135,7 @@ class LoadLoraTags:
     CATEGORY = "loaders"
 
     def process(self, text, compression_threshold, compression_ratio, base_keywords, 
-                extraction_strategy, sort_mode, apply_keywords_to_prompt, seed, model=None, clip=None):
+                sort_mode, keyword_extraction_randomness, apply_keywords_to_prompt, seed, model=None, clip=None):
         
         # 1. Adaptive Prompts Core Evaluation (Isolated pass)
         rng = SeededRandom(seed)
@@ -252,34 +257,38 @@ class LoadLoraTags:
                     tags_dict = LoraTagUtility.get_lora_metadata(full_path)
                     if tags_dict:
                         quota = max(1, round(base_keywords * abs(item['k'])))
-                        tags_items = list(tags_dict.items())
+                        items = list(tags_dict.items())
+                        max_freq = max([v for _, v in items]) if items else 1
                         
-                        if extraction_strategy == "Top Frequency":
-                            tags_items.sort(key=lambda x: x[1], reverse=True)
-                            selected = tags_items[:quota]
-                        elif extraction_strategy == "Random":
-                            selected = random.sample(tags_items, min(quota, len(tags_items)))
-                        elif extraction_strategy == "Weighted Random":
-                            tags, freqs = zip(*tags_items)
-                            total_f = sum(freqs)
-                            probs = [f / total_f for f in freqs]
-                            selected_indices = np.random.choice(len(tags), size=min(quota, len(tags)), p=probs, replace=False)
-                            selected = [tags_items[i] for i in selected_indices]
-                        else:
-                            selected = tags_items[:quota]
+                        scored_items = []
+                        for tag, freq in items:
+                            norm_freq = freq / max_freq
+                            random_component = random.random()
+                            # The Blend
+                            score = ((1.0 - keyword_extraction_randomness) * norm_freq) + \
+                                    (keyword_extraction_randomness * random_component)
+                            scored_items.append((tag, score))
+                        
+                        scored_items.sort(key=lambda x: x[1], reverse=True)
+                        
+                        # Select top N based on quota
+                        top_n_tuples = scored_items[:quota]
 
-                        # Local sorting for inline replacement
-                        local_selected = list(selected)
                         if sort_mode == "Top Frequency":
-                            local_selected.sort(key=lambda x: x[1], reverse=True)
+                            # Sort by the frequency
+                            top_n_tuples.sort(key=lambda x: x[1], reverse=True)
                         elif sort_mode == "Weighted Random":
-                            local_selected.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
+                            # Sort by frequency * random factor
+                            top_n_tuples.sort(key=lambda x: x[1] * random.uniform(0.1, 2.0), reverse=True)
                         elif sort_mode == "Random":
-                            random.shuffle(local_selected)
-                        
-                        local_tags = [t[0] for t in local_selected]
+                            random.shuffle(top_n_tuples)
+
+                        # Finally, extract the tag names
+                        local_tags = [t[0] for t in top_n_tuples]
                         tag_replacements[item["match"]] = ", ".join(local_tags)
-                        all_selected_keywords.extend(selected)
+                        
+                        # Extend with the tuples (tag, score) so Global Sorting works
+                        all_selected_keywords.extend(top_n_tuples)
 
             resolved_names.append(final_display_name)
 
