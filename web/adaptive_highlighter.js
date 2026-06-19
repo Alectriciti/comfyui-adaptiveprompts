@@ -4,13 +4,15 @@ import { app } from "../../scripts/app.js";
 const style = document.createElement("style");
 style.innerHTML = `
     :root {
-        --ap-bracket: #4ade80;       /* Green */
-        --ap-wildcard: #22d3ee;      /* Cyan */
-        --ap-lora-base: #60a5fa;     /* Blue */
-        --ap-lora-x: #c084fc;        /* Pale Purple (Unet) */
-        --ap-lora-y: #fde047;        /* Yellow (Clip) */
-        --ap-lora-z: #4ade80;        /* Green (Keyword) */
-        --ap-error: #f87171;         /* Red */
+        --ap-bracket: #4ade80; 
+        --ap-wildcard: #3bc1ff;
+        --ap-wildcard-var: #49ffe1;    /* Distinct color for ^variable */
+        --ap-lora-base: #5f5db4;
+        --ap-lora-name: #9b95ee;
+        --ap-lora-x: #ac58ff;
+        --ap-lora-y: #f0dc79;
+        --ap-lora-z: #4ade80;
+        --ap-error: #f87171;
         
         --ap-editor-bg: #1e1e1e;
         --ap-editor-text: #cccccc;
@@ -28,12 +30,12 @@ style.innerHTML = `
     .ap-editor-backdrop {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        overflow: hidden; /* JS will sync scroll */
+        overflow: hidden;
         white-space: pre-wrap;
         word-wrap: break-word;
         color: var(--ap-editor-text);
         background: var(--ap-editor-bg);
-        pointer-events: none; /* Let clicks pass through to textarea */
+        pointer-events: none;
         padding: 6px;
         box-sizing: border-box;
         border-radius: 4px;
@@ -44,8 +46,8 @@ style.innerHTML = `
         top: 0; left: 0; right: 0; bottom: 0;
         width: 100%; height: 100%;
         background: transparent !important;
-        color: transparent !important; /* Hide real text */
-        caret-color: white;            /* Keep cursor visible */
+        color: transparent !important;
+        caret-color: white;
         resize: none;
         border: 1px solid #333;
         outline: none;
@@ -57,10 +59,11 @@ style.innerHTML = `
         border-radius: 4px;
     }
 
-    /* Syntax Classes */
     .ap-bracket { color: var(--ap-bracket); font-weight: bold; }
     .ap-wildcard { color: var(--ap-wildcard); }
+    .ap-wildcard-var { color: var(--ap-wildcard-var); }
     .ap-lora { color: var(--ap-lora-base); }
+    .ap-lora-name { color: var(--ap-lora-name); }
     .ap-lora-x { color: var(--ap-lora-x); }
     .ap-lora-y { color: var(--ap-lora-y); }
     .ap-lora-z { color: var(--ap-lora-z); }
@@ -72,70 +75,93 @@ style.innerHTML = `
 `;
 document.head.appendChild(style);
 
-// --- 2. PARSING LOGIC ---
 function applyHighlights(text) {
-    // Escape HTML to prevent XSS and rendering breaks
+    // Escape HTML to prevent XSS
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const tokens = [];
     let tokenIndex = 0;
 
-    // Helper to safely stash parsed elements so later regexes don't break them
     function saveToken(markup) {
         const id = `@@TOKEN_${tokenIndex++}@@`;
         tokens.push({ id, markup });
         return id;
     }
 
-    // A. Parse LoRA Tags: <lora:name:x:y:z>
-    const loraRegex = /(&lt;lora:[^:&>]+)((?::[^:&>]+)?)((?::[^:&>]+)?)((?::[^:&>]+)?)(&gt;)/gi;
-    html = html.replace(loraRegex, (match, base, x, y, z, end) => {
-        let res = `<span class="ap-lora">${base}</span>`;
-        if (x) res += `<span class="ap-lora-x">${x}</span>`;
-        if (y) res += `<span class="ap-lora-y">${y}</span>`;
-        if (z) res += `<span class="ap-lora-z">${z}</span>`;
-        res += `<span class="ap-lora">${end}</span>`;
+    // A. Improved LoRA Parsing
+    const loraRegex = /(&lt;lora:)([^:&>]+)((?::[^:&>]*){0,3})(&gt;)/gi;
+    html = html.replace(loraRegex, (match, open, name, args, close) => {
+        let res = `<span class="ap-lora">${open}</span>`;
+        res += `<span class="ap-lora-name">${name}</span>`;
+
+        const parts = args.split(':');
+        const classes = ['ap-lora-x', 'ap-lora-y', 'ap-lora-z'];
+
+        for (let i = 1; i < parts.length; i++) {
+            const val = parts[i];
+            res += `<span class="ap-lora">:</span>`;
+            if (val.length > 0) {
+                res += `<span class="${classes[i - 1] || 'ap-lora'}">${val}</span>`;
+            }
+        }
+        res += `<span class="ap-lora">${close}</span>`;
         return saveToken(res);
     });
 
-    // B. Parse Valid Wildcards: __name__
-    const wildcardRegex = /__[\w\-\/]+__/g;
-    html = html.replace(wildcardRegex, match => saveToken(`<span class="ap-wildcard">${match}</span>`));
+    // B. Wildcards + Variables
+    const wildcardRegex = /__(?:([A-Za-z0-9_\-/\*\.~]+))?(?:\^([A-Za-z0-9_\-\*]+))?__/g;
+    html = html.replace(wildcardRegex, (match, name, variable) => {
+        if (variable && !name) {
+            return saveToken(`<span class="ap-wildcard-var">${match}</span>`);
+        }
+        return saveToken(`<span class="ap-wildcard">${match}</span>`);
+    });
 
-    // C. Detect Broken Wildcards (Anything starting/ending with underscores that didn't get tokenized above)
-    // Matches e.g., __broken_wildcard or broken_wildcard__
-    const brokenWildcardRegex = /__[^\s&<]+|[^\s&<]+__/g;
-    html = html.replace(brokenWildcardRegex, match => saveToken(`<span class="ap-error">${match}</span>`));
-
-    // D. Stack-based Bracket Parsing (Perfect tracking for nested brackets & errors)
+    // C. Integrated Bracket & Separator Parsing
     let chars = html.split('');
     let bracketStack = [];
 
     for (let i = 0; i < chars.length; i++) {
+        // 1. Handle Brackets
         if (chars[i] === '{') {
-            bracketStack.push(i); // Push index of opening bracket
-        } else if (chars[i] === '}') {
+            bracketStack.push(i);
+            chars[i] = `<span class="ap-bracket">{</span>`;
+        }
+        else if (chars[i] === '}') {
             if (bracketStack.length > 0) {
-                // Valid Pair
-                let openIndex = bracketStack.pop();
-                chars[openIndex] = `<span class="ap-bracket">{</span>`;
+                bracketStack.pop();
                 chars[i] = `<span class="ap-bracket">}</span>`;
             } else {
-                // Unmatched closing bracket -> ERROR
                 chars[i] = `<span class="ap-error">}</span>`;
+            }
+        }
+        // 2. Handle Separators (ONLY if inside a bracket)
+        else if (bracketStack.length > 0) {
+            // Check for multi-char separators first ($$ or ??)
+            const lookahead2 = chars[i] + (chars[i + 1] || '');
+            if (lookahead2 === '$$' || lookahead2 === '??') {
+                chars[i] = `<span class="ap-bracket">${lookahead2}</span>`;
+                chars[i + 1] = ''; // Nullify the second character
+                i++; // Skip next char
+            }
+            // Check for single-char separator (|)
+            else if (chars[i] === '|') {
+                chars[i] = `<span class="ap-bracket">|</span>`;
             }
         }
     }
 
-    // Any opening brackets left in the stack were never closed -> ERROR
+    // Handle dangling opening brackets
     while (bracketStack.length > 0) {
         let openIndex = bracketStack.pop();
-        chars[openIndex] = `<span class="ap-error">{</span>`;
+        // Since we already replaced the char at openIndex with the span string, 
+        // we need to wrap the existing span in an error class or modify it
+        chars[openIndex] = chars[openIndex].replace('ap-bracket', 'ap-error');
     }
 
     html = chars.join('');
 
-    // E. Restore Tokens
+    // D. Restore Tokens
     for (let i = tokens.length - 1; i >= 0; i--) {
         html = html.replace(tokens[i].id, tokens[i].markup);
     }
@@ -150,56 +176,33 @@ app.registerExtension({
         const onNodeCreated = nodeType.prototype.onNodeCreated;
 
         nodeType.prototype.onNodeCreated = function () {
-            if (onNodeCreated) {
-                onNodeCreated.apply(this, arguments);
-            }
+            if (onNodeCreated) onNodeCreated.apply(this, arguments);
 
-            // 1. RESTRICTION: Only apply to Adaptive Prompts nodes
-            // Ensure this matches the class names defined in your Python backend
-            const validClasses = [
-                "PromptGen",
-                "PromptSequencer",
-                "PromptRe",
-                "PromptLora",
-                "PromptMix"
-            ];
+            const validClasses = ["PromptGen", "PromptSequencer", "PromptRe", "PromptLora", "PromptMix"];
+            if (!this.comfyClass || !validClasses.some(x => this.comfyClass.includes(x))) return;
 
-            if (!this.comfyClass || !validClasses.some(x => this.comfyClass.includes(x))) {
-                return;
-            }
-
-            // Find multiline text widgets to patch
             for (const widget of this.widgets || []) {
                 if (widget.type === "customtext" || (widget.type === "text" && widget.element?.nodeName === "TEXTAREA")) {
-
                     const textarea = widget.element;
                     if (!textarea || textarea.classList.contains("ap-editor-textarea")) continue;
 
-                    // 2. DEFERRAL: Safely wait for LiteGraph to mount the element
                     const setupMirrorPattern = () => {
                         const parent = textarea.parentNode;
-
                         if (!parent) {
-                            // If it's floating in memory, wait until the next render frame and try again
                             requestAnimationFrame(setupMirrorPattern);
                             return;
                         }
 
-                        // Create wrapper and backdrop
                         const container = document.createElement("div");
                         container.className = "ap-editor-container";
-
                         const backdrop = document.createElement("div");
                         backdrop.className = "ap-editor-backdrop";
 
-                        // Re-arrange DOM safely
                         parent.insertBefore(container, textarea);
                         container.appendChild(backdrop);
                         container.appendChild(textarea);
-
                         textarea.classList.add("ap-editor-textarea");
 
-                        // The synchronization engine
                         const updateHighlight = () => {
                             backdrop.innerHTML = applyHighlights(textarea.value);
                         };
@@ -209,15 +212,10 @@ app.registerExtension({
                             backdrop.scrollLeft = textarea.scrollLeft;
                         };
 
-                        // Attach Event Listeners
                         textarea.addEventListener("input", updateHighlight);
                         textarea.addEventListener("scroll", syncScroll);
-
-                        // Trigger initial render
                         updateHighlight();
                     };
-
-                    // Kick off the mounting check
                     setupMirrorPattern();
                 }
             }
