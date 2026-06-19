@@ -16,6 +16,7 @@ import random
 import hashlib
 from .config import get_config
 from .wildcard_utils import bfs_find_file
+from .misc_utils import *
 
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 
