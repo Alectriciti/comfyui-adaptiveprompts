@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 
-// --- 1. CONFIGURABLE COLORS ---
+// --- 1. CONFIGURABLE COLORS & PLACEMENT FIXES ---
 const style = document.createElement("style");
 style.innerHTML = `
     :root {
@@ -30,15 +30,28 @@ style.innerHTML = `
     .ap-editor-backdrop {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        overflow: hidden;
+        overflow: auto;                /* FIXED: Let layout engine account for scrollbar width */
         white-space: pre-wrap;
         word-wrap: break-word;
         color: var(--ap-editor-text);
         background: var(--ap-editor-bg);
         pointer-events: none;
         padding: 6px;
+        margin: 0;                     /* FIXED: Explicitly strip margins */
         box-sizing: border-box;
         border-radius: 4px;
+        border: 1px solid transparent; /* FIXED: Footprint must match textarea border width */
+        
+        /* Optional: Makes backdrop scrollbars transparent if they ever peek out slightly */
+        scrollbar-color: transparent transparent; 
+    }
+
+    /* Webkit-specific layout footprint adjustments to ensure sync */
+    .ap-editor-backdrop::-webkit-scrollbar {
+        background: transparent;
+    }
+    .ap-editor-backdrop::-webkit-scrollbar-thumb {
+        background: transparent;
     }
 
     .ap-editor-textarea {
@@ -50,6 +63,7 @@ style.innerHTML = `
         caret-color: white;
         resize: none;
         border: 1px solid #333;
+        margin: 0;                     /* FIXED: Explicitly strip margins */
         outline: none;
         padding: 6px;
         box-sizing: border-box;
@@ -57,6 +71,7 @@ style.innerHTML = `
         font-size: inherit;
         line-height: inherit;
         border-radius: 4px;
+        overflow: auto;                /* FIXED: Forces identical scrolling behaviors */
     }
 
     .ap-bracket { color: var(--ap-bracket); font-weight: bold; }
@@ -75,8 +90,8 @@ style.innerHTML = `
 `;
 document.head.appendChild(style);
 
+// --- 2. PARSING LOGIC ---
 function applyHighlights(text) {
-    // Escape HTML to prevent XSS
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const tokens = [];
@@ -122,7 +137,6 @@ function applyHighlights(text) {
     let bracketStack = [];
 
     for (let i = 0; i < chars.length; i++) {
-        // 1. Handle Brackets
         if (chars[i] === '{') {
             bracketStack.push(i);
             chars[i] = `<span class="ap-bracket">{</span>`;
@@ -135,27 +149,21 @@ function applyHighlights(text) {
                 chars[i] = `<span class="ap-error">}</span>`;
             }
         }
-        // 2. Handle Separators (ONLY if inside a bracket)
         else if (bracketStack.length > 0) {
-            // Check for multi-char separators first ($$ or ??)
             const lookahead2 = chars[i] + (chars[i + 1] || '');
             if (lookahead2 === '$$' || lookahead2 === '??') {
                 chars[i] = `<span class="ap-bracket">${lookahead2}</span>`;
-                chars[i + 1] = ''; // Nullify the second character
-                i++; // Skip next char
+                chars[i + 1] = '';
+                i++;
             }
-            // Check for single-char separator (|)
             else if (chars[i] === '|') {
                 chars[i] = `<span class="ap-bracket">|</span>`;
             }
         }
     }
 
-    // Handle dangling opening brackets
     while (bracketStack.length > 0) {
         let openIndex = bracketStack.pop();
-        // Since we already replaced the char at openIndex with the span string, 
-        // we need to wrap the existing span in an error class or modify it
         chars[openIndex] = chars[openIndex].replace('ap-bracket', 'ap-error');
     }
 
