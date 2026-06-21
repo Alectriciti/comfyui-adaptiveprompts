@@ -3,7 +3,7 @@ from .py.prompt_repack import PromptRepack
 from .py.prompt_replace import PromptReplace
 from .py.prompt_generator import PromptGenerator, PromptGeneratorAdvanced, PromptContextMerge, PromptSequencer
 from .py.weight_lifter import WeightLifter
-from .py.image_nodes import SaveImageAndText
+from .py.image_nodes import SaveImageAndText, LoadImageAndMeta
 from .py.prompt_alias import PromptAliasSwap
 from .py.prompt_splitter import PromptSplitter
 from .py.prompt_mixer import PromptMixer
@@ -54,6 +54,7 @@ NODE_CLASS_MAPPINGS = {
     "ScaledSeedGenerator": ScaledSeedGenerator,
     "TagCounter": TagCounter,
     "SaveImageAndText": SaveImageAndText,
+    "LoadImageAndMeta": LoadImageAndMeta,
     "RandomFloats": RandomFloats4,
     "RandomIntegers": RandomIntegers4,
 }
@@ -79,6 +80,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ScaledSeedGenerator": "🌱 Scaled Seed Generator 🌱",
     "TagCounter": "Tag Counter",
     "SaveImageAndText": "Save Image And Text",
+    "LoadImageAndMeta": "Load Image And Meta",
     "RandomFloats": "Random Floats 4",
     "RandomIntegers": "Random Integers 4",
 }
