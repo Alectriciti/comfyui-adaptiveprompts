@@ -45,7 +45,7 @@ class PromptAliasSwap:
             "required": {
                 "string": ("STRING", {"multiline": True, "tooltip": "The input prompt to process"}),
                 "seed": ("INT", {
-                    "default": 0, "min": 0, "max": 0x7FFFFFFF
+                    "default": 0, "min": 0, "max": 0xffffffffffffffff
                 }),
                 "alias_file": (alias_files, {
                     "default": "tags.txt",
