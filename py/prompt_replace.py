@@ -2,8 +2,6 @@ import re
 import os
 from .generator import resolve_wildcards, SeededRandom
 from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options
-from .prompt_generator import *
-from .wildcard_utils import *
 
 class PromptReplace:
 
@@ -43,8 +41,14 @@ class PromptReplace:
         # Normalize incoming context into dict-of-dicts (origin->value)
         normalized_context = _normalize_input_context(context)
 
+        category_label = category if category is not None else (
+            getattr(self.__class__, "_CATEGORY_LABELS", ["wildcards"])[0]
+        )
+        folder_map = getattr(self.__class__, "_CATEGORY_MAP", {}) or {}
+        wildcard_dir = folder_map.get(category_label, self.input_dir)
+
         # Expand target_string ONCE
-        expanded_target = resolve_wildcards(target_string, seeded_rng, category, _resolved_vars=normalized_context)
+        expanded_target = resolve_wildcards(target_string, seeded_rng, wildcard_dir, _resolved_vars=normalized_context)
         targets = expanded_target.split("\n")
 
         result = string
@@ -65,7 +69,7 @@ class PromptReplace:
                     return match.group(0)  # No change
 
                 # Expand replace_string PER replacement
-                replacement = resolve_wildcards(replace_string, seeded_rng, category, _resolved_vars=normalized_context)
+                replacement = resolve_wildcards(replace_string, seeded_rng, wildcard_dir, _resolved_vars=normalized_context)
                 #if debug:
                 #    print(f"  replace {replacements_done}: {repr(replacement)}")
                 replacements_done += 1
