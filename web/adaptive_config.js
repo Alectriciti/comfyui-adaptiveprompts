@@ -9,11 +9,13 @@ const SETTING_RNG = ID_PREFIX + "default_rng_mode";
 const SETTING_COMMENTS = ID_PREFIX + "hide_comments";
 
 // 2. The Python Synchronization Hook
-async function syncToBackend(key, value) {
+let initialSyncDone = false;
+
+async function syncToBackend(payload) {
     try {
         await api.fetchApi("/adaptive_prompts/config", {
             method: "POST",
-            body: JSON.stringify({ [key]: value })
+            body: JSON.stringify(payload)
         });
     } catch (e) {
         console.error("[Adaptive Prompts] Failed to sync config to Python backend:", e);
@@ -34,7 +36,7 @@ app.registerExtension({
             tooltip: "Adaptive: Identity-based RNG (rearrangeable prompts). Legacy: Sequential RNG (domino-effect).",
             defaultValue: "Adaptive",
             category: ["Adaptive Prompts", "Generation", "RNG Mode"],
-            onChange: (value) => syncToBackend("default_rng_mode", value)
+            onChange: (value) => syncToBackend({ default_rng_mode: value })
         },
         {
             id: SETTING_DEPTH,
@@ -44,7 +46,7 @@ app.registerExtension({
             defaultValue: 80,
             // Categories create nested folders in the Settings UI
             category: ["Adaptive Prompts", "Resolution", "Search Depth"],
-            onChange: (value) => syncToBackend("search_depth_limit", value)
+            onChange: (value) => syncToBackend({ search_depth_limit: value })
         },
         {
             id: SETTING_COMMENTS,
@@ -52,13 +54,18 @@ app.registerExtension({
             type: "boolean",
             defaultValue: true,
             category: ["Adaptive Prompts", "Formatting", "Comments"],
-            onChange: (value) => syncToBackend("hide_comments", value)
+            onChange: (value) => syncToBackend({ hide_comments: value })
         }
     ],
 
     async setup() {
-        syncToBackend("default_rng_mode", app.ui.settings.getSettingValue(SETTING_RNG, "Signature"));
-        syncToBackend("search_depth_limit", app.ui.settings.getSettingValue(SETTING_DEPTH, 80));
-        syncToBackend("hide_comments", app.ui.settings.getSettingValue(SETTING_COMMENTS, true));
+        if (initialSyncDone) return;
+        initialSyncDone = true;
+
+        await syncToBackend({
+            default_rng_mode: app.ui.settings.getSettingValue(SETTING_RNG, "Adaptive"),
+            search_depth_limit: app.ui.settings.getSettingValue(SETTING_DEPTH, 80),
+            hide_comments: app.ui.settings.getSettingValue(SETTING_COMMENTS, true),
+        });
     }
 });
