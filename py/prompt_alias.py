@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple, Optional
 
 
 class PromptAliasSwap:
-    """
+    r"""
     Prompt Alias Swap
     - Loads alias groups once (cached), optionally refreshed live.
     - Finds candidate tags (tokens) per rules and swaps them using the alias group.
