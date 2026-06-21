@@ -24,6 +24,9 @@ BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 # - also supports pure variable recall: __^var__
 FILE_PATTERN = re.compile(r"__(?:([\w\-\*/]+?))?(?:\^([\w\-\*]+))?__", re.UNICODE)
 
+# Variable names assigned via trailing ^name on brackets or wildcards
+_VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
+
 # Normalize spacing between adjacent wildcard-ish tokens (allow ^ and *)
 ADJ_WC_PATTERN = re.compile(r"(__[a-zA-Z0-9_\-/*\^\*]+__)(__[a-zA-Z0-9_\-/*\^\*]+__)")
 
@@ -396,8 +399,6 @@ def process_file_wildcard(name: str,
     deck = _ensure_deck_for_file(bracket_ctx, actual_fp)
     picked = _deck_draw(deck, rng, allow_overflow=bool(bracket_ctx.get("allow_overflow", True)))
     return picked or ""
-
-_VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 def sequence_prompt_elements(prompt: str, seed: int, mode: str, wildcard_dir: str, _resolved_vars: dict, rng: random.Random) -> str:
     """
@@ -814,8 +815,6 @@ def process_bracket(content: str,
 
 
 # ---------------------- Main resolver (iterative passes + final sweep) ------------
-
-_VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 def _final_sweep_resolve(text: str,
                          seeded_rng: SeededRandom,
