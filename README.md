@@ -606,8 +606,6 @@ Alternatively, use the [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Ma
 > - **17/08/25** Variables and Comments have been added. All nodes passed main stress-tests. Things are looking good so far!
 > - **15/08/25** Established a somewhat working version of these nodes. It's stable enough to use.
 
-
-
 ---
 
 *With great power comes great responsibility*
@@ -616,6 +614,10 @@ Alternatively, use the [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Ma
 
 ---
 
+## ❤️ Support
 
+☕ [Buy me a coffee](https://buymeacoffee.com/alectriciti)
 
-Created by **Alectriciti** ⚡ | 🎵 [Listen to my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 
+🎵 [Listen to my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 
+
+Created by **Alectriciti** ⚡
