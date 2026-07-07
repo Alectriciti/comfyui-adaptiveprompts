@@ -1,0 +1,3 @@
+# relative and root wildcard pathing demonstration
+
+__color__ __style__ hair with __~/color__ hat

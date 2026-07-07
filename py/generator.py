@@ -343,18 +343,22 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
 
     # 1. Parse Explicit Prefixes
     is_explicit = False
-    search_dir = None
+    prefix_type = None
+    search_dir = primary_dir
 
     if name.startswith("~/"):
         is_explicit = True
+        prefix_type = "~"
         search_dir = primary_dir
         name = name[2:]
     elif name.startswith("./"):
         is_explicit = True
+        prefix_type = "."
         search_dir = source_dir
         name = name[2:]
     elif name.startswith("../"):
         is_explicit = True
+        prefix_type = ".."
         parent_dir = os.path.dirname(source_dir)
         # Fallback to root if we attempt to go higher than the root
         search_dir = parent_dir if source_dir != primary_dir else primary_dir
@@ -364,51 +368,104 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
     if not name: 
         return None
 
-    # Helper for shallow directory checks (supports * globs)
-    def _check_direct(base: str, target: str) -> str | None:
-        if "/" in target:
-            dir_part, last = target.rsplit("/", 1)
-            dir_path = os.path.join(base, dir_part)
-            if last == "" or last == "*" or last.endswith("*"):
-                prefix = None if last in ("", "*") else last[:-1]
-                return _choose_file_from_dir(dir_path, rng, prefix=prefix)
-            filepath = os.path.join(dir_path, f"{last}.txt")
-            return filepath if os.path.isfile(filepath) else None
+    has_glob = "*" in name
+
+    # --- Core Search Tools ---
+    
+    def _gather_globs(base_dir: str, pattern: str, allow_bfs: bool) -> list[str]:
+        """Gathers candidates dynamically using RegEx translated from Globs."""
+        import re
+        candidates = []
+        if not os.path.isdir(base_dir):
+            return candidates
         
-        if target == "*" or target.endswith("*"):
-            prefix = None if target == "*" else target[:-1]
-            return _choose_file_from_dir(base, rng, prefix=prefix)
+        # Convert glob to regex (e.g. * becomes [^/]*)
+        regex_str = re.escape(pattern).replace(r"\*", r"[^/]*")
+        
+        if allow_bfs:
+            # Matches strictly or inside any subdirectory
+            final_regex = f"^({regex_str}|.*/{regex_str})$"
+        else:
+            # Matches strictly from base_dir 
+            final_regex = f"^{regex_str}$"
             
-        filepath = os.path.join(base, f"{target}.txt")
+        matcher = re.compile(final_regex)
+        
+        for root, dirs, files in os.walk(base_dir):
+            for file in files:
+                if not file.lower().endswith(".txt"):
+                    continue
+                    
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, base_dir)
+                rel_name = rel_path[:-4].replace("\\", "/") # Normalize slashes
+                
+                if matcher.match(rel_name):
+                    candidates.append(full_path)
+        return candidates
+
+    def _check_direct(base: str, target: str) -> str | None:
+        """Fast explicit check for literal non-glob files."""
+        filepath = os.path.normpath(os.path.join(base, f"{target}.txt"))
         return filepath if os.path.isfile(filepath) else None
 
-    # EXPLICIT RESOLUTION: Strict check only. No fallbacks. No BFS.
+    # --- 2. EXPLICIT RESOLUTION ---
     if is_explicit:
-        return _check_direct(search_dir, name)
+        if prefix_type == "~":
+            # Literal root, zero fallback.
+            if has_glob:
+                cands = _gather_globs(search_dir, name, allow_bfs=False)
+                return rng.choice(cands) if cands else None
+            return _check_direct(search_dir, name)
+        else:
+            # Local/Parent Explicit: Gather all with BFS, zero fallback.
+            if has_glob:
+                cands = _gather_globs(search_dir, name, allow_bfs=True)
+                return rng.choice(cands) if cands else None
+            
+            # Non-glob standard explicit check
+            match = _check_direct(search_dir, name)
+            if match: return match
+            return bfs_find_file(search_dir, name)
 
-    # IMPLICIT RESOLUTION
+    # --- 3. IMPLICIT RESOLUTION ---
     resolution_strategy = get_config("resolution_strategy")
 
-    # Step 1: Immediate relative working directory
-    match = _check_direct(source_dir, name)
-    if match: return match
-
-    # Step 2: BFS downwards from relative directory
-    # Only run if we aren't already working in the root folder
-    if source_dir != primary_dir:
-        match = bfs_find_file(source_dir, name)
+    if has_glob:
+        # GATHERING MODE
+        # Step 1: Gather everything with BFS downwards from relative directory
+        cands = _gather_globs(source_dir, name, allow_bfs=True)
+        if cands: return rng.choice(cands)
+        
+        # Step 2: Fallback to root (depending on strategy)
+        if source_dir != primary_dir:
+            allow_bfs_root = (resolution_strategy == "Aggressive")
+            cands_root = _gather_globs(primary_dir, name, allow_bfs=allow_bfs_root)
+            if cands_root: return rng.choice(cands_root)
+            
+        return None
+        
+    else:
+        # EXACT PATH MODE
+        # Step 1: Immediate relative working directory
+        match = _check_direct(source_dir, name)
         if match: return match
 
-    # Step 3: Root directory (No BFS)
-    match = _check_direct(primary_dir, name)
-    if match: return match
+        # Step 2: BFS downwards from relative directory
+        if source_dir != primary_dir:
+            match = bfs_find_file(source_dir, name)
+            if match: return match
 
-    # Step 4: Aggressive Mode (Full BFS from root)
-    if resolution_strategy == "Aggressive" or source_file is None:
-        match = bfs_find_file(primary_dir, name)
+        # Step 3: Immediate Root directory (No BFS fallback check)
+        match = _check_direct(primary_dir, name)
         if match: return match
 
-    return None
+        # Step 4: Aggressive Mode (Full BFS from root)
+        if resolution_strategy == "Aggressive" or source_file is None:
+            match = bfs_find_file(primary_dir, name)
+            if match: return match
+
+        return None
 
 def process_file_wildcard(name: str,
                           rng: random.Random,
@@ -547,24 +604,18 @@ def _collect_candidates(_resolved_vars: dict,
                         var_pat: str | None,
                         origin_filter: str | None) -> list[str]:
     """
-    Build candidate strings for variable recall/shuffle:
+    Build candidate strings for variable recall/shuffle using wildcard matching:
       var_pat == "*" -> all vars' values
-      var_pat == "a*" -> var names starting with "a"
+      var_pat == "color*" -> var names starting with "color"
       var_pat == "alpha" -> var 'alpha' values
       origin_filter restricts to that origin key (e.g., "character").
     """
     if not _resolved_vars or not var_pat:
         return []
-    match_all = (var_pat == "*")
-    prefix = ""
-    exact_name = None
-    if match_all:
-        pass
-    elif var_pat.endswith("*"):
-        prefix = var_pat[:-1]
-    else:
-        exact_name = var_pat
+    
+    import fnmatch
     candidates = []
+    
     def add_values_for_var(vname: str):
         bucket = _resolved_vars.get(vname, {})
         if origin_filter is None:
@@ -572,15 +623,11 @@ def _collect_candidates(_resolved_vars: dict,
         else:
             if origin_filter in bucket:
                 candidates.append(bucket[origin_filter])
-    if match_all:
-        for vname in _resolved_vars.keys():
+                
+    for vname in _resolved_vars.keys():
+        if fnmatch.fnmatchcase(vname, var_pat):
             add_values_for_var(vname)
-    elif exact_name is not None:
-        add_values_for_var(exact_name)
-    else:
-        for vname in _resolved_vars.keys():
-            if vname.startswith(prefix):
-                add_values_for_var(vname)
+            
     return candidates
 
 # ---------------------- Select Bracket to process -----------------------
