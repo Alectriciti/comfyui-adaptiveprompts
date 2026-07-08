@@ -5,7 +5,7 @@
 
 
 # News
-> - **July 8, 2026** *v0.2.0 released:* New Load Lora Tags node, Improved Wildcard Resolver, prompt variable improvements, and more! See newest release for more details.
+> - **July 8, 2026** *v0.2.0 released:* New Lora Tags Loader node, Improved Wildcard Resolver, prompt variable improvements, and more! See newest release for more details.
 > - **June 27, 2026** *v0.1.0 released:* Powerful New RNG mode: Adaptive (with Legacy support), Prompt Repack upgrade, and more.
 
 [See More](#Update-History)
@@ -40,7 +40,7 @@ In these descriptions, a "phrase" can be defined as the space between two commas
 | 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | Now supports immediate Prompt Generation output |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | |
 | 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | does not currently support .csv  |
-| 🏷️ Load Lora Tags | Loads Loras and injects their tags based on weight and tag frequency. Outputs prompt or isolated keywords. Supports a `<lora:name:model:clip:keyword>` format | optional built-in compressor |
+| 🏷️ Lora Tags Loader | Loads Loras and injects their tags based on weight and tag frequency. Outputs prompt or isolated keywords. Supports a `<lora:name:model:clip:keyword>` format | optional built-in compressor |
 | Prompt Context Merge | Combines the context of Prompt Generator, merging the created dictionaries. |  |
 
 ## Prompt Processing Nodes
