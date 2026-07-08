@@ -290,8 +290,15 @@ class PromptSetVariable:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "variable": ("STRING", {"default": "var_name"}),
-                "data": ("STRING", {"multiline": True, "default": "data to store"}),
+                "variable": ("STRING", {
+                    "default": "var_name",
+                    "tooltip": "The variable to store the data in. In a Prompt Generator, this can be retrieved with __^var_name__"
+                    }),
+                "data": ("STRING", {
+                    "multiline": True, 
+                    "default": "data to store",
+                    "tooltip": "Each newline creates a separate data entry for this variable."
+                }),
             },
             "optional": {
                 "context": ("DICT", {}),
@@ -322,15 +329,27 @@ class PromptSetVariable:
 
         bucket = normalized_ctx[var_name]
 
-        # 3. Generate a unique origin key for this injection
+        # 3. Process each line as a separate entry
         base_key = "__setvar_"
         counter = 0
-        while f"{base_key}{counter}" in bucket:
+        
+        for line in str(data).splitlines():
+            clean_line = line.strip()
+            
+            # Skip empty lines
+            if not clean_line:
+                continue
+                
+            # Find the next available unique key
+            while f"{base_key}{counter}" in bucket:
+                counter += 1
+
+            unique_key = f"{base_key}{counter}"
+
+            # 4. Assign the isolated line data
+            bucket[unique_key] = clean_line
+            
+            # Increment counter for the next item so it doesn't recount from zero
             counter += 1
-
-        unique_key = f"{base_key}{counter}"
-
-        # 4. Assign the data
-        bucket[unique_key] = str(data)
 
         return (normalized_ctx,)
