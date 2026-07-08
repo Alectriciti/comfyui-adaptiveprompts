@@ -84,7 +84,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveImageAndText": "Save Image And Text",
     "RandomFloats": "Random Floats 4",
     "RandomIntegers": "Random Integers 4",
-    "SetPromptVariable": "Set Prompt Variable",
+    "SetPromptVariable": "🧮 Set Prompt Variable 🧮",
     "LoadLoraTags": "🏷️ Load Lora Tags 🏷️",
 }
 
