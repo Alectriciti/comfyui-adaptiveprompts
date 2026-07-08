@@ -85,7 +85,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RandomFloats": "Random Floats 4",
     "RandomIntegers": "Random Integers 4",
     "SetPromptVariable": "Set Prompt Variable",
-    "LoadLoraTags": "🎁 Load Lora Tags 🎁",
+    "LoadLoraTags": "🏷️ Load Lora Tags 🏷️",
 }
 
 def register_nodes(comfy):

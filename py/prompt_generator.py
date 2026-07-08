@@ -291,13 +291,13 @@ class PromptSetVariable:
         return {
             "required": {
                 "variable": ("STRING", {
-                    "default": "var_name",
-                    "tooltip": "The variable to store the data in. In a Prompt Generator, this can be retrieved with __^var_name__"
+                    "default": "var",
+                    "tooltip": "The variable to store the data in. In a Prompt Generator, this can be retrieved with __^var__"
                     }),
                 "data": ("STRING", {
                     "multiline": True, 
-                    "default": "data to store",
-                    "tooltip": "Each newline creates a separate data entry for this variable."
+                    "default": "",
+                    "tooltip": "Each newline creates a separate data entry for this variable. Brackets & Wildcards do not get resolved at this stage."
                 }),
             },
             "optional": {

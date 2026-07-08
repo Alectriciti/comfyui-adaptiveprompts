@@ -5,8 +5,8 @@
 
 
 # News
-> - **27/05/26** *v0.1.0 released:* Powerful New RNG mode: Adaptive (with Legacy support), Prompt Repack upgrade, and more! See newest release for more details.
-> - **14/01/26** *v0.0.4 released:* fixed a major bracket bug
+> - **July 8, 2026** *v0.2.0 released:* New Load Lora Tags node, Improved Wildcard Resolver, prompt variable improvements, and more! See newest release for more details.
+> - **June 27, 2026** *v0.1.0 released:* Powerful New RNG mode: Adaptive (with Legacy support), Prompt Repack upgrade, and more.
 
 [See More](#Update-History)
 
@@ -14,10 +14,9 @@
 
 Please see the Issues tab to request or support new features. *High demand = High priority*
 
-> - **Wildcard Implicit/Explicit Calls & BFS support** (High Priority)
+> - **YAML/JSON Wildcard Support** allowing for legacy support of existing wildcard formats
+> - **Switches / Conditionals** if certain results are rolled, certain things should happen, json
 > - **Prompt Context Loading** to effectively load "profiles" for variable prompts
-> - **Switches / Conditionals**
-> - **YAML Wildcards** allowing for legacy support of existing wildcard formats
 
 ## Introduction
 
@@ -41,6 +40,7 @@ In these descriptions, a "phrase" can be defined as the space between two commas
 | 📦 Prompt Repack | A powerful inverse of Prompt Generator. It converts natural words, tags, or phrases back into wildcards. | Now supports immediate Prompt Generation output |
 | 🔁 Prompt Replace | Search & Replace, but on steroids. Both inputs support dynamic prompts, then apply procedurally. | |
 | 📚 Prompt Alias Swap | Utilizes a tag_alias.txt file, tags separated by commas in this file will be automatically swapped out randomly. | does not currently support .csv  |
+| 🏷️ Load Lora Tags | Loads Loras and injects their tags based on weight and tag frequency. Outputs prompt or isolated keywords. Supports a `<lora:name:model:clip:keyword>` format | optional built-in compressor |
 | Prompt Context Merge | Combines the context of Prompt Generator, merging the created dictionaries. |  |
 
 ## Prompt Processing Nodes
@@ -598,6 +598,8 @@ Install like any other ComfyUI Node pack, by cloning the project into:  ```/Comf
 Alternatively, use the [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager)
 
 # Update-History
+
+> - **14/01/26** *v0.0.4 released:* fixed a major bracket bug
 > - **13/01/26** Happy New Year! v0.0.3 released! Added a new bracket selection mode. see releases page for change-log.
 > - **16/09/25** Prompt Sequencer added: Generates every possible combination of wildcards sequentially.
 > - **15/09/25** Prompt Generator (Advanced) added: Allows specifying a /wildcards/ folder (if the folder starts with "wildcard").
@@ -616,8 +618,10 @@ Alternatively, use the [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Ma
 
 ## ❤️ Support
 
-☕ [Buy me a coffee](https://buymeacoffee.com/alectriciti)
+If you enjoy what I'm creating, there are a few ways to show your support. Every little bit helps!
 
-🎵 [Listen to my music](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc) 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/alectriciti)
+
+[![Alectriciti on Spotify](https://img.shields.io/badge/Spotify-1DB954?style=for-the-badge&logo=spotify&logoColor=white)](https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc)
 
 Created by **Alectriciti** ⚡
