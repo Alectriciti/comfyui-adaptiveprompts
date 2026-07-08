@@ -125,6 +125,7 @@ def _restore_escaped_wildcards(text: str, mapping: dict) -> str:
     for ph, literal in mapping.items():
         text = text.replace(ph, literal)
     return text
+
 # ---------------------- Top-level split helpers ------------------------------
 
 def _find_top_level_separators(s: str) -> list[tuple[int, str]]:
@@ -779,20 +780,67 @@ def process_bracket(content: str,
 
     # --- Handle * (exhaust all) mode ---
     if exhaust_all:
-        results = []
+        pool_items = []
 
-        for key in unique_keys:
+        # Intercept single file/variable choices and dynamically extrapolate their items into the pool
+        if len(unique_keys) == 1 and unique_keys[0][0] in ("file", "var"):
+            key = unique_keys[0]
             kind, canonical, original, var_tok = key
 
             if kind == "var":
-                # Pull every assigned value for this variable
                 vals = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
-                results.extend(vals)
-            else:
-                eval_seed = seeded_rng.next_rng().getrandbits(64)
-                eval_rng = SeededRandom(eval_seed, mode=seeded_rng.mode, occurrence_counts=seeded_rng.occurrence_counts)
+                for v in vals:
+                    pool_items.append((v, "lit", None, None, None))
+            elif kind == "file":
+                eval_rng_for_path = seeded_rng.next_rng()
+                actual_fp = resolve_wildcard_path(canonical, eval_rng_for_path, wildcard_dir, source_file)
+                if actual_fp:
+                    items, _ = _load_weighted_file(actual_fp)
+                    for item in items:
+                        pool_items.append((item, "file_line", var_tok, canonical, actual_fp))
+        else:
+            for key in unique_keys:
+                kind, canonical, original, var_tok = key
+                if kind == "var":
+                    vals = _collect_candidates(_resolved_vars, canonical, origin_filter=None)
+                    for v in vals:
+                        pool_items.append((v, "lit", None, None, None))
+                else:
+                    pool_items.append((original, kind, var_tok, canonical, None))
+
+        # Engage roulette permutation to completely shuffle the extracted results
+        if selection_mode == "roulette":
+            seeded_rng.next_rng().shuffle(pool_items)
+
+        results = []
+        for item_val, kind, var_tok, canonical, actual_fp in pool_items:
+            eval_seed = seeded_rng.next_rng().getrandbits(64)
+            eval_rng = SeededRandom(eval_seed, mode=seeded_rng.mode, occurrence_counts=seeded_rng.occurrence_counts)
+
+            if kind == "lit":
                 resolved = resolve_wildcards(
-                    original, eval_rng, wildcard_dir, source_file=source_file,
+                    item_val, eval_rng, wildcard_dir, source_file=source_file,
+                    _resolved_vars=_resolved_vars,
+                    bracket_ctx=None,
+                    bracket_overflow=True
+                )
+                if resolved != "":
+                    results.append(resolved)
+            elif kind == "file_line":
+                resolved = resolve_wildcards(
+                    item_val, eval_rng, wildcard_dir, source_file=actual_fp,
+                    _resolved_vars=_resolved_vars,
+                    bracket_ctx=bracket_ctx,
+                    bracket_overflow=True
+                )
+                if var_tok:
+                    _ensure_var_bucket(_resolved_vars, var_tok)
+                    _resolved_vars[var_tok].setdefault(canonical, resolved)
+                if resolved != "":
+                    results.append(resolved)
+            else:
+                resolved = resolve_wildcards(
+                    item_val, eval_rng, wildcard_dir, source_file=source_file,
                     _resolved_vars=_resolved_vars,
                     bracket_ctx=bracket_ctx if kind == "file" else None,
                     bracket_overflow=True
@@ -800,7 +848,7 @@ def process_bracket(content: str,
                 if resolved != "":
                     results.append(resolved)
 
-        # Join with separator
+        # Reconstruct output string
         if results:
             joined = results[0]
             for item in results[1:]:
@@ -840,9 +888,22 @@ def process_bracket(content: str,
                 bracket_overflow=True
             )
 
+        # Route variables directly into standard contextual deck system logic to block repeats
         if kind == "var":
             vals = _collect_candidates(_resolved_vars, canonical, None)
-            return rng.choice(vals) if vals else ""
+            if not vals:
+                return ""
+            deck_key = f"var:{canonical}"
+            if deck_key not in bracket_ctx["decks"]:
+                bracket_ctx["decks"][deck_key] = {
+                    "all_items": list(vals),
+                    "all_weights": [1.0] * len(vals),
+                    "remain_items": list(vals),
+                    "remain_weights": [1.0] * len(vals),
+                }
+            deck = bracket_ctx["decks"][deck_key]
+            picked = _deck_draw(deck, rng, allow_overflow=bracket_ctx["allow_overflow"])
+            return picked or ""
 
         drawn_text, drawn_fp = process_file_wildcard(canonical, rng, wildcard_dir, source_file, bracket_ctx)
         if not drawn_text:
@@ -894,7 +955,6 @@ def process_bracket(content: str,
         joined += sep_resolved + item
 
     return joined
-
 
 # ---------------------- Main resolver (iterative passes + final sweep) ------------
 
