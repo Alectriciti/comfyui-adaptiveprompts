@@ -58,7 +58,7 @@ NODE_CLASS_MAPPINGS = {
     "RandomFloats": RandomFloats4,
     "RandomIntegers": RandomIntegers4,
     "SetPromptVariable": PromptSetVariable,
-    "PromptLoraLoader": LoadLoraTags,
+    "LoadLoraTags": LoadLoraTags,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
