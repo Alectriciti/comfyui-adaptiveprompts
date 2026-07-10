@@ -84,8 +84,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveImageAndText": "Save Image And Text",
     "RandomFloats": "Random Floats 4",
     "RandomIntegers": "Random Integers 4",
-    "SetPromptVariable": "Set Prompt Variable",
-    "PromptLoraLoader": "🎁 Adaptive Lora Loader 🎁",
+    "SetPromptVariable": "🧮 Set Prompt Variable 🧮",
+    "LoadLoraTags": "🏷️ Lora Tags Loader 🏷️",
 }
 
 def register_nodes(comfy):
