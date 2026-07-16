@@ -601,6 +601,141 @@ def _ensure_var_bucket(_resolved_vars: dict, var_name: str):
     if var_name not in _resolved_vars:
         _resolved_vars[var_name] = {}
 
+
+def _resolve_token(wc_name: str | None,
+                    var_tok: str | None,
+                    full_token: str,
+                    seeded_rng: SeededRandom,
+                    wildcard_dir: str,
+                    source_file: str | None,
+                    _resolved_vars: dict,
+                    _depth: int,
+                    bracket_ctx: dict | None,
+                    bracket_overflow: bool,
+                    escaped_map: dict | None,
+                    strip_adj_marker: bool,
+                    store_if_absent: bool,
+                    lazy_rng: bool = False,
+                    on_missing=None) -> str | None:
+    """
+    Resolves ONE __token__ match (already parsed by FILE_PATTERN into wc_name/var_tok).
+
+    Single shared implementation for the iterative pass (_single_pass) and the
+    _final_sweep_resolve cleanup pass, which previously re-implemented this 4-way
+    branch independently and had quietly drifted apart.
+
+    Token shapes handled:
+      __^var__         -> pure variable recall (falls back to a same-named wildcard file)
+      __name^var*__     -> origin-scoped recall across all vars matching the 'var' pattern
+      __name^var__       -> assignment (draw + store), or origin-scoped recall if already stored
+      __name__             -> plain wildcard draw
+
+    store_if_absent:
+        True  -> only write _resolved_vars[var_tok][wc_name] if not already set (first write wins).
+        False -> always overwrite.
+
+    lazy_rng:
+        False -> draws the "choice" RNG before checking whether candidates exist
+                 (burns a draw even on a miss). Matches original _single_pass behavior.
+        True  -> only draws the "choice" RNG once it's known to be used.
+                 Matches original _final_sweep_resolve behavior.
+        (Only affects seed-stream position in Legacy RNG mode; Adaptive mode branches
+        by content hash and is unaffected either way.)
+
+    on_missing:
+        Optional callable(kind: str, name: str) -> str, called instead of returning
+        None when nothing could be resolved ('kind' is "variable" or "wildcard").
+        If omitted, an unresolved token simply returns None.
+
+    Returns the resolved replacement string (escape placeholders/markers intact --
+    restored later on the full text), or None if unresolved with no on_missing given.
+    """
+    local_rng = seeded_rng.branch(f"wc_{wc_name}_{var_tok}")
+    replacement = None
+
+    def _is_real_change(generated: str) -> bool:
+        if not generated:
+            return False
+        return generated != full_token and generated.strip() != full_token.strip()
+
+    def _store(target_var: str, origin_key: str, value: str):
+        _ensure_var_bucket(_resolved_vars, target_var)
+        bucket = _resolved_vars[target_var]
+        if store_if_absent and origin_key in bucket:
+            return
+        to_store = _restore_escaped_wildcards(value, escaped_map or {})
+        if strip_adj_marker:
+            to_store = to_store.replace(_ADJ_WC_MARKER, "")
+        bucket[origin_key] = to_store
+
+    if wc_name is None and var_tok:
+        # __^var__  (pure variable recall)
+        pre_rng = local_rng.next_rng() if not lazy_rng else None
+        candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
+        if candidates:
+            chooser = pre_rng or local_rng.next_rng()
+            replacement = chooser.choice(candidates)
+        else:
+            rng_for_this = local_rng.next_rng()
+            generated, generated_fp = process_file_wildcard(
+                var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None
+            )
+            if _is_real_change(generated):
+                replacement = resolve_wildcards(
+                    generated, local_rng, wildcard_dir, source_file=generated_fp,
+                    _depth=_depth + 1, _resolved_vars=_resolved_vars,
+                    bracket_ctx=None, bracket_overflow=bracket_overflow
+                )
+        if replacement is None and on_missing is not None:
+            replacement = on_missing("variable", var_tok)
+
+    elif wc_name is not None and var_tok and "*" in var_tok:
+        # __name^var*__  (origin-scoped recall across a var pattern)
+        pre_rng = local_rng.next_rng() if not lazy_rng else None
+        candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
+        if candidates:
+            chooser = pre_rng or local_rng.next_rng()
+            replacement = chooser.choice(candidates)
+        if replacement is None and on_missing is not None:
+            replacement = on_missing("wildcard", wc_name)
+
+    elif wc_name is not None and var_tok:
+        # __name^var__  (assignment, or origin-scoped recall if already stored)
+        bucket = _resolved_vars.get(var_tok, {})
+        if wc_name in bucket:
+            replacement = bucket[wc_name]
+        else:
+            rng_for_this = local_rng.next_rng()
+            generated, generated_fp = process_file_wildcard(
+                wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx
+            )
+            if _is_real_change(generated):
+                replacement = resolve_wildcards(
+                    generated, local_rng, wildcard_dir, source_file=generated_fp,
+                    _depth=_depth + 1, _resolved_vars=_resolved_vars,
+                    bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow
+                )
+                _store(var_tok, wc_name, replacement)
+            if replacement is None and on_missing is not None:
+                replacement = on_missing("wildcard", wc_name)
+
+    else:
+        # __name__  (plain wildcard)
+        rng_for_this = local_rng.next_rng()
+        generated, generated_fp = process_file_wildcard(
+            wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx
+        )
+        if _is_real_change(generated):
+            replacement = resolve_wildcards(
+                generated, local_rng, wildcard_dir, source_file=generated_fp,
+                _depth=_depth + 1, _resolved_vars=_resolved_vars,
+                bracket_ctx=bracket_ctx, bracket_overflow=bracket_overflow
+            )
+        if replacement is None and on_missing is not None:
+            replacement = on_missing("wildcard", wc_name)
+
+    return replacement
+
 def _collect_candidates(_resolved_vars: dict,
                         var_pat: str | None,
                         origin_filter: str | None) -> list[str]:
@@ -675,6 +810,49 @@ def find_next_bracket_span(text: str):
     outers.sort(key=lambda x: x[0])
     return (outers[0][0], outers[0][1])
 
+
+
+def _join_results(results: list[str],
+                   separator: str,
+                   final_separator: str | None,
+                   seeded_rng: SeededRandom,
+                   wildcard_dir: str,
+                   source_file: str | None,
+                   _resolved_vars: dict,
+                   bracket_ctx: dict) -> str:
+    """
+    Joins resolved bracket choices with `separator`, except between the last
+    two items, where `final_separator` is used instead if one was given.
+
+    Powers the "Oxford comma" style syntax:
+        {3$$, $$, and $$a|b|c}  ->  "a, b, and c"
+        {2$$, $$ and $$a|b}     ->  "a and b"   (only 2 items: final_separator only)
+
+    Both separators are resolved fresh per join (so wildcards/brackets inside
+    a separator still work), matching the existing separator behavior.
+    """
+    if not results:
+        return ""
+
+    def _resolve_sep(sep_text: str) -> str:
+        sep_seed = seeded_rng.next_rng().getrandbits(64)
+        sep_rng = SeededRandom(sep_seed, mode=seeded_rng.mode, occurrence_counts=seeded_rng.occurrence_counts)
+        return resolve_wildcards(
+            sep_text, sep_rng, wildcard_dir, source_file=source_file,
+            _resolved_vars=_resolved_vars,
+            bracket_ctx=bracket_ctx,
+            bracket_overflow=bracket_ctx["allow_overflow"]
+        )
+
+    joined = results[0]
+    last_idx = len(results) - 1
+    for i, item in enumerate(results[1:], start=1):
+        use_final = (final_separator is not None) and (i == last_idx)
+        sep_text = final_separator if use_final else separator
+        joined += _resolve_sep(sep_text) + item
+
+    return joined
+
 # ---------------------- Bracket processing ----------------------------------
 
 def process_bracket(content: str,
@@ -695,6 +873,7 @@ def process_bracket(content: str,
     count = 1
     exhaust_all = False
     separator = ", "
+    final_separator = None  # NEW: separator used only between the last two items
     choices_str = content
 
     if bracket_ctx is None:
@@ -711,7 +890,7 @@ def process_bracket(content: str,
             idx, token = separators[0]
             count_part = content[:idx]
             choices_str = content[idx + 2:]
-        else:
+        elif len(separators) == 2:
             idx1, token = separators[0]
             idx2, _ = separators[1]
             count_part = content[:idx1]
@@ -722,6 +901,28 @@ def process_bracket(content: str,
                 separator = raw_separator.encode("utf-8").decode("unicode_escape")
             except Exception:
                 separator = raw_separator
+        else:
+            # 3+ separators: count$$sep$$final_sep$$choices
+            # Only the first three tokens are treated structurally; any further
+            # top-level $$/?? tokens fall inside choices_str as literal text,
+            # same as how a would-be 3rd token was already treated before this change.
+            idx1, token = separators[0]
+            idx2, _ = separators[1]
+            idx3, _ = separators[2]
+            count_part = content[:idx1]
+            raw_separator = content[idx1 + 2:idx2]
+            raw_final_separator = content[idx2 + 2:idx3]
+            choices_str = content[idx3 + 2:]
+
+            try:
+                separator = raw_separator.encode("utf-8").decode("unicode_escape")
+            except Exception:
+                separator = raw_separator
+
+            try:
+                final_separator = raw_final_separator.encode("utf-8").decode("unicode_escape")
+            except Exception:
+                final_separator = raw_final_separator
         
         resolved_count = resolve_wildcards(
             count_part, 
@@ -850,18 +1051,10 @@ def process_bracket(content: str,
 
         # Reconstruct output string
         if results:
-            joined = results[0]
-            for item in results[1:]:
-                sep_seed = seeded_rng.next_rng().getrandbits(64)
-                sep_rng = SeededRandom(sep_seed, mode=seeded_rng.mode, occurrence_counts=seeded_rng.occurrence_counts)
-                sep_resolved = resolve_wildcards(
-                    separator, sep_rng, wildcard_dir, source_file=source_file,
-                    _resolved_vars=_resolved_vars,
-                    bracket_ctx=bracket_ctx,
-                    bracket_overflow=bracket_ctx["allow_overflow"]
-                )
-                joined += sep_resolved + item
-            return joined
+            return _join_results(
+                results, separator, final_separator,
+                seeded_rng, wildcard_dir, source_file, _resolved_vars, bracket_ctx
+            )
         else:
             return ""
 
@@ -923,14 +1116,31 @@ def process_bracket(content: str,
         return resolved
 
     results = []
-    deck = list(unique_keys)
+    
+    # Retrieve or initialize a persistent literal deck if a bracket_id is active
+    bracket_id = bracket_ctx.get("current_bracket_id") if bracket_ctx else None
+    if bracket_id:
+        decks = bracket_ctx.setdefault("decks", {})
+        if bracket_id not in decks:
+            decks[bracket_id] = {
+                "remain_keys": list(unique_keys),
+                "all_keys": list(unique_keys)
+            }
+        deck_data = decks[bracket_id]
+        deck = deck_data["remain_keys"]
+    else:
+        deck = list(unique_keys)
 
     while len(results) < count:
         if selection_mode == "deck":
             if not deck:
-                if not bracket_ctx["allow_overflow"]:
+                if not bracket_ctx.get("allow_overflow", True):
                     break
-                deck = list(unique_keys)
+                if bracket_id:
+                    deck_data["remain_keys"] = list(deck_data["all_keys"])
+                    deck = deck_data["remain_keys"]
+                else:
+                    deck = list(unique_keys)
 
             key = weighted_pick(deck)
             deck.remove(key)
@@ -942,19 +1152,10 @@ def process_bracket(content: str,
     if not results:
         return ""
 
-    joined = results[0]
-    for item in results[1:]:
-        sep_seed = seeded_rng.next_rng().getrandbits(64)
-        sep_rng = SeededRandom(sep_seed, mode=seeded_rng.mode, occurrence_counts=seeded_rng.occurrence_counts)
-        sep_resolved = resolve_wildcards(
-            separator, sep_rng, wildcard_dir, source_file=source_file,
-            _resolved_vars=_resolved_vars,
-            bracket_ctx=bracket_ctx,
-            bracket_overflow=bracket_ctx["allow_overflow"]
-        )
-        joined += sep_resolved + item
-
-    return joined
+    return _join_results(
+        results, separator, final_separator,
+        seeded_rng, wildcard_dir, source_file, _resolved_vars, bracket_ctx
+    )
 
 # ---------------------- Main resolver (iterative passes + final sweep) ------------
 
@@ -1002,63 +1203,18 @@ def _final_sweep_resolve(text: str,
         wc_name = m.group(1)
         var_tok = m.group(2)
 
-        # --- Calculate Wildcard Identity ---
-        identity_str = f"wc_{wc_name}_{var_tok}"
-        local_rng = seeded_rng.branch(identity_str)
-
-        replacement = None
-
-        if wc_name is None and var_tok:
-            candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
-            if candidates:
-                replacement = local_rng.next_rng().choice(candidates)
-            else:
-                rng_for_this = local_rng.next_rng()
-                generated, generated_fp = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
-                if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
-                    replacement = resolve_wildcards(generated, local_rng, wildcard_dir, source_file=generated_fp,
-                                                   _depth=_depth + 1, _resolved_vars=_resolved_vars)
-                else:
-                    # DEFINITELY MISSING VARIABLE
-                    replacement = _handle_missing("variable", var_tok)
-                        
-        elif wc_name is not None and var_tok:
-            if "*" in var_tok:
-                candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
-                if candidates:
-                    replacement = local_rng.next_rng().choice(candidates)
-                else:
-                    # MISSING WILDCARD (Scoped to variable)
-                    replacement = _handle_missing("wildcard", wc_name)
-            else:
-                bucket = _resolved_vars.get(var_tok, {})
-                if wc_name in bucket:
-                    replacement = bucket[wc_name]
-                else:
-                    rng_for_this = local_rng.next_rng()
-                    generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
-                    if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
-                        replacement = resolve_wildcards(
-                            generated, local_rng, wildcard_dir, source_file=generated_fp,
-                            _depth=_depth + 1, _resolved_vars=_resolved_vars
-                        )
-                        _ensure_var_bucket(_resolved_vars, var_tok)
-                        to_store = _restore_escaped_wildcards(replacement, escaped_map or {})
-                        _resolved_vars[var_tok][wc_name] = to_store.replace(_ADJ_WC_MARKER, "")
-                    else:
-                        # DEFINITELY MISSING WILDCARD
-                        replacement = _handle_missing("wildcard", wc_name)
-        else:
-            rng_for_this = local_rng.next_rng()
-            generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
-            if generated and (generated == full_token or generated.strip() == full_token.strip()) is False:
-                replacement = resolve_wildcards(
-                    generated, local_rng, wildcard_dir, source_file=generated_fp,
-                    _depth=_depth + 1, _resolved_vars=_resolved_vars
-                )
-            else:
-                # DEFINITELY MISSING WILDCARD
-                replacement = _handle_missing("wildcard", wc_name)
+        replacement = _resolve_token(
+            wc_name, var_tok, full_token,
+            seeded_rng, wildcard_dir, source_file,
+            _resolved_vars, _depth,
+            bracket_ctx=None,
+            bracket_overflow=True,
+            escaped_map=escaped_map,
+            strip_adj_marker=True,
+            store_if_absent=False,
+            lazy_rng=True,
+            on_missing=_handle_missing,
+        )
 
         text = text[:m.start()] + replacement + text[m.end():]
         i = m.start() + len(replacement)
@@ -1089,6 +1245,10 @@ def resolve_wildcards(text: str,
 
     if _resolved_vars is None:
         _resolved_vars = {}
+
+    # Initialize bracket_ctx centrally so it persists across the entire prompt resolution pass
+    if bracket_ctx is None:
+        bracket_ctx = {"allow_overflow": bool(bracket_overflow), "decks": {}}
 
     # preserve whitespace/newlines: only ensure adjacent wildcard tokens separated
     text = _space_adjacent_wildcards(text)
@@ -1154,7 +1314,11 @@ def resolve_wildcards(text: str,
                     # Create our isolated RNG branch for this bracket
                     local_rng = seeded_rng.branch(bracket_identity)
 
-                    # Now pass local_rng instead of seeded_rng!
+                    # Set unique occurrence bracket ID for persistent literal choice deck
+                    bracket_id = f"lit_occurrence_{br_start}_{br_end}"
+                    if bracket_ctx is not None:
+                        bracket_ctx["current_bracket_id"] = bracket_id
+                    
                     repl = process_bracket(
                         content,
                         local_rng,
@@ -1215,6 +1379,10 @@ def resolve_wildcards(text: str,
                         pos = replace_end
                         made_assignment = True
 
+                    # Clean up the occurrence bracket ID from context
+                    if bracket_ctx is not None:
+                        bracket_ctx.pop("current_bracket_id", None)
+
                     if made_assignment:
                         output = ", ".join(chain_assigned_values)
                         working = working[:br_start] + output + working[replace_end:]
@@ -1228,77 +1396,17 @@ def resolve_wildcards(text: str,
                 wc_name = m_file.group(1)
                 var_tok = m_file.group(2)
 
-                # --- Calculate Wildcard Identity ---
-                identity_str = f"wc_{wc_name}_{var_tok}"
-                local_rng = seeded_rng.branch(identity_str)
-
-                replacement = ""
-
-                if wc_name is None and var_tok:
-                    # pure variable recall __^var__
-                    rng_local = local_rng.next_rng()
-                    candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=None)
-                    if candidates:
-                        replacement = rng_local.choice(candidates)
-                    else:
-                        # fallback: try to resolve a wildcard file named var_tok (i.e., __var_tok__)
-                        rng_for_this = local_rng.next_rng()
-                        generated, generated_fp = process_file_wildcard(var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None)
-                        if generated:
-                            replacement = resolve_wildcards(
-                                generated, local_rng, wildcard_dir, source_file=generated_fp,
-                                _depth=_depth + 1, _resolved_vars=_resolved_vars,
-                                bracket_ctx=None,
-                                bracket_overflow=bracket_overflow
-                            )
-                        else:
-                            replacement = None
-
-                elif wc_name is not None and var_tok:
-                    # __file^var__ or __name^var__  (assignment or origin-scoped recall)
-                    if "*" in var_tok:
-                        rng_local = local_rng.next_rng()
-                        candidates = _collect_candidates(_resolved_vars, var_tok, origin_filter=wc_name)
-                        if candidates:
-                            replacement = rng_local.choice(candidates)
-                        else:
-                            replacement = None
-                    else:
-                        bucket = _resolved_vars.get(var_tok, {})
-                        if wc_name in bucket:
-                            replacement = bucket[wc_name]
-                        else:
-                            # generate once and store under var_tok[wildcard_name]
-                            rng_for_this = local_rng.next_rng()
-                            generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx)
-                            if not generated or generated == full_token or generated.strip() == full_token.strip():
-                                replacement = None
-                            else:
-                                replacement = resolve_wildcards(
-                                    generated, local_rng, wildcard_dir, source_file=generated_fp,
-                                    _depth=_depth + 1, _resolved_vars=_resolved_vars,
-                                    bracket_ctx=bracket_ctx,
-                                    bracket_overflow=bracket_overflow
-                                )
-                                _ensure_var_bucket(_resolved_vars, var_tok)
-                                # do not overwrite existing origin value if present
-                                if wc_name not in _resolved_vars[var_tok]:
-                                    to_store = _restore_escaped_wildcards(replacement, _escaped_wildcard_map or {})
-                                    _resolved_vars[var_tok][wc_name] = to_store
-
-                else:
-                    # plain wildcard: __name__
-                    rng_for_this = local_rng.next_rng()
-                    generated, generated_fp = process_file_wildcard(wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx)
-                    if not generated or generated == full_token or generated.strip() == full_token.strip():
-                        replacement = None
-                    else:
-                        replacement = resolve_wildcards(
-                            generated, local_rng, wildcard_dir, source_file=generated_fp,
-                            _depth=_depth + 1, _resolved_vars=_resolved_vars,
-                            bracket_ctx=bracket_ctx,
-                            bracket_overflow=bracket_overflow
-                        )
+                replacement = _resolve_token(
+                    wc_name, var_tok, full_token,
+                    seeded_rng, wildcard_dir, source_file,
+                    _resolved_vars, _depth,
+                    bracket_ctx=bracket_ctx,
+                    bracket_overflow=bracket_overflow,
+                    escaped_map=_escaped_wildcard_map,
+                    strip_adj_marker=False,
+                    store_if_absent=True,
+                    lazy_rng=False,
+                )
 
                 if replacement is None:
                     ph = next_placeholder()
