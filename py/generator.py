@@ -1318,10 +1318,10 @@ def resolve_wildcards(text: str,
                         if not chain_assigned_values:
                             value_to_store = repl
                         else:
-                            max_attempts = 12
+                            prev_set = set(chain_assigned_values)
+                            max_attempts = 50 * (len(prev_set) + 1)
                             attempt = 0
                             value_to_store = None
-                            prev_set = set(chain_assigned_values)
                             last_try = None
                             while attempt < max_attempts:
                                 attempt += 1
