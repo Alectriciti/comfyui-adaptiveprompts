@@ -1116,31 +1116,14 @@ def process_bracket(content: str,
         return resolved
 
     results = []
-    
-    # Retrieve or initialize a persistent literal deck if a bracket_id is active
-    bracket_id = bracket_ctx.get("current_bracket_id") if bracket_ctx else None
-    if bracket_id:
-        decks = bracket_ctx.setdefault("decks", {})
-        if bracket_id not in decks:
-            decks[bracket_id] = {
-                "remain_keys": list(unique_keys),
-                "all_keys": list(unique_keys)
-            }
-        deck_data = decks[bracket_id]
-        deck = deck_data["remain_keys"]
-    else:
-        deck = list(unique_keys)
+    deck = list(unique_keys)
 
     while len(results) < count:
         if selection_mode == "deck":
             if not deck:
-                if not bracket_ctx.get("allow_overflow", True):
+                if not bracket_ctx["allow_overflow"]:
                     break
-                if bracket_id:
-                    deck_data["remain_keys"] = list(deck_data["all_keys"])
-                    deck = deck_data["remain_keys"]
-                else:
-                    deck = list(unique_keys)
+                deck = list(unique_keys)
 
             key = weighted_pick(deck)
             deck.remove(key)
@@ -1246,10 +1229,6 @@ def resolve_wildcards(text: str,
     if _resolved_vars is None:
         _resolved_vars = {}
 
-    # Initialize bracket_ctx centrally so it persists across the entire prompt resolution pass
-    if bracket_ctx is None:
-        bracket_ctx = {"allow_overflow": bool(bracket_overflow), "decks": {}}
-
     # preserve whitespace/newlines: only ensure adjacent wildcard tokens separated
     text = _space_adjacent_wildcards(text)
 
@@ -1314,11 +1293,7 @@ def resolve_wildcards(text: str,
                     # Create our isolated RNG branch for this bracket
                     local_rng = seeded_rng.branch(bracket_identity)
 
-                    # Set unique occurrence bracket ID for persistent literal choice deck
-                    bracket_id = f"lit_occurrence_{br_start}_{br_end}"
-                    if bracket_ctx is not None:
-                        bracket_ctx["current_bracket_id"] = bracket_id
-                    
+                    # Now pass local_rng instead of seeded_rng!
                     repl = process_bracket(
                         content,
                         local_rng,
@@ -1378,10 +1353,6 @@ def resolve_wildcards(text: str,
                         replace_end = pos + 1 + len(var_name)
                         pos = replace_end
                         made_assignment = True
-
-                    # Clean up the occurrence bracket ID from context
-                    if bracket_ctx is not None:
-                        bracket_ctx.pop("current_bracket_id", None)
 
                     if made_assignment:
                         output = ", ".join(chain_assigned_values)
