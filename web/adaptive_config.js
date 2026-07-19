@@ -8,6 +8,7 @@ const SETTING_RNG = ID_PREFIX + "default_rng_mode";
 const SETTING_COMMENTS = ID_PREFIX + "hide_comments";
 const SETTING_RESOLUTION = ID_PREFIX + "resolution_strategy";
 const SETTING_MISSING = ID_PREFIX + "missing_wildcard_behavior";
+const SETTING_HIGHLIGHTER = ID_PREFIX + "enable_highlighter";
 
 // Python Synchronization Hook
 async function syncToBackend(key, value) {
@@ -72,13 +73,33 @@ app.registerExtension({
             category: ["Adaptive Prompts", "Resolution", "Error Handling"],
             onChange: (value) => syncToBackend("missing_wildcard_behavior", value)
         },
+        {
+            id: SETTING_HIGHLIGHTER,
+            name: "Enable Syntax Highlighter",
+            type: "boolean",
+            tooltip: "Only works with Nodes 1.0. If nodes are broken, switch workflows to fix.",
+            defaultValue: true,
+            category: ["Adaptive Prompts", "Experimental", "Syntax Highlighter"],
+            onChange: (value) => {
+                syncToBackend("enable_highlighter", value);
+                if (value) {
+                    document.body.classList.remove("ap-disable-highlighter");
+                } else {
+                    document.body.classList.add("ap-disable-highlighter");
+                }
+            }
+        },
     ],
 
     async setup() {
-        syncToBackend("default_rng_mode", app.ui.settings.getSettingValue(SETTING_RNG, "Signature"));
+        syncToBackend("default_rng_mode", app.ui.settings.getSettingValue(SETTING_RNG, "Adaptive"));
         syncToBackend("search_depth_limit", app.ui.settings.getSettingValue(SETTING_DEPTH, 80));
         syncToBackend("hide_comments", app.ui.settings.getSettingValue(SETTING_COMMENTS, true));
         syncToBackend("resolution_strategy", app.ui.settings.getSettingValue(SETTING_RESOLUTION, "Scoped"));
         syncToBackend("missing_wildcard_behavior", app.ui.settings.getSettingValue(SETTING_MISSING, "Inject Warning"));
+
+        const isHighlighterEnabled = app.ui.settings.getSettingValue(SETTING_HIGHLIGHTER, true);
+        syncToBackend("enable_highlighter", isHighlighterEnabled);
+        if (!isHighlighterEnabled) document.body.classList.add("ap-disable-highlighter");
     }
 });

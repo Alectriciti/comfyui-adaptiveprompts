@@ -87,6 +87,15 @@ style.innerHTML = `
         text-decoration: underline wavy var(--ap-error); 
         background: rgba(248, 113, 113, 0.1);
     }
+
+    /* Visual toggles */
+    body.ap-disable-highlighter .ap-editor-backdrop {
+        display: none !important;
+    }
+    body.ap-disable-highlighter .ap-editor-textarea {
+        color: inherit !important;
+        background: inherit !important;
+    }
 `;
 document.head.appendChild(style);
 
@@ -185,6 +194,9 @@ app.registerExtension({
 
         nodeType.prototype.onNodeCreated = function () {
             if (onNodeCreated) onNodeCreated.apply(this, arguments);
+
+            // Cancels if the feature is disabled
+            if (!app.ui.settings.getSettingValue("AdaptivePrompts.enable_highlighter", true)) return;
 
             const validClasses = ["PromptGen", "PromptSequencer", "PromptRe", "PromptLora", "PromptMix"];
             if (!this.comfyClass || !validClasses.some(x => this.comfyClass.includes(x))) return;
