@@ -1,23 +1,15 @@
 import { app } from "../../scripts/app.js";
 
+const themeLink = document.createElement("link");
+themeLink.rel = "stylesheet";
+themeLink.type = "text/css";
+themeLink.href = new URL("adaptive_theme.css", import.meta.url).href;
+document.head.appendChild(themeLink);
+
+
 // --- 1. CONFIGURABLE COLORS & PLACEMENT FIXES ---
 const style = document.createElement("style");
 style.innerHTML = `
-    :root {
-        --ap-bracket: #4ade80; 
-        --ap-wildcard: #3bc1ff;
-        --ap-wildcard-var: #49ffe1;    /* Distinct color for ^variable */
-        --ap-lora-base: #5f5db4;
-        --ap-lora-name: #9b95ee;
-        --ap-lora-x: #ac58ff;
-        --ap-lora-y: #f0dc79;
-        --ap-lora-z: #4ade80;
-        --ap-error: #f87171;
-        
-        --ap-editor-bg: #1e1e1e;
-        --ap-editor-text: #cccccc;
-    }
-
     .ap-editor-container {
         position: relative;
         width: 100%;
@@ -82,6 +74,7 @@ style.innerHTML = `
     .ap-lora-x { color: var(--ap-lora-x); }
     .ap-lora-y { color: var(--ap-lora-y); }
     .ap-lora-z { color: var(--ap-lora-z); }
+    .ap-prob { color: var(--ap-prob); }
     .ap-error { 
         color: var(--ap-error); 
         text-decoration: underline wavy var(--ap-error); 
@@ -168,6 +161,24 @@ function applyHighlights(text) {
             else if (chars[i] === '|') {
                 chars[i] = `<span class="ap-bracket">|</span>`;
             }
+            // NEW: Probability Weighting Highlights
+            else if (chars[i] === '%') {
+                let numStr = "";
+                let step = 1;
+
+                // Peek ahead for numbers or a decimal point
+                while (i + step < chars.length && /[0-9.]/.test(chars[i + step])) {
+                    numStr += chars[i + step];
+                    chars[i + step] = ''; // Clear so they aren't processed again
+                    step++;
+                }
+
+                // Only highlight if there is actually a number attached
+                if (numStr.length > 0) {
+                    chars[i] = `<span class="ap-prob">%${numStr}</span>`;
+                    i += (step - 1); // Fast-forward the main loop index
+                }
+            }
         }
     }
 
@@ -177,6 +188,13 @@ function applyHighlights(text) {
     }
 
     html = chars.join('');
+
+    // NEW: Highlight Trailing Variable Assignments for VALID brackets
+    // Matches one or more ^variable chains immediately following a valid closing span
+    const trailingVarRegex = /(<span class="ap-bracket">\}<\/span>)((?:\^[A-Za-z0-9_\-\*]+)+)/g;
+    html = html.replace(trailingVarRegex, (match, closeBracket, variables) => {
+        return `${closeBracket}<span class="ap-wildcard-var">${variables}</span>`;
+    });
 
     // D. Restore Tokens
     for (let i = tokens.length - 1; i >= 0; i--) {
