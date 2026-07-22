@@ -8,7 +8,8 @@ DEFAULT_CONFIG = {
     "search_depth_limit": 80,
     "hide_comments": True,
     "resolution_strategy": "Scoped",  # "Scoped" or "Aggressive"
-    "missing_wildcard_behavior": "Inject Warning"
+    "missing_wildcard_behavior": "Inject Warning",
+    "custom_wildcard_dir": ""
 }
 
 class AdaptiveConfig:

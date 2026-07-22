@@ -8,6 +8,7 @@ const SETTING_RNG = ID_PREFIX + "default_rng_mode";
 const SETTING_COMMENTS = ID_PREFIX + "hide_comments";
 const SETTING_RESOLUTION = ID_PREFIX + "resolution_strategy";
 const SETTING_MISSING = ID_PREFIX + "missing_wildcard_behavior";
+const SETTING_CUSTOM_DIR = ID_PREFIX + "custom_wildcard_dir";
 
 // Python Synchronization Hook
 async function syncToBackend(key, value) {
@@ -72,6 +73,15 @@ app.registerExtension({
             category: ["Adaptive Prompts", "Resolution", "Error Handling"],
             onChange: (value) => syncToBackend("missing_wildcard_behavior", value)
         },
+        {
+            id: SETTING_CUSTOM_DIR,
+            name: "Custom Wildcards Directory",
+            type: "text",
+            defaultValue: "",
+            tooltip: "Absolute path to an additional directory to search for wildcard categories. Folders named 'wildcards*' inside this directory will appear in the category dropdown (before built-in ones). Leave empty to disable.",
+            category: ["Adaptive Prompts", "Paths", "Custom Wildcards Directory"],
+            onChange: (value) => syncToBackend("custom_wildcard_dir", value)
+        },
     ],
 
     async setup() {
@@ -80,5 +90,6 @@ app.registerExtension({
         syncToBackend("hide_comments", app.ui.settings.getSettingValue(SETTING_COMMENTS, true));
         syncToBackend("resolution_strategy", app.ui.settings.getSettingValue(SETTING_RESOLUTION, "Scoped"));
         syncToBackend("missing_wildcard_behavior", app.ui.settings.getSettingValue(SETTING_MISSING, "Inject Warning"));
+        syncToBackend("custom_wildcard_dir", app.ui.settings.getSettingValue(SETTING_CUSTOM_DIR, ""));
     }
 });
