@@ -2,6 +2,7 @@
 import os
 import functools
 import collections
+from .config import get_config
 
 
 # ---------- helpers for normalizing contexts ----------
@@ -75,45 +76,82 @@ def _default_package_root():
 @functools.lru_cache(maxsize=4)
 def build_category_options(base_dir: str | None = None):
     """
-    Discover folders beginning with 'wildcards' inside 'base_dir' (defaults to package root).
+    Discover folders beginning with 'wildcards' inside the configured base directories.
+
+    When base_dir is None (default), scans all configured wildcard directories in order:
+      1. Custom wildcard directory (from settings, if defined and exists)
+      2. Package root (built-in wildcards)
+
+    When base_dir is explicitly provided, only scans that single directory.
+
     Returns: (labels_list, label_to_folder_map, tooltip_str)
 
-    - 'wildcards' -> label 'Default'
-    - 'wildcards_foo' -> label 'FOO' (suffix uppercased)
-    - Always ensures at least 'wildcards' exists (fallback)
+    - Labels are deduplicated; first occurrence wins (custom takes priority over built-in)
+    - Always ensures at least 'wildcards' exists as a fallback
     """
-    if base_dir is None:
-        base_dir = _default_package_root()
+    if base_dir is not None:
+        # Explicit base_dir — only scan that directory
+        label_list, label_to_folder = _scan_single_base(base_dir)
+    else:
+        # Scan all configured base directories
+        base_dirs = []
+        custom_dir = get_config("custom_wildcard_dir")
+        if custom_dir and os.path.isdir(custom_dir):
+            base_dirs.append(custom_dir)
+        base_dirs.append(_default_package_root())
 
-    folder_names = []
+        label_list = []
+        label_to_folder = {}
+
+        for bd in base_dirs:
+            for fname in _get_wildcard_folders(bd):
+                if fname not in label_to_folder:
+                    label_list.append(fname)
+                    # map label to absolute folder path under base_dir
+                    label_to_folder[fname] = os.path.join(bd, fname)
+
+        # Ensure 'wildcards' fallback exists
+        if "wildcards" not in label_to_folder:
+            label_list.insert(0, "wildcards")
+            label_to_folder["wildcards"] = os.path.join(_default_package_root(), "wildcards")
+
+    tooltip = (
+        "Select which wildcards folder to use. Create alternate folders named "
+        "'wildcards_*' (eg. 'wildcards_fresh') inside the package root or a "
+        "custom directory configured in settings.\n\n"
+        "defaults to the global '/wildcards/' if a file is missing"
+    )
+
+    return label_list, label_to_folder, tooltip
+
+
+def _get_wildcard_folders(base_dir: str) -> list[str]:
+    """Return sorted list of directory names starting with 'wildcard' inside base_dir."""
     try:
+        result = []
         for name in os.listdir(base_dir):
             path = os.path.join(base_dir, name)
             if os.path.isdir(path) and name.startswith("wildcard"):
-                folder_names.append(name)
+                result.append(name)
+        return sorted(result)
     except Exception:
-        folder_names = []
+        return []
 
-    # Ensure 'wildcards' fallback exists in the list (so user always has at least Default)
+
+def _scan_single_base(base_dir: str) -> tuple[list[str], dict[str, str]]:
+    """Scan a single base directory for wildcard folders (legacy path)."""
+    folder_names = _get_wildcard_folders(base_dir)
+
     if "wildcards" not in folder_names:
-        # prefer to put real existing 'wildcards' first if present else ensure at least label
         folder_names.insert(0, "wildcards")
 
     label_list = []
     label_to_folder = {}
     for fname in folder_names:
-        label = fname
-        label_list.append(label)
-        # map label to absolute folder path under base_dir
-        label_to_folder[label] = os.path.join(base_dir, fname)
+        label_list.append(fname)
+        label_to_folder[fname] = os.path.join(base_dir, fname)
 
-    tooltip = (
-        "Select which wildcards folder to use. Create alternate folders named "
-        "'wildcards_*' (eg. 'wildcards_fresh') inside the package root.\n\n"
-        "defaults to the global '/wildcards/ if a file is missing'"
-    )
-
-    return label_list, label_to_folder, tooltip
+    return label_list, label_to_folder
 
 def clear_category_cache():
     """

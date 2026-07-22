@@ -15,6 +15,7 @@ from .py.math_utils import *
 from aiohttp import web
 from server import PromptServer
 from .py.config import get_all_config, set_config
+from .py.wildcard_utils import clear_category_cache
 
 @PromptServer.instance.routes.get("/adaptive_prompts/config")
 async def get_config_route(request):
@@ -25,9 +26,14 @@ async def set_config_route(request):
     try:
         data = await request.json()
         for key, value in data.items():
-            set_config(key, value) 
-        
-        print(f"[Adaptive Prompts] Config Updated: {data}")
+            set_config(key, value)
+
+        if "custom_wildcard_dir" in data:
+            clear_category_cache()
+
+        if "custom_wildcard_dir" not in data:
+            print(f"[Adaptive Prompts] Config Updated: {data}")
+
         return web.json_response({"status": "success"})
     except Exception as e:
         return web.json_response({"status": "error", "message": str(e)}, status=500)
