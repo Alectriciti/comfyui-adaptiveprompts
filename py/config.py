@@ -6,7 +6,9 @@ CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "con
 DEFAULT_CONFIG = {
     "default_rng_mode": "Adaptive",
     "search_depth_limit": 80,
-    "hide_comments": True
+    "hide_comments": True,
+    "resolution_strategy": "Scoped",  # "Scoped" or "Aggressive"
+    "missing_wildcard_behavior": "Inject Warning"
 }
 
 class AdaptiveConfig:
@@ -16,17 +18,23 @@ class AdaptiveConfig:
 
     def load(self):
         if os.path.exists(CONFIG_PATH):
+            # Config Validation
             try:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
-                
-                # Check if there are new defaults that the user's config.json doesn't have
+                # Prune orphaned keys and load valid ones
+                keys_to_remove = []
+                for key, value in loaded.items():
+                    if key in DEFAULT_CONFIG:
+                        self.config[key] = value
+                    else:
+                        keys_to_remove.append(key)
+
+                # Check if we need to add new default keys
                 missing_keys = set(DEFAULT_CONFIG.keys()) - set(loaded.keys())
                 
-                self.config.update(loaded)
-                
-                # Actively update the existing config file with the new default keys
-                if missing_keys:
+                # Save dynamically if the config was altered in any way
+                if missing_keys or keys_to_remove:
                     self.save()
                     
             except Exception as e:
@@ -51,16 +59,11 @@ class AdaptiveConfig:
 # Instantiate the singleton
 config_instance = AdaptiveConfig()
 
-# In config.py
-
 def set_config(key, value):
-    # Update the in-memory dictionary first
     config_instance.config[key] = value
-    # Then persist to disk
     config_instance.save()
 
 def get_config(key):
-    # This now pulls the fresh value from the in-memory dict
     return config_instance.config.get(key, DEFAULT_CONFIG.get(key))
 
 def get_all_config(): 

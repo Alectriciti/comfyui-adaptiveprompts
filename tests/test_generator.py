@@ -155,8 +155,11 @@ class TestWildcardResolution(WildcardDirTestCase):
         self.assertEqual(self._resolve("__fruit__", seed=0), "orange")
         self.assertEqual(self._resolve("__fruit__", seed=42), "banana")
 
-    def test_missing_wildcard_resolves_to_empty(self):
-        self.assertEqual(self._resolve("__does_not_exist__"), "")
+    def test_missing_wildcard_injects_warning_by_default(self):
+        self.assertEqual(
+            self._resolve("__does_not_exist__"),
+            '!!!WILDCARD "does_not_exist" NOT FOUND!!!',
+        )
 
     def test_nested_folder_glob(self):
         result = self._resolve("__nested/*__", seed=0)
@@ -178,7 +181,7 @@ class TestWildcardResolution(WildcardDirTestCase):
         self.assertEqual(match.group(1), "good中文")
 
         rng = self._rng(0, "Legacy")
-        filepath = resolve_wildcard_path("good中文", rng.next_rng(), self.wildcard_dir)
+        filepath = resolve_wildcard_path("good中文", rng.next_rng(), self.wildcard_dir, None)
         self.assertTrue(filepath and os.path.exists(filepath))
         self.assertEqual(self._resolve(token, seed=0), "fine")
 
@@ -191,9 +194,17 @@ class TestEscapingAndSpecialTokens(WildcardDirTestCase):
         )
 
     def test_lora_tag_with_double_underscores(self):
-        """Regression lock for lora-name handling (see README for intended preservation)."""
+        """Regression lock for lora-name handling (see README for intended preservation).
+
+        Underscore pairs inside lora names are still parsed as wildcards. With the
+        default Inject Warning setting, a missing token is marked in-place instead of
+        collapsing the surrounding lora tag structure.
+        """
         prompt = "<lora:coolest__lora__ever__:1.0>"
-        self.assertEqual(self._resolve(prompt), "<lora:coolestever__:1.0>")
+        self.assertEqual(
+            self._resolve(prompt),
+            '<lora:coolest!!!WILDCARD "lora" NOT FOUND!!!ever__:1.0>',
+        )
 
 
 class TestCommentsAndVariables(WildcardDirTestCase):

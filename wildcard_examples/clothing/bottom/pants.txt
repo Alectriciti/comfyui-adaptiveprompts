@@ -1,0 +1,5 @@
+pants
+jeans
+cargo pants
+sweatpants
+khaki pants

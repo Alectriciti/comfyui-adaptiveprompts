@@ -1,6 +1,6 @@
 import re
 import os
-from .generator import resolve_wildcards, SeededRandom
+from .generator import SeededRandom, evaluate_prompt_core
 from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options
 
 class PromptReplace:
@@ -40,15 +40,17 @@ class PromptReplace:
 
         # Normalize incoming context into dict-of-dicts (origin->value)
         normalized_context = _normalize_input_context(context)
+        
+        # 1. Resolve the absolute directory path using the category map
+        wildcard_dir = self._CATEGORY_MAP.get(category, self.input_dir)
 
-        category_label = category if category is not None else (
-            getattr(self.__class__, "_CATEGORY_LABELS", ["wildcards"])[0]
+        # 2. Use evaluate_prompt_core for standard comment handling
+        expanded_target = evaluate_prompt_core(
+            target_string, 
+            seeded_rng, 
+            wildcard_dir, 
+            resolved_vars=normalized_context
         )
-        folder_map = getattr(self.__class__, "_CATEGORY_MAP", {}) or {}
-        wildcard_dir = folder_map.get(category_label, self.input_dir)
-
-        # Expand target_string ONCE
-        expanded_target = resolve_wildcards(target_string, seeded_rng, wildcard_dir, _resolved_vars=normalized_context)
         targets = expanded_target.split("\n")
 
         result = string
@@ -68,10 +70,14 @@ class PromptReplace:
                 if limit != 0 and replacements_done >= limit:
                     return match.group(0)  # No change
 
-                # Expand replace_string PER replacement
-                replacement = resolve_wildcards(replace_string, seeded_rng, wildcard_dir, _resolved_vars=normalized_context)
-                #if debug:
-                #    print(f"  replace {replacements_done}: {repr(replacement)}")
+                # Expand replace_string PER replacement using the mapped directory
+                replacement = evaluate_prompt_core(
+                    replace_string, 
+                    seeded_rng, 
+                    wildcard_dir, 
+                    resolved_vars=normalized_context
+                )
+                
                 replacements_done += 1
                 return replacement
 
