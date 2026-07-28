@@ -12,6 +12,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from io import StringIO
 
 # Allow importing py.* without ComfyUI installed.
@@ -156,10 +157,9 @@ class TestWildcardResolution(WildcardDirTestCase):
         self.assertEqual(self._resolve("__fruit__", seed=42), "banana")
 
     def test_missing_wildcard_injects_warning_by_default(self):
-        self.assertEqual(
-            self._resolve("__does_not_exist__"),
-            '!!!WILDCARD "does_not_exist" NOT FOUND!!!',
-        )
+        with redirect_stdout(StringIO()):
+            result = self._resolve("__does_not_exist__")
+        self.assertEqual(result, '!!!WILDCARD "does_not_exist" NOT FOUND!!!')
 
     def test_nested_folder_glob(self):
         result = self._resolve("__nested/*__", seed=0)
@@ -201,8 +201,10 @@ class TestEscapingAndSpecialTokens(WildcardDirTestCase):
         collapsing the surrounding lora tag structure.
         """
         prompt = "<lora:coolest__lora__ever__:1.0>"
+        with redirect_stdout(StringIO()):
+            result = self._resolve(prompt)
         self.assertEqual(
-            self._resolve(prompt),
+            result,
             '<lora:coolest!!!WILDCARD "lora" NOT FOUND!!!ever__:1.0>',
         )
 
