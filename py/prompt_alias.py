@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple, Optional
 
 
 class PromptAliasSwap:
-    """
+    r"""
     Prompt Alias Swap
     - Loads alias groups once (cached), optionally refreshed live.
     - Finds candidate tags (tokens) per rules and swaps them using the alias group.
@@ -45,7 +45,7 @@ class PromptAliasSwap:
             "required": {
                 "string": ("STRING", {"multiline": True, "tooltip": "The input prompt to process"}),
                 "seed": ("INT", {
-                    "default": 0, "min": 0, "max": 0x7FFFFFFF
+                    "default": 0, "min": 0, "max": 0xffffffffffffffff
                 }),
                 "alias_file": (alias_files, {
                     "default": "tags.txt",

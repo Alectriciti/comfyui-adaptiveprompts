@@ -10,11 +10,13 @@ const SETTING_RESOLUTION = ID_PREFIX + "resolution_strategy";
 const SETTING_MISSING = ID_PREFIX + "missing_wildcard_behavior";
 
 // Python Synchronization Hook
-async function syncToBackend(key, value) {
+let initialSyncDone = false;
+
+async function syncToBackend(payload) {
     try {
         await api.fetchApi("/adaptive_prompts/config", {
             method: "POST",
-            body: JSON.stringify({ [key]: value })
+            body: JSON.stringify(payload)
         });
     } catch (e) {
         console.error("[Adaptive Prompts] Failed to sync config to Python backend:", e);
@@ -34,7 +36,7 @@ app.registerExtension({
             tooltip: "Adaptive: Identity-based RNG (rearrangeable prompts). Legacy: Sequential RNG (domino-effect).",
             defaultValue: "Adaptive",
             category: ["Adaptive Prompts", "Generation", "Default RNG Mode"],
-            onChange: (value) => syncToBackend("default_rng_mode", value)
+            onChange: (value) => syncToBackend({ default_rng_mode: value })
         },
         {
             id: SETTING_RESOLUTION,
@@ -44,7 +46,7 @@ app.registerExtension({
             tooltip: "Scoped: This limits BFS from searching beyond the current scope. Aggressive: Resolve wildcards with full BFS.",
             defaultValue: "Scoped",
             category: ["Adaptive Prompts", "Resolution", "Resolution Strategy"],
-            onChange: (value) => syncToBackend("resolution_strategy", value)
+            onChange: (value) => syncToBackend({ resolution_strategy: value })
         },
         {
             id: SETTING_DEPTH,
@@ -53,7 +55,7 @@ app.registerExtension({
             attrs: { min: 10, max: 200, step: 1 },
             defaultValue: 80,
             category: ["Adaptive Prompts", "Resolution", "Search Depth"],
-            onChange: (value) => syncToBackend("search_depth_limit", value)
+            onChange: (value) => syncToBackend({ search_depth_limit: value })
         },
         {
             id: SETTING_COMMENTS,
@@ -61,7 +63,7 @@ app.registerExtension({
             type: "boolean",
             defaultValue: true,
             category: ["Adaptive Prompts", "Formatting", "Comments"],
-            onChange: (value) => syncToBackend("hide_comments", value)
+            onChange: (value) => syncToBackend({ hide_comments: value })
         },
         {
             id: SETTING_MISSING,
@@ -70,15 +72,20 @@ app.registerExtension({
             options: ["Inject Warning", "Silently Fail"],
             defaultValue: "Inject Warning",
             category: ["Adaptive Prompts", "Resolution", "Error Handling"],
-            onChange: (value) => syncToBackend("missing_wildcard_behavior", value)
+            onChange: (value) => syncToBackend({ missing_wildcard_behavior: value })
         },
     ],
 
     async setup() {
-        syncToBackend("default_rng_mode", app.ui.settings.getSettingValue(SETTING_RNG, "Signature"));
-        syncToBackend("search_depth_limit", app.ui.settings.getSettingValue(SETTING_DEPTH, 80));
-        syncToBackend("hide_comments", app.ui.settings.getSettingValue(SETTING_COMMENTS, true));
-        syncToBackend("resolution_strategy", app.ui.settings.getSettingValue(SETTING_RESOLUTION, "Scoped"));
-        syncToBackend("missing_wildcard_behavior", app.ui.settings.getSettingValue(SETTING_MISSING, "Inject Warning"));
+        if (initialSyncDone) return;
+        initialSyncDone = true;
+
+        await syncToBackend({
+            default_rng_mode: app.ui.settings.getSettingValue(SETTING_RNG, "Adaptive"),
+            search_depth_limit: app.ui.settings.getSettingValue(SETTING_DEPTH, 80),
+            hide_comments: app.ui.settings.getSettingValue(SETTING_COMMENTS, true),
+            resolution_strategy: app.ui.settings.getSettingValue(SETTING_RESOLUTION, "Scoped"),
+            missing_wildcard_behavior: app.ui.settings.getSettingValue(SETTING_MISSING, "Inject Warning"),
+        });
     }
 });

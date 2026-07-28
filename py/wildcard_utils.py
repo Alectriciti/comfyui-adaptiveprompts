@@ -110,7 +110,7 @@ def build_category_options(base_dir: str | None = None):
     tooltip = (
         "Select which wildcards folder to use. Create alternate folders named "
         "'wildcards_*' (eg. 'wildcards_fresh') inside the package root.\n\n"
-        "defaults to the global '/wildcards/ if a file is missing'"
+        "Defaults to the global 'wildcards/' folder if a file is missing in the selected category."
     )
 
     return label_list, label_to_folder, tooltip

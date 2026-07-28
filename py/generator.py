@@ -23,7 +23,10 @@ BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 # - name may include letters/digits/_/-/* and '/'
 # - optional ^var after the name (var may include trailing *)
 # - also supports pure variable recall: __^var__
-FILE_PATTERN = re.compile(r"__(?:([A-Za-z0-9_\-/\*\.~]+))?(?:\^([A-Za-z0-9_\-\*]+))?__", re.UNICODE)
+FILE_PATTERN = re.compile(r"__(?:([\w\-/\*\.~]+?))?(?:\^([\w\-\*]+))?__", re.UNICODE)
+
+# Variable names assigned via trailing ^name on brackets or wildcards
+_VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 # Normalize spacing between adjacent wildcard-ish tokens (allow ^ and *)
 ADJ_WC_PATTERN = re.compile(r"(__[a-zA-Z0-9_\-/*\^\*]+__)(__[a-zA-Z0-9_\-/*\^\*]+__)")
@@ -102,7 +105,7 @@ _ESC_WC_RE = re.compile(r'\\(__[A-Za-z0-9_\-/*]+(?:\^[A-Za-z0-9_\-\*]+)?__)')
 
 def _protect_escaped_wildcards(text: str, mapping: dict) -> str:
     """
-    Replace occurrences like \__foo__ with unique placeholders.
+    Replace occurrences like \\__foo__ with unique placeholders.
     mapping is mutated: placeholder -> literal (without leading backslash).
     Returns new text.
     """
@@ -488,8 +491,6 @@ def process_file_wildcard(name: str,
     picked = _deck_draw(deck, rng, allow_overflow=bool(bracket_ctx.get("allow_overflow", True)))
     
     return picked or "", actual_fp
-
-_VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 def sequence_prompt_elements(prompt: str, seed: int, mode: str, wildcard_dir: str, _resolved_vars: dict, rng: random.Random) -> str:
     """
@@ -1151,8 +1152,6 @@ def _format_origin(source_file: str | None, wildcard_dir: str) -> str:
         return os.path.relpath(source_file, wildcard_dir)
     except ValueError:
         return source_file
-
-_VARNAME_RE = re.compile(r"[A-Za-z0-9_\-]+")
 
 def _final_sweep_resolve(text: str,
                          seeded_rng: SeededRandom,

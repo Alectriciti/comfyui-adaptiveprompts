@@ -64,7 +64,7 @@ class PromptSplitter:
                 "seed": ("INT", {
                     "default": 0,
                     "min": 0,
-                    "max": 0x7FFFFFFF,
+                    "max": 0xffffffffffffffff,
                     "tooltip": "Random seed for reproducibility. Use 0 for a random seed each run."
                 }),
             }

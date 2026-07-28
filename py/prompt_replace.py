@@ -1,9 +1,7 @@
 import re
 import os
-from .generator import resolve_wildcards, SeededRandom
+from .generator import SeededRandom, evaluate_prompt_core
 from .wildcard_utils import _normalize_input_context, _ensure_bucket_dict, build_category_options
-from .prompt_generator import *
-from .wildcard_utils import *
 
 class PromptReplace:
 
