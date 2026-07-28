@@ -97,7 +97,14 @@ class TestParserHelpers(unittest.TestCase):
 
     def test_extract_choice_weight(self):
         self.assertEqual(_extract_choice_weight("option%1.5"), ("option", 1.5))
+        self.assertEqual(_extract_choice_weight("a%123"), ("a", 123.0))
+        self.assertEqual(_extract_choice_weight("b%33"), ("b", 33.0))
         self.assertEqual(_extract_choice_weight("plain"), ("plain", 1.0))
+
+    def test_extract_choice_weight_ignores_wrapped_percent_tags(self):
+        """Wrapped %w% is the file-line form; it must not act as a trailing bracket weight."""
+        self.assertEqual(_extract_choice_weight("a%123%"), ("a%123%", 1.0))
+        self.assertEqual(_extract_choice_weight("%80% common"), ("%80% common", 1.0))
 
     def test_extract_choice_weight_ignores_nested_percent(self):
         """Regression for issue #10: trailing weight must not come from nested brackets."""
@@ -112,6 +119,13 @@ class TestParserHelpers(unittest.TestCase):
         items, weights = _parse_weighted_options(lines)
         self.assertEqual(items, ["common", "uncommon", "rare"])
         self.assertEqual(weights, [80.0, 10.0, 1.0])
+
+    def test_parse_weighted_options_accepts_trailing_percent_tag(self):
+        """README form: weight tag may trail the option text."""
+        lines = StringIO("ultrarare %0.1%\ncommon %80%\n")
+        items, weights = _parse_weighted_options(lines)
+        self.assertEqual(items, ["ultrarare", "common"])
+        self.assertEqual(weights, [0.1, 80.0])
 
     def test_is_file_wildcard(self):
         self.assertTrue(is_file_wildcard("__fruit__"))
@@ -149,6 +163,17 @@ class TestBracketResolution(WildcardDirTestCase):
 
     def test_nested_bracket_inside_choice(self):
         self.assertEqual(self._resolve("{before {x|y} after|plain}", seed=1), "before y after")
+
+    def test_trailing_choice_weights_bias_selection(self):
+        """Bracket form {a%123|b%33}: trailing %weight must bias resolution."""
+        counts = {"a": 0, "b": 0}
+        for seed in range(400):
+            result = self._resolve("{a%123|b%33}", seed=seed)
+            self.assertIn(result, counts)
+            counts[result] += 1
+        self.assertGreater(counts["a"], counts["b"])
+        self.assertGreater(counts["a"], 250)
+        self.assertGreater(counts["b"], 20)
 
 
 class TestWildcardResolution(WildcardDirTestCase):
@@ -262,6 +287,12 @@ class TestWeightedWildcards(WildcardDirTestCase):
         outcomes = {self._resolve("__chance__", seed=i) for i in range(100)}
         self.assertTrue(outcomes.issubset({"common", "uncommon", "rare"}))
         self.assertIn("common", outcomes)
+
+    def test_trailing_file_weight_tag_is_honored(self):
+        """File-line form accepts trailing %w% tags, matching the README example."""
+        self._write("trailing_chance.txt", "always %100%\nnever %0%\n")
+        outcomes = {self._resolve("__trailing_chance__", seed=i) for i in range(50)}
+        self.assertEqual(outcomes, {"always"})
 
 
 if __name__ == "__main__":
