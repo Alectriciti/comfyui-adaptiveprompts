@@ -1,0 +1,26 @@
+{
+  "variables": {
+    "name": "Johnson",
+    "age": "{30|35|40}",
+    "color": {
+      "quantity": "{2|3}",
+      "choices": [
+        "red%3%",
+        "green%2%",
+        "yellow%1.5%",
+        "blue",
+        "purple",
+        "__color*__",
+        "{red|green|blue|__color__}"
+      ]
+    }
+  },
+  "loras": [
+    "<lora:johnson_the_guy:__^randomfloat__>",
+    "{<lora:alternate_outfit:0.8>|}"
+  ],
+  "generate": [
+    "__^name__ is a __^age__ year old man, his {preferred|favorite} colors are {*$$__^color__}.",
+    "__^name__ is __^age__ years old, he likes __^color__"
+  ]
+}

@@ -15,7 +15,7 @@ import os
 import random
 import hashlib
 from .config import get_config
-from .wildcard_utils import bfs_find_file
+from .wildcard_utils import bfs_find_file, load_json_wildcard_file, _resolve_variable_definition, _load_json_file
 from .misc_utils import *
 
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
@@ -241,7 +241,11 @@ def _parse_weighted_options(lines_iterable):
 def _load_weighted_file(filepath: str):
     """
     Read a wildcard file and return (items, weights).
+    .json wildcard files are parsed via the JSON schema in wildcard_utils.py;
+    everything else uses the plain-text %weight% line format.
     """
+    if filepath.lower().endswith(".json"):
+        return load_json_wildcard_file(filepath)
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             return _parse_weighted_options(f)
@@ -407,9 +411,15 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
         return candidates
 
     def _check_direct(base: str, target: str) -> str | None:
-        """Fast explicit check for literal non-glob files."""
-        filepath = os.path.normpath(os.path.join(base, f"{target}.txt"))
-        return filepath if os.path.isfile(filepath) else None
+        """
+        Fast explicit check for literal non-glob files.
+        .json takes precedence over .txt when both exist for the same name.
+        """
+        json_path = os.path.normpath(os.path.join(base, f"{target}.json"))
+        if os.path.isfile(json_path):
+            return json_path
+        txt_path = os.path.normpath(os.path.join(base, f"{target}.txt"))
+        return txt_path if os.path.isfile(txt_path) else None
 
     # --- 2. EXPLICIT RESOLUTION ---
     if is_explicit:
@@ -469,19 +479,97 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
 
         return None
 
+
+def _try_process_json_payload(filepath: str,
+                              rng: random.Random,
+                              wildcard_dir: str,
+                              source_file: str | None,
+                              _resolved_vars: dict | None,
+                              seeded_rng: 'SeededRandom | None') -> str | None:
+    """
+    If `filepath` is a JSON file shaped like a JSON Payload (has a "generate"
+    key), merges its "variables" into _resolved_vars, resolves+filters its
+    "loras", weighted-picks ONE "generate" line (same %weight% syntax as a
+    .txt line), and returns it -- deliberately still UNRESOLVED. The caller
+    (process_file_wildcard's caller, eg _resolve_token) already runs a
+    resolve_wildcards() pass over whatever we return, and by then
+    _resolved_vars has already been populated above, so __^name__ etc.
+    inside the picked line resolve correctly without us resolving it twice.
+
+    Returns None if the file isn't payload-shaped (no "generate" key) -- the
+    caller then falls back to treating it as a plain JSON choices file,
+    unchanged from before.
+    """
+    data = _load_json_file(filepath)
+    if not isinstance(data, dict) or "generate" not in data:
+        return None
+
+    # Fallback for callers that don't have a real SeededRandom/_resolved_vars
+    # handy (still resolves correctly, just can't merge variables into a
+    # caller's context or stay continuous with the outer Adaptive RNG stream).
+    local_rng = seeded_rng if seeded_rng is not None else SeededRandom(rng.getrandbits(64))
+    local_vars = _resolved_vars if _resolved_vars is not None else {}
+
+    # 1. Pre-populate context from "variables". This is what makes __jsontest__
+    #    merge name/age/color etc. into the node's normal DICT output.
+    for var_name, definition in (data.get("variables") or {}).items():
+        var_rng = local_rng.branch(f"json_var_{var_name}")
+        _resolve_variable_definition(var_name, definition, var_rng, wildcard_dir, local_vars)
+
+    # 2. Resolve + filter "loras" now -- dropping empty pipe-fallback results
+    #    (eg "{...|}") requires seeing each one's resolved value, so this has
+    #    to happen here rather than being deferred to the caller.
+    lora_parts = []
+    for lora_tpl in (data.get("loras") or []):
+        resolved_lora = resolve_wildcards(
+            str(lora_tpl), local_rng, wildcard_dir,
+            _resolved_vars=local_vars, bracket_ctx=None, bracket_overflow=True
+        ).strip()
+        if resolved_lora:
+            lora_parts.append(resolved_lora)
+    lora_string = " ".join(lora_parts)
+
+    # 3. Weighted-pick ONE "generate" line, same %weight% mechanism as a
+    #    plain .txt wildcard file line.
+    items, weights = _parse_weighted_options(str(g) for g in (data.get("generate") or []))
+    if not items:
+        return lora_string  # no generate lines -- at least don't lose the loras
+
+    idx = _weighted_index(weights, local_rng.next_rng())
+    picked_raw = items[idx]
+
+    return f"{picked_raw} {lora_string}" if lora_string else picked_raw
+
 def process_file_wildcard(name: str,
                           rng: random.Random,
                           wildcard_dir: str,
                           source_file: str | None = None,
-                          bracket_ctx: dict | None = None) -> tuple[str, str | None]:
-    """Returns the drawn text AND the filepath it was drawn from."""
+                          bracket_ctx: dict | None = None,
+                          _resolved_vars: dict | None = None,
+                          seeded_rng: 'SeededRandom | None' = None) -> tuple[str, str | None]:
+    """
+    Returns the drawn text AND the filepath it was drawn from.
+
+    _resolved_vars / seeded_rng are only needed for .json wildcard files that
+    use the full JSON Payload schema (see _try_process_json_payload). Every
+    other wildcard file (.txt, or a plain-choices .json) ignores them.
+    """
     if not name:
         return "", None
 
     actual_fp = resolve_wildcard_path(name, rng, wildcard_dir, source_file)
     if not actual_fp:
         return "", None
-        
+
+    if actual_fp.lower().endswith(".json"):
+        payload_text = _try_process_json_payload(
+            actual_fp, rng, wildcard_dir, source_file, _resolved_vars, seeded_rng
+        )
+        if payload_text is not None:
+            return payload_text, actual_fp
+        # else: not payload-shaped (no "generate" key) -- fall through and
+        # treat it as a plain JSON choices file, exactly as before.
+
     if bracket_ctx is None:
         return _read_weighted_line(actual_fp, rng), actual_fp
         
@@ -679,7 +767,8 @@ def _resolve_token(wc_name: str | None,
         else:
             rng_for_this = local_rng.next_rng()
             generated, generated_fp = process_file_wildcard(
-                var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None
+                var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None,
+                _resolved_vars=_resolved_vars, seeded_rng=local_rng
             )
             if _is_real_change(generated):
                 replacement = resolve_wildcards(
@@ -708,7 +797,8 @@ def _resolve_token(wc_name: str | None,
         else:
             rng_for_this = local_rng.next_rng()
             generated, generated_fp = process_file_wildcard(
-                wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx
+                wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx,
+                _resolved_vars=_resolved_vars, seeded_rng=local_rng
             )
             if _is_real_change(generated):
                 replacement = resolve_wildcards(
@@ -724,7 +814,8 @@ def _resolve_token(wc_name: str | None,
         # __name__  (plain wildcard)
         rng_for_this = local_rng.next_rng()
         generated, generated_fp = process_file_wildcard(
-            wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx
+            wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx,
+            _resolved_vars=_resolved_vars, seeded_rng=local_rng
         )
         if _is_real_change(generated):
             replacement = resolve_wildcards(
@@ -854,6 +945,51 @@ def _join_results(results: list[str],
 
     return joined
 
+
+def _resolve_count_expression(count_str: str,
+                               seeded_rng: SeededRandom,
+                               wildcard_dir: str,
+                               source_file: str | None = None,
+                               _resolved_vars: dict | None = None,
+                               bracket_ctx: dict | None = None,
+                               bracket_overflow: bool = True) -> tuple[int, bool]:
+    """
+    Resolves a bracket "count" expression -- the part before the first $$/??
+    -- into (count, exhaust_all). Pulled out of process_bracket() so the same
+    "*" / "N-M" / "N" syntax can be reused by the JSON payload engine's
+    "quantity" field (wildcard_utils.py) without a second, drifting copy.
+
+    After resolving any nested bracket/wildcard syntax inside count_str:
+      "*"    -> (1, True)   caller should treat this as "use every option"
+      "N-M"  -> (random int in [N, M], False)
+      "N"    -> (N, False)
+      anything unparseable -> (1, False), matching the original silent fallback
+    """
+    resolved_count = resolve_wildcards(
+        count_str, seeded_rng, wildcard_dir,
+        source_file=source_file,
+        _resolved_vars=_resolved_vars,
+        bracket_ctx=bracket_ctx,
+        bracket_overflow=bracket_overflow
+    ).strip()
+
+    if resolved_count == "*":
+        return 1, True
+
+    if "-" in resolved_count:
+        try:
+            lo_str, hi_str = resolved_count.split("-", 1)
+            lo = int(lo_str.strip())
+            hi = int(hi_str.strip())
+            return seeded_rng.next_rng().randint(lo, hi), False
+        except ValueError:
+            return 1, False
+
+    try:
+        return int(resolved_count), False
+    except ValueError:
+        return 1, False
+
 # ---------------------- Bracket processing ----------------------------------
 
 def process_bracket(content: str,
@@ -925,31 +1061,13 @@ def process_bracket(content: str,
             except Exception:
                 final_separator = raw_final_separator
         
-        resolved_count = resolve_wildcards(
-            count_part, 
-            seeded_rng, 
-            wildcard_dir,
+        count, exhaust_all = _resolve_count_expression(
+            count_part, seeded_rng, wildcard_dir,
             source_file=source_file,
             _resolved_vars=_resolved_vars,
             bracket_ctx=bracket_ctx,
             bracket_overflow=bracket_overflow
-        ).strip()
-        
-        if resolved_count == "*":
-            exhaust_all = True
-        elif "-" in resolved_count:
-            try:
-                lo_str, hi_str = resolved_count.split("-", 1)
-                lo = int(lo_str.strip())
-                hi = int(hi_str.strip())
-                count = seeded_rng.next_rng().randint(lo, hi)
-            except ValueError:
-                count = 1
-        else:
-            try:
-                count = int(resolved_count)
-            except ValueError:
-                pass
+        )
 
     selection_mode = "roulette" if token == "??" else "deck"
 
@@ -1099,7 +1217,10 @@ def process_bracket(content: str,
             picked = _deck_draw(deck, rng, allow_overflow=bracket_ctx["allow_overflow"])
             return picked or ""
 
-        drawn_text, drawn_fp = process_file_wildcard(canonical, rng, wildcard_dir, source_file, bracket_ctx)
+        drawn_text, drawn_fp = process_file_wildcard(
+            canonical, rng, wildcard_dir, source_file, bracket_ctx,
+            _resolved_vars=_resolved_vars, seeded_rng=eval_rng
+        )
         if not drawn_text:
             return ""
 
