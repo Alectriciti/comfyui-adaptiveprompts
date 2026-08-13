@@ -283,7 +283,34 @@ def _resolve_variable_definition(var_name: str,
         raw_choices = definition.get("choices", [])
         quantity_expr = str(definition.get("quantity", "1"))
 
-        items, weights = _parse_weighted_options(_normalize_choice_list(raw_choices))
+        # --- 1. EVALUATE CONDITIONS AND BIND METADATA ---
+        valid_choices = []
+        choice_metadata = {}
+        
+        for i, c in enumerate(raw_choices):
+            if isinstance(c, dict):
+                cond = c.get("if")
+                if cond and not _evaluate_condition(cond, resolved_vars):
+                    continue # Skip choice if condition fails
+                    
+                out_str = str(c.get("output", ""))
+                chance = c.get("chance", c.get("weight"))
+                
+                # Use a unique identifier to preserve "set" commands through the string parser
+                uid_str = f"__uid_{i}__:{out_str}"
+                
+                if chance is not None:
+                    valid_choices.append(f"{uid_str}%{chance}%")
+                else:
+                    valid_choices.append(uid_str)
+                    
+                if "set" in c:
+                    choice_metadata[uid_str] = c["set"]
+            else:
+                valid_choices.append(str(c))
+        # ------------------------------------------------
+
+        items, weights = _parse_weighted_options(valid_choices)
         if not items:
             return
 
@@ -294,9 +321,6 @@ def _resolve_variable_definition(var_name: str,
         )
         quantity = len(items) if exhaust_all else max(1, quantity)
 
-        # Ad-hoc deck: same no-repeat-until-exhausted draw logic used for
-        # {N$$...} bracket choices, just seeded from an in-memory list
-        # instead of a wildcard file.
         deck = {
             "all_items": list(items), "all_weights": list(weights),
             "remain_items": list(items), "remain_weights": list(weights),
@@ -305,6 +329,20 @@ def _resolve_variable_definition(var_name: str,
             picked = _deck_draw(deck, var_rng.next_rng(), allow_overflow=True)
             if picked is None:
                 break
+                
+            # --- 2. EXTRACT METADATA AND APPLY SET COMMANDS ---
+            if picked.startswith("__uid_"):
+                # Split only on the first colon to extract the prefix
+                uid_parts = picked.split(":", 1)
+                if len(uid_parts) == 2:
+                    uid_key = f"{uid_parts[0]}:{uid_parts[1]}"
+                    if uid_key in choice_metadata:
+                        _apply_set_commands(choice_metadata[uid_key], resolved_vars)
+                    
+                    # Strip the identifier before it hits bracket resolution
+                    picked = uid_parts[1]
+            # --------------------------------------------------
+
             resolved = resolve_wildcards(
                 picked, var_rng, wildcard_dir,
                 _resolved_vars=resolved_vars,
@@ -318,6 +356,74 @@ def _resolve_variable_definition(var_name: str,
             bracket_ctx=None, bracket_overflow=True
         )
         _store(resolved)
+
+def _evaluate_condition(cond_expr: str, resolved_vars: dict) -> bool:
+    """Evaluates lightweight logic: 'flag', 'key == val', 'key != val', '&&', '||'."""
+    if not cond_expr:
+        return True
+        
+    # Split into OR groups first
+    for or_group in cond_expr.split("||"):
+        all_and_true = True
+        
+        # Split into AND conditions within the OR group
+        for cond in or_group.split("&&"):
+            cond = cond.strip()
+            if not cond:
+                continue
+                
+            if "==" in cond:
+                k, v = [x.strip() for x in cond.split("==", 1)]
+                if k not in resolved_vars or v not in resolved_vars[k].values():
+                    all_and_true = False
+                    break
+            elif "!=" in cond:
+                k, v = [x.strip() for x in cond.split("!=", 1)]
+                if k in resolved_vars and v in resolved_vars[k].values():
+                    all_and_true = False
+                    break
+            else:
+                # Existence check (flag)
+                if cond not in resolved_vars:
+                    all_and_true = False
+                    break
+                    
+        if all_and_true:
+            return True # Short-circuit OR success
+            
+    return False
+
+def _apply_set_commands(set_data, resolved_vars: dict) -> None:
+    """Applies overrides or empty flags to the context."""
+    if not set_data:
+        return
+        
+    # Handle Array format (can be string flags OR dictionaries)
+    if isinstance(set_data, list):
+        for item in set_data:
+            if isinstance(item, dict):
+                # If it's a dict inside a list, recursively process it
+                _apply_set_commands(item, resolved_vars)
+            else:
+                # Treat as an empty flag
+                flag_str = str(item)
+                resolved_vars[flag_str] = {"__set": ""} 
+            
+    # Handle Dictionary format
+    elif isinstance(set_data, dict):
+        for k, v in set_data.items():
+            k_str = str(k)
+            
+            # Handle an array of multiple values for a single variable
+            if isinstance(v, list):
+                # Clear the bucket and populate it with multiple indexed values
+                resolved_vars[k_str] = {}
+                for i, val in enumerate(v):
+                    resolved_vars[k_str][f"__set_{i}"] = str(val)
+            else:
+                # Handle a single scalar value
+                resolved_vars[k_str] = {"__set": str(v)}
+
 
 
 def evaluate_json_payload(payload: dict | str,
