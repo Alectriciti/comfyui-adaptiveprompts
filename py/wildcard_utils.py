@@ -169,6 +169,26 @@ def bfs_find_file(search_root: str, target_name: str) -> str | None:
                 
     return None
 
+
+def _normalize_choice_list(choices: list) -> list[str]:
+    """
+    Converts a mixed list of strings and {"output": "...", "chance": #} dicts
+    into the standard %weight% formatted strings expected by the engine.
+    """
+    processed = []
+    for c in choices:
+        if isinstance(c, dict):
+            out_str = str(c.get("output", ""))
+            # Check for 'chance' or 'weight' for maximum flexibility
+            chance = c.get("chance", c.get("weight"))
+            if chance is not None:
+                processed.append(f"{out_str}%{chance}%")
+            else:
+                processed.append(out_str)
+        else:
+            processed.append(str(c))
+    return processed
+
 # ---------- JSON wildcard files (.json) ----------
 
 def _load_json_file(filepath: str):
@@ -206,7 +226,7 @@ def load_json_wildcard_file(filepath: str):
     else:
         choices = []
 
-    return _parse_weighted_options(str(c) for c in choices)
+    return _parse_weighted_options(_normalize_choice_list(choices))
 
 
 
@@ -256,11 +276,14 @@ def _resolve_variable_definition(var_name: str,
     def _store(value: str):
         bucket[f"__json_{len(bucket)}"] = value
 
+    if isinstance(definition, list):
+        definition = {"choices": definition}
+
     if isinstance(definition, dict):
         raw_choices = definition.get("choices", [])
         quantity_expr = str(definition.get("quantity", "1"))
 
-        items, weights = _parse_weighted_options(str(c) for c in raw_choices)
+        items, weights = _parse_weighted_options(_normalize_choice_list(raw_choices))
         if not items:
             return
 
@@ -356,6 +379,10 @@ def evaluate_json_payload(payload: dict | str,
     # 3. generate
     prompts = []
     for template in (payload.get("generate") or []):
+
+        if isinstance(template, dict):
+            template = template.get("output", "")
+            
         prompts.append(
             evaluate_prompt_core(
                 str(template), rng, wildcard_dir,
@@ -363,7 +390,7 @@ def evaluate_json_payload(payload: dict | str,
             )
         )
 
-    prompts_with_loras = [f"{p} {lora_string}" if lora_string else p for p in prompts]
+    prompts_with_loras = [f"{p}{lora_string}" if lora_string else p for p in prompts]
 
     return {
         "prompts": prompts,
