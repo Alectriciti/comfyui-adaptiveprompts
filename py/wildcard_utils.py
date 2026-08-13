@@ -270,7 +270,7 @@ def _resolve_variable_definition(var_name: str,
         _resolve_count_expression, _ensure_var_bucket, _deck_draw,
     )
 
-    _ensure_var_bucket(resolved_vars, var_name)
+    resolved_vars[var_name] = {}
     bucket = resolved_vars[var_name]
 
     def _store(value: str):
