@@ -171,11 +171,18 @@ body {
     overflow: hidden;
 }
 
+/* Change 5: Navigation Actions Header */
+.ap-nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
 #ap-breadcrumb {
     font-size: 12px;
     color: var(--ap-text-dim);
-    margin-bottom: 10px;
-    flex-shrink: 0;
 }
 
 #ap-breadcrumb span {
@@ -186,17 +193,47 @@ body {
     color: var(--ap-accent);
 }
 
+.ap-nav-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.ap-nav-actions button {
+    background: var(--ap-panel);
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.ap-nav-actions button:hover {
+    border-color: var(--ap-accent);
+    color: var(--ap-accent);
+}
+
+/* Change 1: Fixed File Grid Overlap */
 #ap-file-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 14px;
+    grid-auto-rows: min-content;
+    /* Forces rows to respect internal card height */
+    gap: 16px;
     overflow-y: auto;
     align-content: start;
+    padding-bottom: 20px;
 }
 
 .ap-card {
     position: relative;
     aspect-ratio: 3 / 4;
+    min-height: 220px;
+    /* Prevents overlap collapse */
     border-radius: 8px;
     overflow: hidden;
     background: #111 center/cover no-repeat;
@@ -204,6 +241,14 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    cursor: pointer;
+    /* Change 4 indicator */
+    transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.ap-card:hover {
+    border-color: var(--ap-accent);
+    transform: translateY(-2px);
 }
 
 .ap-card-toolbar {
@@ -265,6 +310,25 @@ body {
 
 .ap-badge-json {
     background: #16a34a;
+}
+
+/* Change 2: Editor Resizer Handle */
+#ap-resizer {
+    width: 6px;
+    background: transparent;
+    cursor: col-resize;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+#ap-resizer:hover,
+#ap-resizer.active {
+    background: var(--ap-accent);
+}
+
+#ap-resizer.hidden {
+    display: none;
 }
 
 /* right: editor panel */

@@ -27,9 +27,20 @@
             </aside>
 
             <main id="ap-nav-view">
-                <div id="ap-breadcrumb"></div>
+                <!-- Change 5: Added header for breadcrumbs and new actions -->
+                <header class="ap-nav-header">
+                    <div id="ap-breadcrumb"></div>
+                    <div class="ap-nav-actions">
+                        <button id="ap-btn-new-file" title="New File"><i class="pi pi-file-plus"></i> New File</button>
+                        <button id="ap-btn-refresh" title="Refresh Folders"><i class="pi pi-refresh"></i>
+                            Refresh</button>
+                    </div>
+                </header>
                 <div id="ap-file-grid"></div>
             </main>
+
+            <!-- Change 2: Resizer handle -->
+            <div id="ap-resizer" class="hidden"></div>
 
             <aside id="ap-editor-panel" class="collapsed">
                 <div id="ap-editor-toolbar">

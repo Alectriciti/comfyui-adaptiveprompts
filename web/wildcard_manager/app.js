@@ -36,12 +36,55 @@ async function apiSend(path, body, method = "POST") {
 
 // ---------- editor panel toggle ----------
 let editorOpen = false;
+let isResizing = false;
+
 function setEditorOpen(open) {
     editorOpen = open;
-    document.getElementById("ap-editor-panel").classList.toggle("collapsed", !open);
+    const panel = document.getElementById("ap-editor-panel");
+    const resizer = document.getElementById("ap-resizer");
+
+    if (open) {
+        panel.classList.remove("collapsed");
+        resizer.classList.remove("hidden");
+        if (!panel.style.width) panel.style.width = "420px"; // Default width
+    } else {
+        panel.classList.add("collapsed");
+        resizer.classList.add("hidden");
+        panel.style.width = ""; // Let CSS handle 0
+    }
+
     document.querySelector("#ap-editor-toggle i").className = `pi ${open ? "pi-angle-double-right" : "pi-angle-double-left"}`;
 }
 document.getElementById("ap-editor-toggle").onclick = () => setEditorOpen(!editorOpen);
+
+// Resizer logic
+const resizerHandle = document.getElementById("ap-resizer");
+resizerHandle.addEventListener("mousedown", (e) => {
+    isResizing = true;
+    resizerHandle.classList.add("active");
+    document.body.style.cursor = "col-resize";
+    e.preventDefault();
+});
+
+document.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+    const containerRect = document.body.getBoundingClientRect();
+    let newWidth = containerRect.right - e.clientX;
+
+    // Bounds constraints
+    if (newWidth < 280) newWidth = 280;
+    if (newWidth > containerRect.width - 300) newWidth = containerRect.width - 300;
+
+    document.getElementById("ap-editor-panel").style.width = `${newWidth}px`;
+});
+
+document.addEventListener("mouseup", () => {
+    if (isResizing) {
+        isResizing = false;
+        resizerHandle.classList.remove("active");
+        document.body.style.cursor = "";
+    }
+});
 
 // ---------- folder tree ----------
 async function loadFolderTree() {
@@ -109,7 +152,12 @@ function buildTreeNode(displayName, categoryLabel, path, children, depth) {
         renderFolderTree();
         loadFiles();
     };
-    if (depth === 0) row.oncontextmenu = (e) => showFolderContextMenu(e, categoryLabel);
+    row.onclick = () => {
+        state.activeFolder = categoryLabel;
+        state.currentPath = path;
+        renderFolderTree();
+        loadFiles();
+    };
 
     li.appendChild(row);
 
@@ -232,10 +280,25 @@ function renderFileGrid(files) {
         card.querySelector('[data-action="edit"]').onclick = () => openEditor(file);
         card.querySelector('[data-action="generate"]').onclick = () => quickGenerate(file.relPath);
         card.querySelector('[data-action="copy"]').onclick = () => copyWildcardRef(file);
+        card.querySelector('[data-action="edit"]').onclick = () => openEditor(file);
+        card.querySelector('[data-action="generate"]').onclick = () => quickGenerate(file.relPath);
+        card.querySelector('[data-action="copy"]').onclick = () => copyWildcardRef(file);
 
         const fileInput = card.querySelector(".ap-preview-input");
         card.querySelector('[data-action="preview"]').onclick = () => fileInput.click();
         fileInput.onchange = () => uploadPreview(file, fileInput.files[0]);
+
+        // Change 4: Left-click and Right-click Card actions
+        card.addEventListener('click', (e) => {
+            // Prevent triggering if clicked on the toolbar buttons or hidden input
+            if (e.target.closest('.ap-card-toolbar') || e.target.closest('.ap-preview-input')) return;
+            openEditor(file);
+        });
+
+        card.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showFileContextMenu(e, file);
+        });
 
         grid.appendChild(card);
     }
@@ -337,3 +400,132 @@ document.addEventListener("keydown", (e) => {
 // ---------- init ----------
 loadFolderTree();
 log("Wildcard Manager ready.");
+
+
+// ---------- file context menu (card right click) ----------
+function showFileContextMenu(e, file) {
+    const menu = document.getElementById("ap-context-menu");
+    menu.innerHTML = "";
+
+    // Edit
+    const editBtn = document.createElement("button");
+    editBtn.innerHTML = "<i class='pi pi-pencil'></i> Edit";
+    editBtn.onclick = () => { hideContextMenu(); openEditor(file); };
+    menu.appendChild(editBtn);
+
+    const divider = document.createElement("hr");
+    divider.style.borderColor = "var(--ap-border)";
+    divider.style.margin = "4px 0";
+    menu.appendChild(divider);
+
+    // Duplicate
+    const dupBtn = document.createElement("button");
+    dupBtn.innerHTML = "<i class='pi pi-copy'></i> Duplicate";
+    dupBtn.onclick = async () => {
+        hideContextMenu();
+        try {
+            const data = await apiGet(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
+
+            // Auto-increment naming logic
+            let newPath = file.relPath;
+            const match = newPath.match(/_(\d+)$/);
+            if (match) {
+                newPath = newPath.substring(0, match.index) + '_' + (parseInt(match[1]) + 1);
+            } else {
+                newPath += "_1";
+            }
+
+            await apiSend("/file", {
+                folder: state.activeFolder,
+                path: newPath,
+                type: file.type,
+                content: data.content
+            });
+            log(`Duplicated file as ${newPath}`);
+            loadFiles();
+        } catch (err) { log(`Failed to duplicate: ${err.message}`, true); }
+    };
+    menu.appendChild(dupBtn);
+
+    // Rename
+    const renBtn = document.createElement("button");
+    renBtn.innerHTML = "<i class='pi pi-file-edit'></i> Rename";
+    renBtn.onclick = async () => {
+        hideContextMenu();
+        const newName = prompt("Enter new filename:", file.relPath);
+        if (!newName || newName === file.relPath) return;
+        try {
+            // Read content -> Write to new path -> Delete old path
+            const data = await apiGet(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
+            await apiSend("/file", { folder: state.activeFolder, path: newName, type: file.type, content: data.content });
+            await apiSend(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}`, {}, "DELETE");
+
+            log(`Renamed file to ${newName}`);
+            loadFiles();
+        } catch (err) { log(`Failed to rename: ${err.message}`, true); }
+    };
+    menu.appendChild(renBtn);
+
+    // Delete
+    const delBtn = document.createElement("button");
+    delBtn.innerHTML = "<i class='pi pi-trash'></i> Delete";
+    delBtn.style.color = "var(--ap-danger)";
+    delBtn.onclick = async () => {
+        hideContextMenu();
+        if (!confirm(`Are you sure you want to delete ${file.relPath}.${file.type}?`)) return;
+        try {
+            await apiSend(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}`, {}, "DELETE");
+            log(`Deleted ${file.relPath}`);
+
+            if (state.activeFile && state.activeFile.relPath === file.relPath) setEditorOpen(false); // Close editor if deleted file was open
+            loadFiles();
+        } catch (err) { log(`Failed to delete: ${err.message}`, true); }
+    };
+    menu.appendChild(delBtn);
+
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+    menu.style.display = "block";
+}
+
+
+// ---------- top nav buttons ----------
+document.getElementById("ap-btn-refresh").onclick = () => {
+    loadFolderTree();
+    log("Refreshed wildcard structural data.");
+};
+
+document.getElementById("ap-btn-new-file").onclick = async () => {
+    if (!state.activeFolder) {
+        alert("Please select a folder first.");
+        return;
+    }
+
+    let name = prompt("New file name (must end in .txt or .json):");
+    if (!name) return;
+
+    // Auto format if user forgets extension
+    if (!name.endsWith(".txt") && !name.endsWith(".json")) {
+        name += ".txt";
+    }
+
+    const parts = name.split(".");
+    const type = parts.pop();
+    const pathName = parts.join(".");
+
+    // Prefix the current directory path
+    const fullPath = state.currentPath ? `${state.currentPath}/${pathName}` : pathName;
+
+    try {
+        await apiSend("/file", {
+            folder: state.activeFolder,
+            path: fullPath,
+            type: type,
+            content: ""
+        });
+        log(`Created new wildcard file: ${name}`);
+        loadFiles();
+    } catch (e) {
+        log(`Failed to create file: ${e.message}`, true);
+    }
+};
