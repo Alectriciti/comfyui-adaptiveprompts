@@ -1,0 +1,218 @@
+/* json_builder.css */
+
+/* Mode Toggles */
+#ap-editor-mode-toggle {
+    display: flex;
+    gap: 4px;
+    background: #1e1e1e;
+    padding: 3px;
+    border-radius: 4px;
+    border: 1px solid var(--ap-border);
+}
+
+.ap-mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--ap-text-dim);
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.ap-mode-btn:hover {
+    color: var(--ap-text);
+}
+
+.ap-mode-btn.active {
+    background: var(--ap-accent);
+    color: #10251b;
+}
+
+/* Layout Engine */
+#ap-editor-content-area {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: 12px;
+}
+
+#ap-json-builder {
+    background: var(--ap-bg);
+    border: 1px solid var(--ap-border);
+    border-radius: 4px;
+    overflow-y: auto;
+    flex-direction: column;
+    padding: 10px;
+    gap: 14px;
+}
+
+/* Modes */
+.ap-content-raw #ap-json-builder {
+    display: none !important;
+}
+
+.ap-content-raw #ap-editor-textarea {
+    display: block;
+    flex: 1;
+}
+
+.ap-content-builder #ap-json-builder {
+    display: flex;
+    flex: 1;
+}
+
+.ap-content-builder #ap-editor-textarea {
+    display: none !important;
+}
+
+/* Hybrid implies side-by-side vertical split. User can drag the resizer to make room. */
+.ap-content-hybrid {
+    flex-direction: row;
+}
+
+.ap-content-hybrid #ap-json-builder,
+.ap-content-hybrid #ap-editor-textarea {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Builder UI Elements */
+.ap-builder-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ap-builder-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ap-accent);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--ap-border);
+    padding-bottom: 4px;
+}
+
+.ap-builder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ap-builder-row {
+    display: flex;
+    gap: 6px;
+}
+
+.ap-builder-row input {
+    flex: 1;
+}
+
+/* Common Inputs */
+#ap-json-builder input {
+    background: #141414;
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    padding: 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+#ap-json-builder input:focus {
+    outline: none;
+    border-color: var(--ap-accent);
+}
+
+.ap-icon-btn.small {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+}
+
+.ap-icon-btn.danger:hover {
+    border-color: var(--ap-danger);
+    color: var(--ap-danger);
+}
+
+/* Variable Cards */
+.ap-builder-var-card {
+    background: #202020;
+    border: 1px solid var(--ap-border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ap-builder-var-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ap-var-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.ap-var-key {
+    font-weight: bold;
+    color: var(--ap-accent-2);
+}
+
+.ap-var-qty {
+    width: 60px;
+}
+
+.ap-builder-choices-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--ap-text-dim);
+    margin-top: 4px;
+}
+
+.ap-builder-choices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ap-builder-choice-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    background: #161616;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+
+.ap-choice-out {
+    flex: 2;
+}
+
+.ap-choice-chance {
+    width: 50px;
+}
+
+.ap-choice-if {
+    flex: 1;
+}
+
+.ap-builder-choice-row label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--ap-text-dim);
+}

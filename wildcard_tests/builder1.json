@@ -1,0 +1,38 @@
+{
+    "variables": {
+        "color": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "red",
+                    "chance": 2
+                },
+                {
+                    "output": "blue"
+                },
+                {
+                    "output": "green",
+                    "chance": 1
+                }
+            ]
+        },
+        "adj": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "{beauty|gorgeous}"
+                },
+                {
+                    "output": "{lovely|incredible}",
+                    "if": "color == red"
+                }
+            ]
+        }
+    },
+    "loras": [
+        "<loraguy>"
+    ],
+    "generate": [
+        "__^color__"
+    ]
+}

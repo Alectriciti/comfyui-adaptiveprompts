@@ -339,8 +339,14 @@ async function openEditor(file) {
         state.activeFile = file;
         document.getElementById("ap-editor-filename").textContent = `${file.relPath}.${file.type}`;
         document.getElementById("ap-editor-textarea").value = data.content;
-        // TODO: wire adaptive_highlighter.js / adaptive_theme.css in here for file.type === "txt".
-        // file.type === "json" stays plain until the modular JSON editor exists.
+
+        // NEW: Intercept JSON files and route to the Builder logic
+        if (file.type === "json") {
+            JSONBuilder.open(data.content);
+        } else {
+            JSONBuilder.close();
+        }
+
         setEditorOpen(true);
     } catch (e) {
         log(`Failed to open ${file.relPath}: ${e.message}`, true);
@@ -349,10 +355,21 @@ async function openEditor(file) {
 
 async function editorSave() {
     if (!state.activeFile) return;
+
+    const textarea = document.getElementById("ap-editor-textarea");
+
+    // NEW: Rule Enforcement — If editing a JSON file in Raw or Hybrid mode,
+    // trigger an update to the Builder view ONLY on save.
+    if (state.activeFile.type === "json" && (JSONBuilder.mode === "raw" || JSONBuilder.mode === "hybrid")) {
+        JSONBuilder.syncFromRaw(textarea.value);
+    }
+
     try {
         await apiSend("/file", {
-            folder: state.activeFolder, path: state.activeFile.relPath,
-            type: state.activeFile.type, content: document.getElementById("ap-editor-textarea").value,
+            folder: state.activeFolder,
+            path: state.activeFile.relPath,
+            type: state.activeFile.type,
+            content: textarea.value,
         });
         log(`Saved ${state.activeFile.relPath}.${state.activeFile.type}`);
         flashSaved();

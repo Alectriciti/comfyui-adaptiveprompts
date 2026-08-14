@@ -6,6 +6,7 @@
     <title>Adaptive Prompts — Wildcard Manager</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons/primeicons.css">
     <link rel="stylesheet" href="/adaptiveprompts/assets/style.css">
+    <link rel="stylesheet" href="/adaptiveprompts/assets/json_builder.css">
 </head>
 
 <body>
@@ -45,14 +46,27 @@
             <aside id="ap-editor-panel" class="collapsed">
                 <div id="ap-editor-toolbar">
                     <span id="ap-editor-filename">No file open</span>
+
+                    <!-- NEW: JSON Builder Toggles -->
+                    <div id="ap-editor-mode-toggle" class="hidden">
+                        <button class="ap-mode-btn" data-mode="raw">Raw</button>
+                        <button class="ap-mode-btn" data-mode="hybrid">Hybrid</button>
+                        <button class="ap-mode-btn" data-mode="builder">Builder</button>
+                    </div>
+
                     <div class="ap-editor-actions">
                         <button id="ap-editor-generate" title="Quick Generate (Ctrl+Enter)"><i
                                 class="pi pi-bolt"></i></button>
                         <button id="ap-editor-save" title="Save (Ctrl+S)"><i class="pi pi-save"></i> Save</button>
                     </div>
                 </div>
-                <textarea id="ap-editor-textarea" spellcheck="false"
-                    placeholder="Select a wildcard file to edit..."></textarea>
+
+                <!-- NEW: Content Area -->
+                <div id="ap-editor-content-area" class="ap-content-raw">
+                    <textarea id="ap-editor-textarea" spellcheck="false"
+                        placeholder="Select a wildcard file to edit..."></textarea>
+                    <div id="ap-json-builder"></div>
+                </div>
             </aside>
         </div>
 
@@ -71,6 +85,7 @@
     <div id="ap-context-menu" class="ap-context-menu"></div>
 
     <script src="/adaptiveprompts/assets/app.js"></script>
+    <script src="/adaptiveprompts/assets/json_builder.js"></script>
 </body>
 
 </html>
