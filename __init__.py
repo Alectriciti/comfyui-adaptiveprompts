@@ -15,6 +15,7 @@ from .py.math_utils import *
 from aiohttp import web
 from server import PromptServer
 from .py.config import get_all_config, set_config
+from .py import wildcard_manager
 
 @PromptServer.instance.routes.get("/adaptive_prompts/config")
 async def get_config_route(request):

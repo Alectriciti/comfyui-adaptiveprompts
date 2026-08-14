@@ -1,0 +1,454 @@
+:root {
+    --ap-bg: #1e1e1e;
+    --ap-panel: #262626;
+    --ap-border: #3a3a3a;
+    --ap-text: #cccccc;
+    --ap-text-dim: #888888;
+    --ap-accent: #3bc1ff;
+    --ap-accent-2: #4ade80;
+    --ap-danger: #f87171;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--ap-bg);
+    color: var(--ap-text);
+    font-family: -apple-system, "Segoe UI", sans-serif;
+}
+
+#ap-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* topbar */
+#ap-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 16px;
+    background: var(--ap-panel);
+    border-bottom: 1px solid var(--ap-border);
+    flex-shrink: 0;
+}
+
+.ap-logo {
+    font-weight: 600;
+}
+
+.ap-icon-btn {
+    background: none;
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    border-radius: 4px;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ap-icon-btn:hover {
+    border-color: var(--ap-accent);
+    color: var(--ap-accent);
+}
+
+/* 3-pane body */
+#ap-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/* sidebar / folder tree */
+#ap-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--ap-panel);
+    border-right: 1px solid var(--ap-border);
+    overflow-y: auto;
+}
+
+.ap-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--ap-text-dim);
+    border-bottom: 1px solid var(--ap-border);
+}
+
+.ap-sidebar-header button {
+    background: none;
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    border-radius: 3px;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ap-folder-tree,
+.ap-tree-children {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#ap-folder-tree {
+    padding: 6px 0;
+}
+
+.ap-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+.ap-tree-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.ap-tree-row.active {
+    background: rgba(59, 193, 255, 0.15);
+    color: var(--ap-accent);
+}
+
+.ap-tree-toggle {
+    width: 14px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--ap-text-dim);
+}
+
+.ap-tree-toggle-spacer {
+    display: inline-block;
+    width: 14px;
+    flex-shrink: 0;
+}
+
+.ap-tree-icon {
+    font-size: 13px;
+    color: var(--ap-text-dim);
+    flex-shrink: 0;
+}
+
+.ap-tree-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* center: nav view */
+#ap-nav-view {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    overflow: hidden;
+}
+
+#ap-breadcrumb {
+    font-size: 12px;
+    color: var(--ap-text-dim);
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+#ap-breadcrumb span {
+    cursor: pointer;
+}
+
+#ap-breadcrumb span:hover {
+    color: var(--ap-accent);
+}
+
+#ap-file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    overflow-y: auto;
+    align-content: start;
+}
+
+.ap-card {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #111 center/cover no-repeat;
+    border: 1px solid var(--ap-border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.ap-card-toolbar {
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent);
+}
+
+.ap-card-toolbar button {
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.ap-card-toolbar button:hover {
+    background: var(--ap-accent);
+    color: #10251b;
+}
+
+.ap-card-footer {
+    padding: 8px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+}
+
+.ap-card-name {
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ap-card-type {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.ap-badge-txt {
+    background: #0891b2;
+}
+
+.ap-badge-json {
+    background: #16a34a;
+}
+
+/* right: editor panel */
+#ap-editor-panel {
+    width: 420px;
+    flex-shrink: 0;
+    background: var(--ap-panel);
+    border-left: 1px solid var(--ap-border);
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    overflow: hidden;
+    transition: width 0.18s ease, padding 0.18s ease, opacity 0.15s ease;
+}
+
+#ap-editor-panel.collapsed {
+    width: 0;
+    padding: 14px 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+#ap-editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+#ap-editor-filename {
+    font-size: 12px;
+    color: var(--ap-text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ap-editor-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+#ap-editor-generate {
+    background: none;
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ap-editor-generate:hover {
+    border-color: var(--ap-accent);
+    color: var(--ap-accent);
+}
+
+#ap-editor-save {
+    background: var(--ap-accent-2);
+    border: none;
+    color: #10251b;
+    font-weight: 600;
+    padding: 0 14px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#ap-editor-textarea {
+    flex: 1;
+    resize: none;
+    background: var(--ap-bg);
+    color: var(--ap-text);
+    border: 1px solid var(--ap-border);
+    border-radius: 4px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+@keyframes ap-flash-green {
+    0% {
+        box-shadow: inset 0 0 0 2px var(--ap-accent-2);
+    }
+
+    100% {
+        box-shadow: inset 0 0 0 2px transparent;
+    }
+}
+
+#ap-editor-panel.ap-flash-save {
+    animation: ap-flash-green 0.6s ease-out;
+}
+
+/* console / output */
+#ap-console {
+    height: 150px;
+    flex-shrink: 0;
+    background: #141414;
+    border-top: 1px solid var(--ap-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.ap-console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--ap-text-dim);
+}
+
+.ap-seed-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: none;
+    font-size: 11px;
+}
+
+.ap-seed-control input {
+    width: 100px;
+    background: var(--ap-bg);
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+#ap-console-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px 8px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+#ap-console-body .ap-log-line {
+    padding: 2px 0;
+    border-bottom: 1px solid #222;
+}
+
+#ap-console-body .ap-log-error {
+    color: var(--ap-danger);
+}
+
+/* context menu */
+.ap-context-menu {
+    position: fixed;
+    display: none;
+    z-index: 999;
+    background: var(--ap-panel);
+    border: 1px solid var(--ap-border);
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 150px;
+}
+
+.ap-context-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--ap-text);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.ap-context-menu button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}

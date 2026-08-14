@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Adaptive Prompts — Wildcard Manager</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons/primeicons.css">
+    <link rel="stylesheet" href="/adaptiveprompts/assets/style.css">
+</head>
+
+<body>
+    <div id="ap-root">
+        <header id="ap-topbar">
+            <span class="ap-logo">💡 Wildcard Manager</span>
+            <button id="ap-editor-toggle" class="ap-icon-btn" title="Toggle Editor Panel">
+                <i class="pi pi-angle-double-left"></i>
+            </button>
+        </header>
+
+        <div id="ap-body">
+            <aside id="ap-sidebar">
+                <div class="ap-sidebar-header">
+                    <span>Folders</span>
+                    <button id="ap-add-folder" title="Add folder"><i class="pi pi-plus"></i></button>
+                </div>
+                <ul id="ap-folder-tree" class="ap-tree-root"></ul>
+            </aside>
+
+            <main id="ap-nav-view">
+                <div id="ap-breadcrumb"></div>
+                <div id="ap-file-grid"></div>
+            </main>
+
+            <aside id="ap-editor-panel" class="collapsed">
+                <div id="ap-editor-toolbar">
+                    <span id="ap-editor-filename">No file open</span>
+                    <div class="ap-editor-actions">
+                        <button id="ap-editor-generate" title="Quick Generate (Ctrl+Enter)"><i
+                                class="pi pi-bolt"></i></button>
+                        <button id="ap-editor-save" title="Save (Ctrl+S)"><i class="pi pi-save"></i> Save</button>
+                    </div>
+                </div>
+                <textarea id="ap-editor-textarea" spellcheck="false"
+                    placeholder="Select a wildcard file to edit..."></textarea>
+            </aside>
+        </div>
+
+        <footer id="ap-console">
+            <div class="ap-console-header">
+                <span>Output</span>
+                <label class="ap-seed-control">
+                    Seed
+                    <input type="number" id="ap-seed-input" value="-1" title="-1 = random seed on every Generate">
+                </label>
+            </div>
+            <div id="ap-console-body"></div>
+        </footer>
+    </div>
+
+    <div id="ap-context-menu" class="ap-context-menu"></div>
+
+    <script src="/adaptiveprompts/assets/app.js"></script>
+</body>
+
+</html>
