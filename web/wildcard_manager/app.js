@@ -152,12 +152,7 @@ function buildTreeNode(displayName, categoryLabel, path, children, depth) {
         renderFolderTree();
         loadFiles();
     };
-    row.onclick = () => {
-        state.activeFolder = categoryLabel;
-        state.currentPath = path;
-        renderFolderTree();
-        loadFiles();
-    };
+    row.oncontextmenu = (e) => showFolderContextMenu(e, categoryLabel, path, depth);
 
     li.appendChild(row);
 
@@ -174,37 +169,52 @@ function buildTreeNode(displayName, categoryLabel, path, children, depth) {
 }
 
 // ---------- folder context menu (top-level category add/delete) ----------
-function showFolderContextMenu(e, label) {
+function showFolderContextMenu(e, categoryLabel, subPath, depth) {
     e.preventDefault();
+    e.stopPropagation();
     const menu = document.getElementById("ap-context-menu");
     menu.innerHTML = "";
 
     const addBtn = document.createElement("button");
-    addBtn.textContent = "New Folder…";
+    addBtn.innerHTML = "<i class='pi pi-folder-plus'></i> New Folder…";
     addBtn.onclick = async () => {
         hideContextMenu();
-        const name = prompt("New folder name (creates wildcards_<name>):");
+        const name = prompt("New subfolder name:");
         if (!name) return;
-        try { await apiSend("/folders", { name }); log(`Created folder wildcards_${name}`); loadFolderTree(); }
-        catch (err) { log(`Failed to create folder: ${err.message}`, true); }
+        try {
+            await apiSend("/folder/create-sub", { folder: categoryLabel, path: subPath, name });
+            log(`Created folder "${name}"`);
+            state.expandedNodes.add(`${categoryLabel}::${subPath}`);
+            loadFolderTree();
+        } catch (err) { log(`Failed to create folder: ${err.message}`, true); }
     };
     menu.appendChild(addBtn);
 
-    if (label !== "wildcards") {
-        const delBtn = document.createElement("button");
-        delBtn.textContent = `Delete "${label}"`;
-        delBtn.onclick = async () => {
+    const renameBtn = document.createElement("button");
+    renameBtn.innerHTML = "<i class='pi pi-pencil'></i> Rename…";
+    const isProtectedRoot = depth === 0 && categoryLabel === "wildcards" && subPath === "";
+    if (isProtectedRoot) {
+        renameBtn.disabled = true;
+        renameBtn.style.opacity = "0.4";
+        renameBtn.title = "The default 'wildcards' folder can't be renamed";
+    } else {
+        renameBtn.onclick = async () => {
             hideContextMenu();
-            if (!confirm(`Delete empty folder "${label}"? This can't be undone.`)) return;
+            const currentName = subPath === "" ? categoryLabel : subPath.split("/").pop();
+            const newName = prompt("Rename folder to:", currentName);
+            if (!newName || newName === currentName) return;
             try {
-                await apiSend(`/folders/${encodeURIComponent(label)}`, {}, "DELETE");
-                log(`Deleted folder ${label}`);
-                if (state.activeFolder === label) state.activeFolder = null;
+                await apiSend("/folder/rename", { folder: categoryLabel, path: subPath, newName });
+                log(`Renamed "${currentName}" to "${newName}"`);
+                if (state.activeFolder === categoryLabel && state.currentPath.startsWith(subPath)) {
+                    state.activeFolder = null;
+                    state.currentPath = "";
+                }
                 loadFolderTree();
-            } catch (err) { log(`Failed to delete folder: ${err.message}`, true); }
+            } catch (err) { log(`Failed to rename folder: ${err.message}`, true); }
         };
-        menu.appendChild(delBtn);
     }
+    menu.appendChild(renameBtn);
 
     menu.style.left = `${e.clientX}px`;
     menu.style.top = `${e.clientY}px`;
@@ -483,7 +493,7 @@ function showFileContextMenu(e, file) {
             // Read content -> Write to new path -> Delete old path
             const data = await apiGet(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
             await apiSend("/file", { folder: state.activeFolder, path: newName, type: file.type, content: data.content });
-            await apiSend(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}`, {}, "DELETE");
+            await apiSend(`/file?folder=${encodeURIComponent(state.activeFolder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`, {}, "DELETE");
 
             log(`Renamed file to ${newName}`);
             loadFiles();

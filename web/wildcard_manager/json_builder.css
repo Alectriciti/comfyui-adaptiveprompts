@@ -202,7 +202,7 @@
 }
 
 .ap-choice-chance {
-    width: 50px;
+    width: 80px;
 }
 
 .ap-choice-if {
@@ -215,4 +215,55 @@
     gap: 4px;
     font-size: 10px;
     color: var(--ap-text-dim);
+}
+
+/* +/- coloring, applied globally to icon buttons */
+.ap-icon-btn.add {
+    color: var(--ap-accent-2);
+    border-color: var(--ap-accent-2);
+}
+
+.ap-icon-btn.add:hover {
+    background: var(--ap-accent-2);
+    color: #10251b;
+}
+
+.ap-icon-btn.danger {
+    color: var(--ap-danger);
+    border-color: var(--ap-danger);
+}
+
+.ap-icon-btn.danger:hover {
+    background: var(--ap-danger);
+    color: #1a0a0a;
+}
+
+.ap-builder-section-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.ap-var-header-actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.ap-choice-move {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ap-choice-move .ap-icon-btn {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+}
+
+.ap-choice-extra-badge {
+    color: var(--ap-text-dim);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
 }

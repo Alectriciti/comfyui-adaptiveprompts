@@ -254,3 +254,114 @@ async def quick_generate(request):
         return web.json_response({"error": f"Missing/unknown field: {e}"}, status=400)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+try:
+    from send2trash import send2trash as _send_to_trash
+    _HAS_TRASH = True
+except ImportError:
+    _HAS_TRASH = False
+
+
+@PromptServer.instance.routes.delete("/adaptiveprompts/api/file")
+async def delete_file(request):
+    label = request.query.get("folder", "")
+    rel_path = request.query.get("path", "")
+    file_type = request.query.get("type", "")
+
+    try:
+        base_dir = _resolve_folder(label)
+    except KeyError:
+        return web.json_response({"error": f"Unknown folder '{label}'"}, status=404)
+
+    # type isn't always known by the caller -- try both extensions if omitted.
+    target = None
+    for ext in ([file_type] if file_type else ["txt", "json"]):
+        try:
+            full = _safe_join(base_dir, f"{rel_path}.{ext}")
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
+        if os.path.isfile(full):
+            target = full
+            break
+
+    if target is None:
+        return web.json_response({"error": "File not found"}, status=404)
+
+    try:
+        if _HAS_TRASH:
+            _send_to_trash(target)
+            method = "recycle bin"
+        else:
+            os.remove(target)
+            method = "permanently deleted (install send2trash for recycle-bin support)"
+        return web.json_response({"status": "success", "method": method})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+def _folder_dir_for(label: str, sub_path: str) -> str:
+    return _safe_join(_resolve_folder(label), sub_path)
+
+
+@PromptServer.instance.routes.post("/adaptiveprompts/api/folder/create-sub")
+async def create_subfolder(request):
+    try:
+        data = await request.json()
+        label = data["folder"]
+        sub_path = data.get("path", "")
+        name = (data.get("name") or "").strip()
+
+        if not name or not all(c.isalnum() or c in "_- " for c in name):
+            return web.json_response({"error": "Invalid folder name"}, status=400)
+
+        parent_dir = _folder_dir_for(label, sub_path)
+        new_dir = os.path.join(parent_dir, name)
+        if os.path.exists(new_dir):
+            return web.json_response({"error": "A folder with that name already exists"}, status=400)
+
+        os.makedirs(new_dir)
+        clear_category_cache()
+        return web.json_response({"status": "success"})
+    except KeyError:
+        return web.json_response({"error": "Unknown folder"}, status=404)
+    except ValueError as e:
+        return web.json_response({"error": str(e)}, status=400)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+@PromptServer.instance.routes.post("/adaptiveprompts/api/folder/rename")
+async def rename_folder(request):
+    try:
+        data = await request.json()
+        label = data["folder"]
+        sub_path = data.get("path", "")
+        new_name = (data.get("newName") or "").strip()
+
+        if not new_name:
+            return web.json_response({"error": "New name can't be empty"}, status=400)
+
+        if sub_path == "":
+            if label == "wildcards":
+                return web.json_response({"error": "The default 'wildcards' folder can't be renamed"}, status=400)
+            if not new_name.startswith("wildcards_"):
+                new_name = f"wildcards_{new_name}"
+            old_dir = _resolve_folder(label)
+            new_dir = os.path.join(_default_package_root(), new_name)
+        else:
+            if not all(c.isalnum() or c in "_- " for c in new_name):
+                return web.json_response({"error": "Invalid folder name"}, status=400)
+            old_dir = _folder_dir_for(label, sub_path)
+            new_dir = os.path.join(os.path.dirname(old_dir), new_name)
+
+        if os.path.exists(new_dir):
+            return web.json_response({"error": "A folder with that name already exists"}, status=400)
+
+        os.rename(old_dir, new_dir)
+        clear_category_cache()
+        return web.json_response({"status": "success"})
+    except KeyError:
+        return web.json_response({"error": "Unknown folder"}, status=404)
+    except ValueError as e:
+        return web.json_response({"error": str(e)}, status=400)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
