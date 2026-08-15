@@ -61,6 +61,7 @@ const JSONBuilder = {
     close() {
         document.getElementById('ap-editor-mode-toggle').classList.add('hidden');
         this.setMode('raw');
+        this.updateRawHighlighting('');
     },
 
     setMode(mode) {

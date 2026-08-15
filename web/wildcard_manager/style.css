@@ -605,6 +605,27 @@ body {
     color: var(--ap-text);
 }
 
+/* New File Modal, Rename File Modal, & Unsaved Changes Modal */
+#ap-new-file-modal,
+#ap-rename-file-modal,
+#ap-unsaved-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ap-new-file-modal.hidden,
+#ap-rename-file-modal.hidden,
+#ap-unsaved-modal.hidden {
+    display: none;
+}
+
 /* File Type Toggle */
 .ap-type-toggle {
     display: flex;

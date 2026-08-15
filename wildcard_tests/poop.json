@@ -1,0 +1,24 @@
+{
+    "variables": {
+        "character": {
+            "label": "#ec4fe0",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": ""
+                }
+            ]
+        },
+        "poop": {
+            "label": "#d5ae66",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": ""
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": []
+}

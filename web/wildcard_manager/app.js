@@ -9,6 +9,7 @@ const state = {
     activeFolder: null,
     currentPath: "",
     activeFile: null,
+    lastSavedContent: null,
 };
 
 // ---------- console ----------
@@ -437,11 +438,44 @@ async function uploadPreview(file, blob) {
 
 // ---------- editor ----------
 async function openEditor(file) {
+    // Prevent reloading if clicking the already active file
+    if (state.activeFile && state.activeFile.folder === file.folder && state.activeFile.relPath === file.relPath && state.activeFile.type === file.type) {
+        return;
+    }
+
+    const textarea = document.getElementById("ap-editor-textarea");
+
+    // Force sync from builder to raw so we can accurately check for changes
+    if (state.activeFile && state.activeFile.type === "json" && typeof JSONBuilder !== 'undefined') {
+        JSONBuilder.syncToRaw();
+    }
+
+    // Intercept if dirtied
+    if (state.activeFile && state.lastSavedContent !== null) {
+        if (textarea.value !== state.lastSavedContent) {
+            UnsavedModal.open(
+                `${state.activeFile.name}.${state.activeFile.type}`,
+                async () => {
+                    await editorSave();
+                    await performOpenEditor(file);
+                },
+                async () => {
+                    await performOpenEditor(file); // Discard and proceed
+                }
+            );
+            return; // Halt navigation until modal resolves
+        }
+    }
+
+    await performOpenEditor(file);
+}
+
+async function performOpenEditor(file) {
     try {
         const data = await apiGet(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
         state.activeFile = file;
+        state.lastSavedContent = data.content; // Log the clean state
 
-        // ADD THESE 3 LINES: Clear old highlights, add to new active file
         document.querySelectorAll('.ap-card').forEach(c => c.classList.remove('active-editing'));
         const activeCard = document.querySelector(`.ap-card[title="${file.folder}/${file.relPath}.${file.type}"]`);
         if (activeCard) activeCard.classList.add('active-editing');
@@ -457,6 +491,7 @@ async function openEditor(file) {
             modeToggle.classList.add('hidden');
             JSONBuilder.close();
             document.getElementById('ap-editor-content-area').className = 'ap-content-raw';
+            JSONBuilder.updateRawHighlighting(data.content); // <--- ADD THIS: Populates the backdrop for text files immediately
         }
 
         setEditorOpen(true);
@@ -481,6 +516,7 @@ async function editorSave() {
             type: state.activeFile.type,
             content: textarea.value,
         });
+        state.lastSavedContent = textarea.value; // <--- ADD THIS
         log(`Saved ${state.activeFile.relPath}.${state.activeFile.type}`);
         flashSaved();
     } catch (e) {
@@ -768,3 +804,48 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 loadFolderTree();
 log("Wildcard Manager ready.");
+
+const UnsavedModal = {
+    onConfirm: null,
+    onDiscard: null,
+
+    init() {
+        document.getElementById('ap-unsaved-cancel').onclick = () => this.close();
+        document.getElementById('ap-unsaved-backdrop').onclick = () => this.close();
+        document.getElementById('ap-unsaved-confirm').onclick = () => this.confirm();
+        document.getElementById('ap-unsaved-discard').onclick = () => this.discard();
+
+        document.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('ap-unsaved-modal');
+            if (!modal.classList.contains('hidden')) {
+                if (e.key === 'Enter') { e.preventDefault(); this.confirm(); }
+                if (e.key === 'Escape') { e.preventDefault(); this.close(); }
+            }
+        });
+    },
+    open(filename, onConfirm, onDiscard) {
+        document.getElementById('ap-unsaved-filename').textContent = filename;
+        this.onConfirm = onConfirm;
+        this.onDiscard = onDiscard;
+        document.getElementById('ap-unsaved-modal').classList.remove('hidden');
+    },
+    close() {
+        document.getElementById('ap-unsaved-modal').classList.add('hidden');
+        this.onConfirm = null;
+        this.onDiscard = null;
+    },
+    confirm() {
+        if (this.onConfirm) this.onConfirm();
+        this.close();
+    },
+    discard() {
+        if (this.onDiscard) this.onDiscard();
+        this.close();
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    NewFileModal.init();
+    RenameFileModal.init();
+    UnsavedModal.init(); // <--- ADD THIS
+});

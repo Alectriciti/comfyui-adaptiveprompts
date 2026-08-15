@@ -270,6 +270,7 @@
 
 
 /* Raw Editor Syntax Overlay Setup */
+/* Raw Editor Syntax Overlay Setup */
 #ap-raw-editor-wrapper {
     position: relative;
     flex: 1;
@@ -291,7 +292,6 @@
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
-    /* Match wrapping */
     border-radius: 4px;
     margin: 0;
 }
@@ -301,22 +301,24 @@
     top: 0;
     left: 0;
     z-index: 1;
-    color: transparent;
-    /* Makes text invisible, highlights visible */
-    pointer-events: none;
-    /* Let clicks pass through to textarea */
+    color: var(--ap-text);
+    /* Renders all base text */
     background: var(--ap-bg);
+    /* Background goes here now */
+    pointer-events: none;
+    /* Clicks pass through to textarea */
     border: 1px solid transparent;
-    /* Align border with textarea */
     overflow: hidden;
-    /* textarea handles the actual scrolling */
 }
 
 #ap-editor-textarea {
     position: relative;
     z-index: 2;
     background: transparent;
-    color: var(--ap-text);
+    color: transparent;
+    /* Hides the duplicate white text */
+    caret-color: var(--ap-text);
+    /* Keeps the typing cursor visible */
     border: 1px solid var(--ap-border);
     resize: none;
 }

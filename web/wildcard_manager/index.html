@@ -135,6 +135,23 @@
             </div>
         </div>
     </div>
+    <!-- Unsaved Changes Modal -->
+    <div id="ap-unsaved-modal" class="hidden">
+        <div class="ap-modal-backdrop" id="ap-unsaved-backdrop"></div>
+        <div class="ap-modal-content">
+            <h3>Unsaved Changes</h3>
+            <div class="ap-modal-body">
+                Save your changes to <code id="ap-unsaved-filename"
+                    style="color: var(--ap-accent); font-weight: bold;"></code>?
+            </div>
+            <div class="ap-modal-footer">
+                <button id="ap-unsaved-discard"
+                    style="background: transparent; color: var(--ap-danger); border: 1px solid var(--ap-danger);">Discard</button>
+                <button id="ap-unsaved-cancel">Cancel (Esc)</button>
+                <button id="ap-unsaved-confirm" class="ap-btn-primary">Save (Enter)</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
