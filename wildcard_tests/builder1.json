@@ -1,6 +1,7 @@
 {
     "variables": {
         "color": {
+            "label": "#41e8fa",
             "quantity": 1,
             "choices": [
                 {
@@ -17,6 +18,7 @@
             ]
         },
         "adj": {
+            "label": "#f347e2",
             "quantity": 1,
             "choices": [
                 {

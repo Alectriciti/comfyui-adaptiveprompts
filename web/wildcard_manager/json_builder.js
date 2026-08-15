@@ -8,6 +8,46 @@ const JSONBuilder = {
         document.querySelectorAll('.ap-mode-btn').forEach(btn => {
             btn.onclick = () => this.setMode(btn.dataset.mode);
         });
+
+        // ADD THIS: Hook textarea scrolling and typing for the highlighter
+        const textarea = document.getElementById('ap-editor-textarea');
+        const backdrop = document.getElementById('ap-raw-backdrop');
+
+        textarea.addEventListener('input', (e) => {
+            // true flag avoids full re-render on every keystroke so we don't lose focus
+            this.syncFromRaw(e.target.value, true);
+        });
+
+        textarea.addEventListener('scroll', () => {
+            backdrop.scrollTop = textarea.scrollTop;
+            backdrop.scrollLeft = textarea.scrollLeft;
+        });
+    },
+
+    // ADD THIS: The syntax highlighter function
+    updateRawHighlighting(text) {
+        const backdrop = document.getElementById('ap-raw-backdrop');
+        if (!backdrop) return;
+
+        // Escape HTML
+        let highlighted = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+        // Inject colorized spans based on variable labels
+        if (this.data && this.data.variables) {
+            for (const [k, v] of Object.entries(this.data.variables)) {
+                if (v.label) {
+                    const regex = new RegExp(`("${k}")(\\s*:)`, 'g');
+                    highlighted = highlighted.replace(regex, `<span style="color: ${v.label}; font-weight: bold; text-shadow: 0 0 6px ${v.label}40;">$1</span>$2`);
+                }
+            }
+        }
+
+        // Fix for scrolling misalignment if it ends in newline
+        if (text.endsWith('\n')) highlighted += '<br/>';
+        backdrop.innerHTML = highlighted;
     },
 
     open(jsonString) {
@@ -34,13 +74,15 @@ const JSONBuilder = {
 
     // ---------------- Sync Logic ----------------
 
-    syncFromRaw(jsonString) {
+    syncFromRaw(jsonString, skipRender = false) {
         try {
             const parsed = jsonString ? JSON.parse(jsonString) : {};
             this.normalize(parsed);
-            if (this.mode !== 'raw') this.render();
+            if (this.mode !== 'raw' && !skipRender) this.render();
+            this.updateRawHighlighting(jsonString); // Always update highlight
         } catch (e) {
             console.warn("[Adaptive Prompts] JSON parse error, Builder UI may not reflect latest raw changes.", e);
+            this.updateRawHighlighting(jsonString); // Still update even if invalid JSON
         }
     },
 
@@ -49,7 +91,9 @@ const JSONBuilder = {
         for (const [key, variable] of Object.entries(this.data.variables)) {
             cleanData.variables[key] = this._cleanVariable(variable);
         }
-        document.getElementById('ap-editor-textarea').value = JSON.stringify(cleanData, null, 4);
+        const newJson = JSON.stringify(cleanData, null, 4);
+        document.getElementById('ap-editor-textarea').value = newJson;
+        this.updateRawHighlighting(newJson); // Highlight newly synced raw text
     },
 
     // Known/editable choice keys. Anything else (eg "set", a side-effect command
@@ -70,18 +114,21 @@ const JSONBuilder = {
     _normalizeVariableEntry(v) {
         let qty = 1;
         let choices = [];
+        let label = null;
 
         if (Array.isArray(v)) {
             choices = v;
         } else if (typeof v === 'object' && v !== null) {
             qty = v.quantity ?? 1;
             choices = v.choices || [];
+            label = v.label || null; // Add Label support
         } else {
             choices = [v];
         }
 
         return {
             quantity: qty,
+            label: label,
             choices: choices.map(c => {
                 if (typeof c === 'object' && c !== null) {
                     return {
@@ -97,16 +144,19 @@ const JSONBuilder = {
     },
 
     _cleanVariable(variableData) {
-        return {
-            quantity: variableData.quantity || 1,
-            choices: variableData.choices.map(c => {
-                const cleaned = { output: c.output };
-                if (c.chance !== "" && c.chance !== null && !isNaN(c.chance)) cleaned.chance = Number(c.chance);
-                if (c.if && c.if.trim() !== "") cleaned.if = c.if.trim();
-                if (c._extra) Object.assign(cleaned, c._extra); // eg "set" -- preserved, not editable here yet
-                return cleaned;
-            })
-        };
+        const cleaned = {};
+        if (variableData.label) cleaned.label = variableData.label; // Inject label first
+
+        cleaned.quantity = variableData.quantity || 1;
+        cleaned.choices = variableData.choices.map(c => {
+            const choiceNode = { output: c.output };
+            if (c.chance !== "" && c.chance !== null && !isNaN(c.chance)) choiceNode.chance = Number(c.chance);
+            if (c.if && c.if.trim() !== "") choiceNode.if = c.if.trim();
+            if (c._extra) Object.assign(choiceNode, c._extra);
+            return choiceNode;
+        });
+
+        return cleaned;
     },
 
     normalize(parsed) {
@@ -198,7 +248,7 @@ const JSONBuilder = {
         container.appendChild(this.createSection('variables', 'Variables', () => {
             const newKey = prompt("Enter new variable name:");
             if (newKey && !this.data.variables[newKey]) {
-                this.data.variables[newKey] = { quantity: 1, choices: [{ output: '', chance: '', if: '', _extra: null }] };
+                this.data.variables[newKey] = { quantity: 1, label: null, choices: [{ output: '', chance: '', if: '', _extra: null }] };
                 this.update();
             }
         }, [
@@ -291,11 +341,24 @@ const JSONBuilder = {
         const card = document.createElement('div');
         card.className = 'ap-builder-var-card';
 
+        // Apply coloring visually to the Builder Card
+        if (variableData.label) {
+            card.style.borderColor = variableData.label;
+            card.style.boxShadow = `0 0 6px ${variableData.label}20`;
+        }
+
         const header = document.createElement('div');
         header.className = 'ap-builder-var-header';
+
+        // Add the hidden color picker and the palette trigger button
         header.innerHTML = `
             <div class="ap-var-controls">
-                <input type="text" class="ap-var-key" value="${key}" placeholder="Key name" title="Variable Key"/>
+                <input type="color" class="ap-var-color-picker" value="${variableData.label || '#3bc1ff'}" style="display:none;" />
+                <button class="ap-icon-btn small ap-var-color-btn" title="Color Label">
+                    <i class="pi pi-palette" ${variableData.label ? `style="color: ${variableData.label};"` : ''}></i>
+                </button>
+                
+                <input type="text" class="ap-var-key" value="${key}" placeholder="Key name" title="Variable Key" ${variableData.label ? `style="color: ${variableData.label};"` : ''} />
                 <label>Qty: <input type="text" class="ap-var-qty" value="${variableData.quantity}" placeholder="1 or 1-3" /></label>
             </div>
             <div class="ap-var-header-actions">
@@ -305,6 +368,16 @@ const JSONBuilder = {
                 <button class="ap-icon-btn small danger ap-var-remove" title="Remove Variable"><i class="pi pi-minus"></i></button>
             </div>
         `;
+
+        // Wire up Color Picker interactions
+        const colorPicker = header.querySelector('.ap-var-color-picker');
+        const colorBtn = header.querySelector('.ap-var-color-btn');
+
+        colorBtn.onclick = () => colorPicker.click();
+        colorPicker.oninput = (e) => {
+            this.data.variables[key].label = e.target.value;
+            this.update();
+        };
 
         const keyInput = header.querySelector('.ap-var-key');
         keyInput.onchange = (e) => {

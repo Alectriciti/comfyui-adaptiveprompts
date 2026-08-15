@@ -77,10 +77,14 @@ function setEditorOpen(open) {
         panel.classList.add("collapsed");
         resizer.classList.add("hidden");
         panel.style.width = "";
+
+        // ADD THIS: Remove highlight when closing the editor panel
+        document.querySelectorAll('.ap-card').forEach(c => c.classList.remove('active-editing'));
     }
 
     document.querySelector("#ap-editor-toggle i").className = `pi ${open ? "pi-angle-double-right" : "pi-angle-double-left"}`;
 }
+
 document.getElementById("ap-editor-toggle").onclick = () => setEditorOpen(!editorOpen);
 
 // Resizer logic
@@ -354,6 +358,9 @@ function renderFileGrid(files) {
         const card = document.createElement("div");
         card.className = "ap-card";
         card.title = `${file.folder}/${file.relPath}.${file.type}`;
+        if (state.activeFile && state.activeFile.folder === file.folder && state.activeFile.relPath === file.relPath && state.activeFile.type === file.type) {
+            card.classList.add('active-editing');
+        }
         if (file.hasPreview) {
             card.style.backgroundImage = `url('${API}/preview?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&t=${Date.now()}')`;
         }
@@ -433,6 +440,12 @@ async function openEditor(file) {
     try {
         const data = await apiGet(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
         state.activeFile = file;
+
+        // ADD THESE 3 LINES: Clear old highlights, add to new active file
+        document.querySelectorAll('.ap-card').forEach(c => c.classList.remove('active-editing'));
+        const activeCard = document.querySelector(`.ap-card[title="${file.folder}/${file.relPath}.${file.type}"]`);
+        if (activeCard) activeCard.classList.add('active-editing');
+
         document.getElementById("ap-editor-filename").textContent = `${file.folder}/${file.relPath}.${file.type}`;
         document.getElementById("ap-editor-textarea").value = data.content;
 
