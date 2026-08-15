@@ -86,6 +86,29 @@
 
     <script src="/adaptiveprompts/assets/app.js"></script>
     <script src="/adaptiveprompts/assets/json_builder.js"></script>
+    <!-- New File Modal -->
+    <div id="ap-new-file-modal" class="hidden">
+        <div class="ap-modal-backdrop" id="ap-new-file-backdrop"></div>
+        <div class="ap-modal-content">
+            <h3>Create New File</h3>
+
+            <div class="ap-modal-body">
+                <div class="ap-type-toggle">
+                    <button id="ap-toggle-txt" class="ap-badge-txt">TXT</button>
+                    <button id="ap-toggle-json" class="ap-badge-json">JSON</button>
+                </div>
+
+                <input type="text" id="ap-new-file-input" placeholder="filename (no extension)" autocomplete="off"
+                    spellcheck="false" />
+                <div id="ap-new-file-preview" class="ap-preview-text"></div>
+            </div>
+
+            <div class="ap-modal-footer">
+                <button id="ap-new-file-cancel">Cancel</button>
+                <button id="ap-new-file-confirm" class="ap-btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

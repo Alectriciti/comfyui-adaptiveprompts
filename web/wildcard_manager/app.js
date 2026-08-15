@@ -340,11 +340,19 @@ async function openEditor(file) {
         document.getElementById("ap-editor-filename").textContent = `${file.relPath}.${file.type}`;
         document.getElementById("ap-editor-textarea").value = data.content;
 
-        // NEW: Intercept JSON files and route to the Builder logic
+        const modeToggle = document.getElementById('ap-editor-mode-toggle');
+
         if (file.type === "json") {
+            // Enable and show Builder UI for JSON
+            modeToggle.classList.remove('hidden');
             JSONBuilder.open(data.content);
         } else {
+            // Force raw view and hide toggle for TXT
+            modeToggle.classList.add('hidden');
             JSONBuilder.close();
+
+            // Explicitly ensure the container reverts to raw formatting
+            document.getElementById('ap-editor-content-area').className = 'ap-content-raw';
         }
 
         setEditorOpen(true);
@@ -507,42 +515,139 @@ function showFileContextMenu(e, file) {
 
 
 // ---------- top nav buttons ----------
+// ---------- top nav buttons ----------
 document.getElementById("ap-btn-refresh").onclick = () => {
     loadFolderTree();
     log("Refreshed wildcard structural data.");
 };
 
-document.getElementById("ap-btn-new-file").onclick = async () => {
+document.getElementById("ap-btn-new-file").onclick = () => {
     if (!state.activeFolder) {
         alert("Please select a folder first.");
         return;
     }
 
-    let name = prompt("New file name (must end in .txt or .json):");
-    if (!name) return;
+    // Open the new custom modal, passing the current sub-directory path
+    NewFileModal.open(state.currentPath || "");
+};
 
-    // Auto format if user forgets extension
-    if (!name.endsWith(".txt") && !name.endsWith(".json")) {
-        name += ".txt";
-    }
+const NewFileModal = {
+    currentPath: '',
+    // Load preference from memory, default to JSON
+    selectedType: localStorage.getItem('ap_new_file_type') || 'json',
 
-    const parts = name.split(".");
-    const type = parts.pop();
-    const pathName = parts.join(".");
+    init() {
+        this.updateToggleUI();
 
-    // Prefix the current directory path
-    const fullPath = state.currentPath ? `${state.currentPath}/${pathName}` : pathName;
+        // Bind type toggles
+        document.getElementById('ap-toggle-txt').onclick = () => this.setType('txt');
+        document.getElementById('ap-toggle-json').onclick = () => this.setType('json');
 
-    try {
-        await apiSend("/file", {
-            folder: state.activeFolder,
-            path: fullPath,
-            type: type,
-            content: ""
+        // Bind input events
+        const input = document.getElementById('ap-new-file-input');
+        input.oninput = () => this.updatePreview();
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.confirm();
+            if (e.key === 'Escape') this.close();
         });
-        log(`Created new wildcard file: ${name}`);
-        loadFiles();
-    } catch (e) {
-        log(`Failed to create file: ${e.message}`, true);
+
+        // Bind core buttons
+        document.getElementById('ap-new-file-cancel').onclick = () => this.close();
+        document.getElementById('ap-new-file-backdrop').onclick = () => this.close();
+        document.getElementById('ap-new-file-confirm').onclick = () => this.confirm();
+    },
+
+    open(folderPath) {
+        this.currentPath = folderPath;
+        const modal = document.getElementById('ap-new-file-modal');
+        const input = document.getElementById('ap-new-file-input');
+
+        input.value = '';
+        this.updatePreview();
+        modal.classList.remove('hidden');
+        input.focus();
+    },
+
+    close() {
+        document.getElementById('ap-new-file-modal').classList.add('hidden');
+    },
+
+    setType(type) {
+        this.selectedType = type;
+        localStorage.setItem('ap_new_file_type', type); // Save to memory
+        this.updateToggleUI();
+    },
+
+    updateToggleUI() {
+        const btnTxt = document.getElementById('ap-toggle-txt');
+        const btnJson = document.getElementById('ap-toggle-json');
+
+        if (this.selectedType === 'txt') {
+            btnTxt.classList.add('active');
+            btnJson.classList.remove('active');
+        } else {
+            btnTxt.classList.remove('active');
+            btnJson.classList.add('active');
+        }
+    },
+
+    updatePreview() {
+        const inputVal = document.getElementById('ap-new-file-input').value.trim();
+        const previewEl = document.getElementById('ap-new-file-preview');
+
+        if (!inputVal) {
+            previewEl.textContent = '';
+            return;
+        }
+
+        // Clean up the path to match the Adaptive Prompts call syntax
+        // Removes root '/wildcards/' or similar prefixes and trailing slashes
+        let cleanPath = this.currentPath.replace(/^[\/\\]*(wildcards)?[\/\\]*/i, '');
+        if (cleanPath && !cleanPath.endsWith('/')) {
+            cleanPath += '/';
+        }
+
+        previewEl.textContent = `__${cleanPath}${inputVal}__`;
+    },
+
+    async confirm() {
+        const filename = document.getElementById('ap-new-file-input').value.trim();
+        if (!filename) return;
+
+        // Ensure the user didn't accidentally type an extension
+        const cleanFileName = filename.replace(/\.(json|txt)$/i, '');
+
+        // Prevent leading slashes if currentPath is empty (root folder)
+        const fullPath = this.currentPath
+            ? `${this.currentPath}/${cleanFileName}`
+            : cleanFileName;
+
+        try {
+            // Provide boilerplate default content if JSON is selected
+            const initialContent = this.selectedType === 'json'
+                ? '{\n    "variables": {},\n    "loras": [],\n    "generate": []\n}'
+                : '';
+
+            // Send to your correct existing backend endpoint
+            await apiSend("/file", {
+                folder: state.activeFolder,
+                path: fullPath,
+                type: this.selectedType,
+                content: initialContent
+            });
+
+            log(`Created ${cleanFileName}.${this.selectedType}`);
+            this.close();
+
+            // Refresh the file grid to show the new item
+            loadFiles();
+        } catch (e) {
+            log(`Failed to create file: ${e.message}`, true);
+        }
     }
 };
+
+// Make sure to initialize it once the DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    NewFileModal.init();
+});
