@@ -3,13 +3,14 @@
 const JSONBuilder = {
     mode: 'raw', // 'raw', 'builder', 'hybrid'
     data: { variables: {}, loras: [], generate: [] },
+    _expandedSetPanels: new WeakSet(),
 
     init() {
         document.querySelectorAll('.ap-mode-btn').forEach(btn => {
             btn.onclick = () => this.setMode(btn.dataset.mode);
         });
 
-        // ADD THIS: Hook textarea scrolling and typing for the highlighter
+        // Hook textarea scrolling and typing for the raw-mode highlighter
         const textarea = document.getElementById('ap-editor-textarea');
         const backdrop = document.getElementById('ap-raw-backdrop');
 
@@ -24,18 +25,17 @@ const JSONBuilder = {
         });
     },
 
-    // ADD THIS: The syntax highlighter function
+    // The raw-mode syntax highlighter: colors a variable's key wherever it
+    // appears in the raw JSON text using that variable's "label" color.
     updateRawHighlighting(text) {
         const backdrop = document.getElementById('ap-raw-backdrop');
         if (!backdrop) return;
 
-        // Escape HTML
         let highlighted = text
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
 
-        // Inject colorized spans based on variable labels
         if (this.data && this.data.variables) {
             for (const [k, v] of Object.entries(this.data.variables)) {
                 if (v.label) {
@@ -45,7 +45,6 @@ const JSONBuilder = {
             }
         }
 
-        // Fix for scrolling misalignment if it ends in newline
         if (text.endsWith('\n')) highlighted += '<br/>';
         backdrop.innerHTML = highlighted;
     },
@@ -88,7 +87,11 @@ const JSONBuilder = {
     },
 
     syncToRaw() {
-        const cleanData = { variables: {}, loras: [...this.data.loras], generate: [...this.data.generate] };
+        const cleanData = {
+            variables: {},
+            loras: [...this.data.loras],
+            generate: this.data.generate.map(c => this._cleanChoiceEntry(c)),
+        };
         for (const [key, variable] of Object.entries(this.data.variables)) {
             cleanData.variables[key] = this._cleanVariable(variable);
         }
@@ -97,11 +100,8 @@ const JSONBuilder = {
         this.updateRawHighlighting(newJson); // Highlight newly synced raw text
     },
 
-    // Known/editable choice keys. Anything else (eg "set", a side-effect command
-    // the backend supports but this UI doesn't have a widget for yet) gets
-    // carried through untouched so it's never silently dropped by the Builder
-    // or by copy/paste -- see _extractExtraKeys / _cleanVariable below.
-    _KNOWN_CHOICE_KEYS: new Set(['output', 'chance', 'weight', 'if']),
+    // "set" is a first-class editable field now, not swept into _extra.
+    _KNOWN_CHOICE_KEYS: new Set(['output', 'chance', 'weight', 'if', 'set']),
 
     _extractExtraKeys(choiceObj) {
         const extra = {};
@@ -110,6 +110,29 @@ const JSONBuilder = {
             if (!this._KNOWN_CHOICE_KEYS.has(k)) { extra[k] = v; hasExtra = true; }
         }
         return hasExtra ? extra : null;
+    },
+
+    // Shared by variable choices AND generate entries -- same shape now.
+    _normalizeChoiceEntry(c) {
+        if (typeof c === 'object' && c !== null) {
+            return {
+                output: c.output || '',
+                chance: c.chance ?? c.weight ?? '',
+                if: c.if || '',
+                set: (c.set && typeof c.set === 'object') ? { ...c.set } : null,
+                _extra: this._extractExtraKeys(c),
+            };
+        }
+        return { output: String(c), chance: '', if: '', set: null, _extra: null };
+    },
+
+    _cleanChoiceEntry(c) {
+        const cleaned = { output: c.output };
+        if (c.chance !== "" && c.chance !== null && !isNaN(c.chance)) cleaned.chance = Number(c.chance);
+        if (c.if && c.if.trim() !== "") cleaned.if = c.if.trim();
+        if (c.set && Object.keys(c.set).length > 0) cleaned.set = c.set;
+        if (c._extra) Object.assign(cleaned, c._extra);
+        return cleaned;
     },
 
     _normalizeVariableEntry(v) {
@@ -122,7 +145,7 @@ const JSONBuilder = {
         } else if (typeof v === 'object' && v !== null) {
             qty = v.quantity ?? 1;
             choices = v.choices || [];
-            label = v.label || null; // Add Label support
+            label = v.label || null;
         } else {
             choices = [v];
         }
@@ -130,17 +153,7 @@ const JSONBuilder = {
         return {
             quantity: qty,
             label: label,
-            choices: choices.map(c => {
-                if (typeof c === 'object' && c !== null) {
-                    return {
-                        output: c.output || '',
-                        chance: c.chance ?? c.weight ?? '',
-                        if: c.if || '',
-                        _extra: this._extractExtraKeys(c),
-                    };
-                }
-                return { output: String(c), chance: '', if: '', _extra: null };
-            })
+            choices: choices.map(c => this._normalizeChoiceEntry(c)),
         };
     },
 
@@ -149,14 +162,7 @@ const JSONBuilder = {
         if (variableData.label) cleaned.label = variableData.label; // Inject label first
 
         cleaned.quantity = variableData.quantity || 1;
-        cleaned.choices = variableData.choices.map(c => {
-            const choiceNode = { output: c.output };
-            if (c.chance !== "" && c.chance !== null && !isNaN(c.chance)) choiceNode.chance = Number(c.chance);
-            if (c.if && c.if.trim() !== "") choiceNode.if = c.if.trim();
-            if (c._extra) Object.assign(choiceNode, c._extra);
-            return choiceNode;
-        });
-
+        cleaned.choices = variableData.choices.map(c => this._cleanChoiceEntry(c));
         return cleaned;
     },
 
@@ -169,7 +175,7 @@ const JSONBuilder = {
         }
         if (Array.isArray(parsed.loras)) this.data.loras = parsed.loras.map(String);
         if (Array.isArray(parsed.generate)) {
-            this.data.generate = parsed.generate.map(g => typeof g === 'object' ? g.output : String(g));
+            this.data.generate = parsed.generate.map(g => this._normalizeChoiceEntry(g));
         }
     },
 
@@ -193,7 +199,7 @@ const JSONBuilder = {
         this.update();
     },
 
-    // ---------------- Copy / Paste ----------------
+    // ---------------- Copy / Paste (variables) ----------------
 
     async copyVariable(key) {
         const payload = { [key]: this._cleanVariable(this.data.variables[key]) };
@@ -249,7 +255,7 @@ const JSONBuilder = {
         container.appendChild(this.createSection('variables', 'Variables', () => {
             const newKey = prompt("Enter new variable name:");
             if (newKey && !this.data.variables[newKey]) {
-                this.data.variables[newKey] = { quantity: 1, label: null, choices: [{ output: '', chance: '', if: '', _extra: null }] };
+                this.data.variables[newKey] = { quantity: 1, label: null, choices: [{ output: '', chance: '', if: '', set: null, _extra: null }] };
                 this.update();
             }
         }, [
@@ -262,7 +268,7 @@ const JSONBuilder = {
         }));
 
         container.appendChild(this.createSection('generate', 'Generate', () => {
-            this.data.generate.push("");
+            this.data.generate.push({ output: '', chance: '', if: '', set: null, _extra: null });
             this.update();
         }));
     },
@@ -305,8 +311,10 @@ const JSONBuilder = {
         const list = document.createElement('div');
         list.className = 'ap-builder-list';
 
-        if (type === 'loras' || type === 'generate') {
-            this.data[type].forEach((val, idx) => list.appendChild(this.createSimpleRow(type, val, idx)));
+        if (type === 'loras') {
+            this.data.loras.forEach((val, idx) => list.appendChild(this.createSimpleRow(type, val, idx)));
+        } else if (type === 'generate') {
+            this.data.generate.forEach((choice, idx) => list.appendChild(this.createChoiceRow(this.data.generate, idx)));
         } else if (type === 'variables') {
             Object.entries(this.data.variables).forEach(([key, val]) => {
                 list.appendChild(this.createVariableCard(key, val));
@@ -351,14 +359,13 @@ const JSONBuilder = {
         const header = document.createElement('div');
         header.className = 'ap-builder-var-header';
 
-        // Add the hidden color picker and the palette trigger button
         header.innerHTML = `
             <div class="ap-var-controls">
                 <input type="color" class="ap-var-color-picker" value="${variableData.label || '#3bc1ff'}" style="display:none;" />
                 <button class="ap-icon-btn small ap-var-color-btn" title="Color Label">
                     <i class="pi pi-palette" ${variableData.label ? `style="color: ${variableData.label};"` : ''}></i>
                 </button>
-                
+
                 <input type="text" class="ap-var-key" value="${key}" placeholder="Key name" title="Variable Key" ${variableData.label ? `style="color: ${variableData.label};"` : ''} />
                 <label>Qty: <input type="text" class="ap-var-qty" value="${variableData.quantity}" placeholder="1 or 1-3" /></label>
             </div>
@@ -370,7 +377,6 @@ const JSONBuilder = {
             </div>
         `;
 
-        // Wire up Color Picker interactions
         const colorPicker = header.querySelector('.ap-var-color-picker');
         const colorBtn = header.querySelector('.ap-var-color-btn');
 
@@ -411,14 +417,14 @@ const JSONBuilder = {
         choicesHeader.className = 'ap-builder-choices-header';
         choicesHeader.innerHTML = `<span>Choices</span> <button class="ap-icon-btn small add" title="Add Choice"><i class="pi pi-plus"></i></button>`;
         choicesHeader.querySelector('button').onclick = () => {
-            this.data.variables[key].choices.push({ output: '', chance: '', if: '', _extra: null });
+            this.data.variables[key].choices.push({ output: '', chance: '', if: '', set: null, _extra: null });
             this.update();
         };
 
         const choicesList = document.createElement('div');
         choicesList.className = 'ap-builder-choices-list';
         variableData.choices.forEach((choice, idx) => {
-            choicesList.appendChild(this.createChoiceRow(key, choice, idx));
+            choicesList.appendChild(this.createChoiceRow(variableData.choices, idx));
         });
 
         card.appendChild(header);
@@ -427,13 +433,28 @@ const JSONBuilder = {
         return card;
     },
 
-    createChoiceRow(varKey, choice, index) {
+    // Shared by variable choices AND generate entries -- choicesArray is a
+    // direct reference to whichever backing array (this.data.generate, or
+    // this.data.variables[key].choices), so mutating it here mutates the
+    // real data regardless of which section called it.
+    createChoiceRow(choicesArray, index) {
+        const choice = choicesArray[index];
+        const hasSet = choice.set && Object.keys(choice.set).length > 0;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'ap-choice-row-wrapper';
+
         const row = document.createElement('div');
         row.className = 'ap-builder-choice-row';
+
         const extraBadge = choice._extra
-            ? `<span class="ap-choice-extra-badge" title="Has additional data (eg 'set') preserved but not editable here yet"><i class="pi pi-info-circle"></i></span>`
+            ? `<span class="ap-choice-extra-badge" title="Has additional unrecognized data preserved but not editable here yet"><i class="pi pi-info-circle"></i></span>`
             : '';
+
         row.innerHTML = `
+            <button class="ap-icon-btn small ap-choice-set-toggle ${hasSet ? 'has-set' : ''}" title="Set variables when this choice is picked">
+                <i class="pi pi-chevron-right"></i>
+            </button>
             <div class="ap-choice-move">
                 <button class="ap-icon-btn small ap-choice-up" title="Move Up"><i class="pi pi-chevron-up"></i></button>
                 <button class="ap-icon-btn small ap-choice-down" title="Move Down"><i class="pi pi-chevron-down"></i></button>
@@ -442,22 +463,105 @@ const JSONBuilder = {
             <label>Chance: <input type="number" step="0.25" class="ap-choice-chance" value="${choice.chance}" placeholder="1" /></label>
             <label>If: <input type="text" class="ap-choice-if" value="${choice.if}" placeholder="cond == val" /></label>
             ${extraBadge}
-            <button class="ap-icon-btn small danger" title="Remove Choice"><i class="pi pi-minus"></i></button>
+            <button class="ap-icon-btn small danger" title="Remove"><i class="pi pi-minus"></i></button>
         `;
 
-        const choices = this.data.variables[varKey].choices;
-        row.querySelector('.ap-choice-out').oninput = (e) => { choices[index].output = e.target.value; this.syncToRaw(); };
-        row.querySelector('.ap-choice-chance').oninput = (e) => { choices[index].chance = e.target.value; this.syncToRaw(); };
-        row.querySelector('.ap-choice-if').oninput = (e) => { choices[index].if = e.target.value; this.syncToRaw(); };
-        row.querySelector('.ap-choice-up').onclick = () => { this.moveArrayItem(choices, index, -1); this.update(); };
-        row.querySelector('.ap-choice-down').onclick = () => { this.moveArrayItem(choices, index, 1); this.update(); };
-        row.querySelector('.ap-choice-row-remove, button[title="Remove Choice"]').onclick = () => {
-            choices.splice(index, 1);
-            this.update();
+        row.querySelector('.ap-choice-out').oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
+        row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
+        row.querySelector('.ap-choice-if').oninput = (e) => { choice.if = e.target.value; this.syncToRaw(); };
+        row.querySelector('.ap-choice-up').onclick = () => { this.moveArrayItem(choicesArray, index, -1); this.update(); };
+        row.querySelector('.ap-choice-down').onclick = () => { this.moveArrayItem(choicesArray, index, 1); this.update(); };
+        row.querySelector('button[title="Remove"]').onclick = () => { choicesArray.splice(index, 1); this.update(); };
+
+        const setPanel = this.createSetPanel(choice);
+        const isExpanded = this._expandedSetPanels.has(choice);
+        if (isExpanded) setPanel.classList.add('open');
+
+        const toggleBtn = row.querySelector('.ap-choice-set-toggle');
+        const toggleIcon = toggleBtn.querySelector('i');
+        toggleIcon.className = `pi ${isExpanded ? 'pi-chevron-down' : 'pi-chevron-right'}`;
+        toggleBtn.onclick = () => {
+            const nowOpen = setPanel.classList.toggle('open');
+            toggleIcon.className = `pi ${nowOpen ? 'pi-chevron-down' : 'pi-chevron-right'}`;
+            if (nowOpen) this._expandedSetPanels.add(choice);
+            else this._expandedSetPanels.delete(choice);
         };
 
-        return row;
-    }
+        wrapper.appendChild(row);
+        wrapper.appendChild(setPanel);
+        return wrapper;
+    },
+
+    createSetPanel(choice) {
+        const panel = document.createElement('div');
+        panel.className = 'ap-set-panel';
+
+        const rebuild = () => {
+            panel.innerHTML = '';
+
+            const header = document.createElement('div');
+            header.className = 'ap-set-panel-header';
+            header.innerHTML = `<span><i class="pi pi-sliders-h"></i> Set on selection</span>`;
+            const addBtn = document.createElement('button');
+            addBtn.className = 'ap-icon-btn small add';
+            addBtn.title = 'Add a variable to set';
+            addBtn.innerHTML = `<i class="pi pi-plus"></i>`;
+            addBtn.onclick = () => {
+                if (!choice.set) choice.set = {};
+                let newKey = 'flag', n = 1;
+                while (choice.set[newKey] !== undefined) newKey = `flag_${n++}`;
+                choice.set[newKey] = '';
+                this._expandedSetPanels.add(choice);
+                this.update();
+            };
+            header.appendChild(addBtn);
+            panel.appendChild(header);
+
+            const entries = choice.set ? Object.entries(choice.set) : [];
+            if (entries.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'ap-set-empty';
+                empty.textContent = 'No variables set by this choice.';
+                panel.appendChild(empty);
+            }
+
+            for (const [k, v] of entries) {
+                const setRow = document.createElement('div');
+                setRow.className = 'ap-set-row';
+                setRow.innerHTML = `
+                    <input type="text" class="ap-set-key" value="${k}" placeholder="variable name" />
+                    <input type="text" class="ap-set-value" value="${v}" placeholder="value" />
+                    <button class="ap-icon-btn small danger" title="Remove"><i class="pi pi-minus"></i></button>
+                `;
+                setRow.querySelector('.ap-set-key').onchange = (e) => {
+                    const newKey = e.target.value.trim();
+                    if (newKey && newKey !== k && choice.set[newKey] === undefined) {
+                        const val = choice.set[k];
+                        delete choice.set[k];
+                        choice.set[newKey] = val;
+                        this._expandedSetPanels.add(choice);
+                        this.update();
+                    } else {
+                        e.target.value = k;
+                    }
+                };
+                setRow.querySelector('.ap-set-value').oninput = (e) => {
+                    choice.set[k] = e.target.value;
+                    this.syncToRaw();
+                };
+                setRow.querySelector('button').onclick = () => {
+                    delete choice.set[k];
+                    if (Object.keys(choice.set).length === 0) choice.set = null;
+                    this._expandedSetPanels.add(choice);
+                    this.update();
+                };
+                panel.appendChild(setRow);
+            }
+        };
+
+        rebuild();
+        return panel;
+    },
 };
 
 document.addEventListener('DOMContentLoaded', () => JSONBuilder.init());

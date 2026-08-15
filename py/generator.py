@@ -15,8 +15,9 @@ import os
 import random
 import hashlib
 from .config import get_config
-from .wildcard_utils import bfs_find_file, load_json_wildcard_file, _resolve_variable_definition, _load_json_file
+from .wildcard_utils import bfs_find_file, load_json_wildcard_file, _resolve_variable_definition, _load_json_file, pick_generate_entry
 from .misc_utils import *
+
 
 BRACKET_PATTERN = re.compile(r"\{([^{}]+)\}")
 
@@ -529,14 +530,13 @@ def _try_process_json_payload(filepath: str,
             lora_parts.append(resolved_lora)
     lora_string = " ".join(lora_parts)
 
-    # 3. Weighted-pick ONE "generate" line, same %weight% mechanism as a
-    #    plain .txt wildcard file line.
-    items, weights = _parse_weighted_options(str(g) for g in (data.get("generate") or []))
-    if not items:
-        return lora_string  # no generate lines -- at least don't lose the loras
-
-    idx = _weighted_index(weights, local_rng.next_rng())
-    picked_raw = items[idx]
+    # "generate" entries now support the same {"output", "chance", "if", "set"}
+    # shape as a variable's "choices" -- pick_generate_entry() applies the
+    # winning entry's "if"/"chance"/"set" the same way a variable choice does,
+    # just always picking exactly one.
+    picked_raw = pick_generate_entry(data.get("generate") or [], local_rng.next_rng(), wildcard_dir, local_vars)
+    if not picked_raw:
+        return lora_string
 
     return f"{picked_raw} {lora_string}" if lora_string else picked_raw
 
@@ -742,8 +742,10 @@ def _resolve_token(wc_name: str | None,
     local_rng = seeded_rng.branch(f"wc_{wc_name}_{var_tok}")
     replacement = None
 
-    def _is_real_change(generated: str) -> bool:
-        if not generated:
+    def _is_real_change(generated: str, generated_fp: str | None = None) -> bool:
+        # PATCH: Prevent silent JSON payload builders from failing this check and being evaluated twice.
+        # If generated_fp is present, the file was successfully processed even if the text is empty.
+        if not generated and generated_fp is None:
             return False
         return generated != full_token and generated.strip() != full_token.strip()
 
@@ -770,7 +772,7 @@ def _resolve_token(wc_name: str | None,
                 var_tok, rng_for_this, wildcard_dir, source_file, bracket_ctx=None,
                 _resolved_vars=_resolved_vars, seeded_rng=local_rng
             )
-            if _is_real_change(generated):
+            if _is_real_change(generated, generated_fp):
                 replacement = resolve_wildcards(
                     generated, local_rng, wildcard_dir, source_file=generated_fp,
                     _depth=_depth + 1, _resolved_vars=_resolved_vars,
@@ -800,7 +802,7 @@ def _resolve_token(wc_name: str | None,
                 wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx,
                 _resolved_vars=_resolved_vars, seeded_rng=local_rng
             )
-            if _is_real_change(generated):
+            if _is_real_change(generated, generated_fp):
                 replacement = resolve_wildcards(
                     generated, local_rng, wildcard_dir, source_file=generated_fp,
                     _depth=_depth + 1, _resolved_vars=_resolved_vars,
@@ -817,7 +819,7 @@ def _resolve_token(wc_name: str | None,
             wc_name, rng_for_this, wildcard_dir, source_file, bracket_ctx=bracket_ctx,
             _resolved_vars=_resolved_vars, seeded_rng=local_rng
         )
-        if _is_real_change(generated):
+        if _is_real_change(generated, generated_fp):
             replacement = resolve_wildcards(
                 generated, local_rng, wildcard_dir, source_file=generated_fp,
                 _depth=_depth + 1, _resolved_vars=_resolved_vars,

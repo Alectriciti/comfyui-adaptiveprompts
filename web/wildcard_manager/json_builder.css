@@ -322,3 +322,66 @@
     border: 1px solid var(--ap-border);
     resize: none;
 }
+
+.ap-choice-row-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ap-choice-set-toggle {
+    color: var(--ap-text-dim);
+    border-color: var(--ap-border);
+    flex-shrink: 0;
+}
+
+.ap-choice-set-toggle.has-set {
+    color: var(--ap-accent);
+    border-color: var(--ap-accent);
+}
+
+.ap-set-panel {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-left: 26px;
+    padding: 8px;
+    background: #101418;
+    border: 1px dashed var(--ap-border);
+    border-radius: 4px;
+}
+
+.ap-set-panel.open {
+    display: flex;
+}
+
+.ap-set-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--ap-text-dim);
+    letter-spacing: 0.4px;
+}
+
+.ap-set-empty {
+    font-size: 11px;
+    color: var(--ap-text-dim);
+    font-style: italic;
+}
+
+.ap-set-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.ap-set-key {
+    flex: 1;
+    color: var(--ap-accent-2);
+}
+
+.ap-set-value {
+    flex: 1.4;
+}

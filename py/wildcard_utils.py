@@ -237,6 +237,69 @@ def load_json_payload_file(filepath: str) -> dict:
     with open(filepath, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def _build_choice_pool(raw_choices: list, resolved_vars: dict):
+    """
+    Normalizes a raw choices/generate array -- a mix of plain strings and/or
+    {"output", "chance"/"weight", "if", "set"} objects -- into a weighted pool
+    ready for _parse_weighted_options(), after dropping any entry whose "if"
+    condition fails against resolved_vars's CURRENT state.
+
+    Shared by a variable's "choices" list AND a "generate" list, since a
+    "generate" entry is exactly one of these same choice objects now --
+    Adaptive Prompts just always draws exactly one from "generate" (no
+    surrounding "quantity"), since resolving a wildcard call can only ever
+    produce one string.
+
+    Returns (items, weights, choice_metadata) where choice_metadata maps the
+    internal uid-tagged string (still embedded in `items`) to that choice's
+    raw "set" data -- see _extract_and_apply_picked.
+    """
+    from .generator import _parse_weighted_options
+
+    valid_choices = []
+    choice_metadata = {}
+
+    for i, c in enumerate(raw_choices):
+        if isinstance(c, dict):
+            cond = c.get("if")
+            if cond and not _evaluate_condition(cond, resolved_vars):
+                continue  # condition failed -- not in the pool at all
+
+            out_str = str(c.get("output", ""))
+            chance = c.get("chance", c.get("weight"))
+
+            # Unique id tag so "set" commands survive the %weight% string parser.
+            uid_str = f"__uid_{i}__:{out_str}"
+
+            if chance is not None:
+                valid_choices.append(f"{uid_str}%{chance}%")
+            else:
+                valid_choices.append(uid_str)
+
+            if "set" in c:
+                choice_metadata[uid_str] = c["set"]
+        else:
+            valid_choices.append(str(c))
+
+    items, weights = _parse_weighted_options(valid_choices)
+    return items, weights, choice_metadata
+
+
+def _extract_and_apply_picked(picked: str, choice_metadata: dict, resolved_vars: dict) -> str:
+    """
+    Given one item drawn from a _build_choice_pool() result, strips the
+    internal uid tag back off, applies that choice's "set" commands (if any)
+    to resolved_vars, and returns the clean output text -- still unresolved,
+    ready for resolve_wildcards()/evaluate_prompt_core().
+    """
+    if picked.startswith("__uid_"):
+        uid_parts = picked.split(":", 1)
+        if len(uid_parts) == 2:
+            uid_key = f"{uid_parts[0]}:{uid_parts[1]}"
+            if uid_key in choice_metadata:
+                _apply_set_commands(choice_metadata[uid_key], resolved_vars)
+            picked = uid_parts[1]
+    return picked
 
 def _resolve_variable_definition(var_name: str,
                                   definition,
@@ -284,33 +347,7 @@ def _resolve_variable_definition(var_name: str,
         quantity_expr = str(definition.get("quantity", "1"))
 
         # --- 1. EVALUATE CONDITIONS AND BIND METADATA ---
-        valid_choices = []
-        choice_metadata = {}
-        
-        for i, c in enumerate(raw_choices):
-            if isinstance(c, dict):
-                cond = c.get("if")
-                if cond and not _evaluate_condition(cond, resolved_vars):
-                    continue # Skip choice if condition fails
-                    
-                out_str = str(c.get("output", ""))
-                chance = c.get("chance", c.get("weight"))
-                
-                # Use a unique identifier to preserve "set" commands through the string parser
-                uid_str = f"__uid_{i}__:{out_str}"
-                
-                if chance is not None:
-                    valid_choices.append(f"{uid_str}%{chance}%")
-                else:
-                    valid_choices.append(uid_str)
-                    
-                if "set" in c:
-                    choice_metadata[uid_str] = c["set"]
-            else:
-                valid_choices.append(str(c))
-        # ------------------------------------------------
-
-        items, weights = _parse_weighted_options(valid_choices)
+        items, weights, choice_metadata = _build_choice_pool(raw_choices, resolved_vars)
         if not items:
             return
 
@@ -326,29 +363,18 @@ def _resolve_variable_definition(var_name: str,
             "remain_items": list(items), "remain_weights": list(weights),
         }
         for _ in range(quantity):
-            picked = _deck_draw(deck, var_rng.next_rng(), allow_overflow=True)
-            if picked is None:
-                break
-                
-            # --- 2. EXTRACT METADATA AND APPLY SET COMMANDS ---
-            if picked.startswith("__uid_"):
-                # Split only on the first colon to extract the prefix
-                uid_parts = picked.split(":", 1)
-                if len(uid_parts) == 2:
-                    uid_key = f"{uid_parts[0]}:{uid_parts[1]}"
-                    if uid_key in choice_metadata:
-                        _apply_set_commands(choice_metadata[uid_key], resolved_vars)
-                    
-                    # Strip the identifier before it hits bracket resolution
-                    picked = uid_parts[1]
-            # --------------------------------------------------
+                picked = _deck_draw(deck, var_rng.next_rng(), allow_overflow=True)
+                if picked is None:
+                    break
 
-            resolved = resolve_wildcards(
-                picked, var_rng, wildcard_dir,
-                _resolved_vars=resolved_vars,
-                bracket_ctx=None, bracket_overflow=True
-            )
-            _store(resolved)
+                picked = _extract_and_apply_picked(picked, choice_metadata, resolved_vars)
+
+                resolved = resolve_wildcards(
+                    picked, var_rng, wildcard_dir,
+                    _resolved_vars=resolved_vars,
+                    bracket_ctx=None, bracket_overflow=True
+                )
+                _store(resolved)
     else:
         resolved = resolve_wildcards(
             str(definition), var_rng, wildcard_dir,
@@ -425,6 +451,25 @@ def _apply_set_commands(set_data, resolved_vars: dict) -> None:
                 resolved_vars[k_str] = {"__set": str(v)}
 
 
+def pick_generate_entry(raw_generate: list, rng, wildcard_dir: str, resolved_vars: dict) -> str:
+    """
+    Weighted-picks ONE entry from a "generate" array and returns its raw
+    (still-unresolved) output text, applying that entry's "set" commands as
+    a side effect on resolved_vars first.
+
+    `rng` is a plain random.Random (matching _weighted_index), not a
+    SeededRandom -- pass rng.next_rng() from your SeededRandom.
+
+    Returns "" if nothing in the pool survives its "if" condition.
+    """
+    from .generator import _weighted_index
+
+    items, weights, choice_metadata = _build_choice_pool(raw_generate, resolved_vars)
+    if not items:
+        return ""
+
+    idx = _weighted_index(weights, rng)
+    return _extract_and_apply_picked(items[idx], choice_metadata, resolved_vars)
 
 def evaluate_json_payload(payload: dict | str,
                            base_seed: int,
@@ -482,13 +527,20 @@ def evaluate_json_payload(payload: dict | str,
             lora_parts.append(resolved)
     lora_string = " ".join(lora_parts)
 
-    # 3. generate
+    # 3. generate -- batch mode: every entry whose "if" condition passes
+    # produces its own prompt (unlike pick_generate_entry's single weighted
+    # pick, used for __name__-style wildcard calls). "chance" is intentionally
+    # not used as an inclusion probability here.
     prompts = []
     for template in (payload.get("generate") or []):
-
         if isinstance(template, dict):
+            cond = template.get("if")
+            if cond and not _evaluate_condition(cond, resolved_vars):
+                continue
+            if "set" in template:
+                _apply_set_commands(template["set"], resolved_vars)
             template = template.get("output", "")
-            
+
         prompts.append(
             evaluate_prompt_core(
                 str(template), rng, wildcard_dir,

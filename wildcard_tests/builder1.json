@@ -19,13 +19,15 @@
         },
         "adj": {
             "label": "#f347e2",
-            "quantity": 1,
+            "quantity": "1",
             "choices": [
                 {
-                    "output": "{beauty|gorgeous}"
+                    "output": "{beauty|gorgeous}",
+                    "chance": 2
                 },
                 {
                     "output": "{lovely|incredible}",
+                    "chance": 2,
                     "if": "color == red"
                 }
             ]
@@ -35,6 +37,20 @@
         "<loraguy>"
     ],
     "generate": [
-        "__^color__"
+        {
+            "output": "__^color__",
+            "chance": 5
+        },
+        {
+            "output": "lovely test! must be lovely",
+            "chance": 8,
+            "if": "adj == lovely",
+            "set": {
+                "flag": "lovely flag test"
+            }
+        },
+        {
+            "output": ""
+        }
     ]
 }
