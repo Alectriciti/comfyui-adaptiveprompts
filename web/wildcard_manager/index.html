@@ -12,7 +12,9 @@
 <body>
     <div id="ap-root">
         <header id="ap-topbar">
+            <img class="ap-topbar-logo" src="/adaptiveprompts/assets/banner4.png" alt="">
             <span class="ap-logo">💡 Wildcard Manager</span>
+
             <button id="ap-editor-toggle" class="ap-icon-btn" title="Toggle Editor Panel">
                 <i class="pi pi-angle-double-left"></i>
             </button>
@@ -107,6 +109,25 @@
             <div class="ap-modal-footer">
                 <button id="ap-new-file-cancel">Cancel</button>
                 <button id="ap-new-file-confirm" class="ap-btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+    <!-- Rename File Modal -->
+    <div id="ap-rename-file-modal" class="hidden">
+        <div class="ap-modal-backdrop" id="ap-rename-file-backdrop"></div>
+        <div class="ap-modal-content">
+            <h3>Rename File</h3>
+            <div class="ap-modal-body">
+                <div class="ap-rename-path-row">
+                    <span id="ap-rename-file-prefix" class="ap-rename-prefix"></span>
+                    <input type="text" id="ap-rename-file-input" placeholder="filename" autocomplete="off"
+                        spellcheck="false" />
+                </div>
+                <div id="ap-rename-file-preview" class="ap-preview-text"></div>
+            </div>
+            <div class="ap-modal-footer">
+                <button id="ap-rename-file-cancel">Cancel</button>
+                <button id="ap-rename-file-confirm" class="ap-btn-primary">Rename</button>
             </div>
         </div>
     </div>

@@ -31,6 +31,7 @@ body {
 
 /* topbar */
 #ap-topbar {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -39,10 +40,31 @@ body {
     background: var(--ap-panel);
     border-bottom: 1px solid var(--ap-border);
     flex-shrink: 0;
+    overflow: hidden;
+}
+
+.ap-topbar-logo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: auto;
+
+    opacity: 1;
+    pointer-events: none;
+
+    /* Fade the logo toward the right */
+    mask-image: linear-gradient(to right,
+            black 0%,
+            transparent 100%);
 }
 
 .ap-logo {
+    position: relative;
+    z-index: 1;
+    font-family: Arial, Helvetica, sans-serif;
     font-weight: 600;
+    color: white
 }
 
 .ap-icon-btn {
@@ -243,19 +265,19 @@ body {
     justify-content: space-between;
     cursor: pointer;
     /* Change 4 indicator */
-    transition: transform 0.1s ease, border-color 0.1s ease;
+    transition: transform 0.05s ease, border-color 0.1s ease;
 }
 
 .ap-card:hover {
+    border: 2px solid var(--ap-border);
     border-color: var(--ap-accent);
-    transform: translateY(-2px);
 }
 
 .ap-card-toolbar {
     display: flex;
     gap: 4px;
     padding: 6px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.25), transparent);
 }
 
 .ap-card-toolbar button {
@@ -518,7 +540,8 @@ body {
 }
 
 /* New File Modal */
-#ap-new-file-modal {
+#ap-new-file-modal,
+#ap-rename-file-modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -530,7 +553,8 @@ body {
     justify-content: center;
 }
 
-#ap-new-file-modal.hidden {
+#ap-new-file-modal.hidden,
+#ap-rename-file-modal.hidden {
     display: none;
 }
 
@@ -642,4 +666,35 @@ body {
 
 .ap-modal-footer button:hover {
     filter: brightness(1.2);
+}
+
+.ap-rename-path-row {
+    display: flex;
+    align-items: center;
+    background: #141414;
+    border: 1px solid var(--ap-border);
+    border-radius: 4px;
+    padding-left: 10px;
+}
+
+.ap-rename-prefix {
+    color: var(--ap-text-dim);
+    font-family: monospace;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+#ap-rename-file-input {
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    color: var(--ap-text);
+    font-family: monospace;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+#ap-rename-file-input:focus {
+    outline: none;
 }
