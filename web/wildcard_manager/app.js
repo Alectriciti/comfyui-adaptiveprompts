@@ -359,10 +359,10 @@ function renderFileGrid(files) {
         }
 
         const typeClass = file.type === "json" ? "ap-badge-json" : "ap-badge-txt";
+        //                <button data-action="edit" title="Edit"><i class="pi pi-pencil"></i></button>
         card.innerHTML = `
             <div class="ap-card-toolbar">
                 <button data-action="preview" title="Add Preview"><i class="pi pi-image"></i></button>
-                <button data-action="edit" title="Edit"><i class="pi pi-pencil"></i></button>
                 <button data-action="copy" title="Copy wildcard reference"><i class="pi pi-copy"></i></button>
                 <button data-action="generate" title="Generate"><i class="pi pi-bolt"></i></button>
             </div>
@@ -373,7 +373,7 @@ function renderFileGrid(files) {
             </div>
         `;
 
-        card.querySelector('[data-action="edit"]').onclick = () => openEditor(file);
+        //card.querySelector('[data-action="edit"]').onclick = () => openEditor(file);
         card.querySelector('[data-action="generate"]').onclick = () => quickGenerate(file);
         card.querySelector('[data-action="copy"]').onclick = () => copyWildcardRef(file);
 
@@ -520,6 +520,22 @@ function showFileContextMenu(e, file) {
     editBtn.innerHTML = "<i class='pi pi-pencil'></i> Edit";
     editBtn.onclick = () => { hideContextMenu(); openEditor(file); };
     menu.appendChild(editBtn);
+
+    const previewBtn = document.createElement("button");
+    previewBtn.innerHTML = "<i class='pi pi-image'></i> Add Preview";
+    previewBtn.onclick = () => {
+        hideContextMenu();
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/png";
+        input.onchange = () => {
+            if (input.files && input.files.length > 0) {
+                uploadPreview(file, input.files[0]);
+            }
+        };
+        input.click();
+    };
+    menu.appendChild(previewBtn);
 
     const divider = document.createElement("hr");
     divider.style.borderColor = "var(--ap-border)";

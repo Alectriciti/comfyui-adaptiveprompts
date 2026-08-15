@@ -275,9 +275,20 @@ body {
 
 .ap-card-toolbar {
     display: flex;
+    justify-content: flex-end;
+    /* Anchors buttons to the top right */
     gap: 4px;
     padding: 6px;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.25), transparent);
+    opacity: 0;
+    /* Hides the toolbar by default */
+    transition: opacity 0.15s ease-in-out;
+    /* Smooth transition */
+}
+
+/* Reveals the toolbar when hovering over the card */
+.ap-card:hover .ap-card-toolbar {
+    opacity: 1;
 }
 
 .ap-card-toolbar button {
