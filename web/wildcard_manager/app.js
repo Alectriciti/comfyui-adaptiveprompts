@@ -2,6 +2,7 @@ const API = "/adaptiveprompts/api";
 const RECENTS_SENTINEL = "__recents__";
 const RECENTS_KEY = "ap_recent_files";
 const RECENTS_MAX = 30;
+let originalEditorContent = "";
 
 const state = {
     folderTree: [],
@@ -474,25 +475,32 @@ async function performOpenEditor(file) {
     try {
         const data = await apiGet(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
         state.activeFile = file;
-        state.lastSavedContent = data.content; // Log the clean state
 
         document.querySelectorAll('.ap-card').forEach(c => c.classList.remove('active-editing'));
         const activeCard = document.querySelector(`.ap-card[title="${file.folder}/${file.relPath}.${file.type}"]`);
         if (activeCard) activeCard.classList.add('active-editing');
 
         document.getElementById("ap-editor-filename").textContent = `${file.folder}/${file.relPath}.${file.type}`;
-        document.getElementById("ap-editor-textarea").value = data.content;
+
+        const textarea = document.getElementById("ap-editor-textarea");
+        textarea.value = data.content;
 
         const modeToggle = document.getElementById('ap-editor-mode-toggle');
         if (file.type === "json") {
             modeToggle.classList.remove('hidden');
             JSONBuilder.open(data.content);
+
+            // NEW: Force sync immediately to apply your standard formatting
+            JSONBuilder.syncToRaw();
         } else {
             modeToggle.classList.add('hidden');
             JSONBuilder.close();
             document.getElementById('ap-editor-content-area').className = 'ap-content-raw';
-            JSONBuilder.updateRawHighlighting(data.content); // <--- ADD THIS: Populates the backdrop for text files immediately
+            JSONBuilder.updateRawHighlighting(data.content);
         }
+
+        // NEW: Take the snapshot AFTER the formatting finishes, ensuring a 1:1 match
+        state.lastSavedContent = textarea.value;
 
         setEditorOpen(true);
         recordRecent(file);
