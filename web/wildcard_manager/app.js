@@ -73,7 +73,7 @@ function setEditorOpen(open) {
     if (open) {
         panel.classList.remove("collapsed");
         resizer.classList.remove("hidden");
-        if (!panel.style.width) panel.style.width = "420px";
+        if (!panel.style.width) panel.style.width = "1280px";
     } else {
         panel.classList.add("collapsed");
         resizer.classList.add("hidden");

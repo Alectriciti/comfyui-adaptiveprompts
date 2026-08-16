@@ -373,7 +373,7 @@ body {
 
 /* right: editor panel */
 #ap-editor-panel {
-    width: 420px;
+    width: 1280px;
     flex-shrink: 0;
     background: var(--ap-panel);
     border-left: 1px solid var(--ap-border);

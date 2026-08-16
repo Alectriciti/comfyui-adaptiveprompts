@@ -451,6 +451,13 @@ const JSONBuilder = {
             ? `<span class="ap-choice-extra-badge" title="Has additional unrecognized data preserved but not editable here yet"><i class="pi pi-info-circle"></i></span>`
             : '';
 
+        // NEW: Create the If Container dynamically as its own node
+        const ifContainer = document.createElement('label');
+        ifContainer.className = 'ap-if-container';
+        ifContainer.innerHTML = `If: <input type="text" class="ap-choice-if" value="${choice.if}" placeholder="cond == val" />`;
+        ifContainer.querySelector('.ap-choice-if').oninput = (e) => { choice.if = e.target.value; this.syncToRaw(); };
+
+        // Note: The If input is removed from this HTML block
         row.innerHTML = `
             <button class="ap-icon-btn small ap-choice-set-toggle ${hasSet ? 'has-set' : ''}" title="Set variables when this choice is picked">
                 <i class="pi pi-chevron-right"></i>
@@ -461,30 +468,45 @@ const JSONBuilder = {
             </div>
             <input type="text" class="ap-choice-out" value="${choice.output}" placeholder="Output text..." />
             <label>Chance: <input type="number" step="0.25" class="ap-choice-chance" value="${choice.chance}" placeholder="1" /></label>
-            <label>If: <input type="text" class="ap-choice-if" value="${choice.if}" placeholder="cond == val" /></label>
             ${extraBadge}
-            <button class="ap-icon-btn small danger" title="Remove"><i class="pi pi-minus"></i></button>
+            <button class="ap-icon-btn small danger ap-choice-remove" title="Remove"><i class="pi pi-minus"></i></button>
         `;
+
+        // Insert the ifContainer directly after the Chance label
+        const chanceLabel = row.querySelector('.ap-choice-chance').parentNode;
+        chanceLabel.after(ifContainer);
 
         row.querySelector('.ap-choice-out').oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
         row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
-        row.querySelector('.ap-choice-if').oninput = (e) => { choice.if = e.target.value; this.syncToRaw(); };
         row.querySelector('.ap-choice-up').onclick = () => { this.moveArrayItem(choicesArray, index, -1); this.update(); };
         row.querySelector('.ap-choice-down').onclick = () => { this.moveArrayItem(choicesArray, index, 1); this.update(); };
-        row.querySelector('button[title="Remove"]').onclick = () => { choicesArray.splice(index, 1); this.update(); };
+        row.querySelector('.ap-choice-remove').onclick = () => { choicesArray.splice(index, 1); this.update(); };
 
         const setPanel = this.createSetPanel(choice);
         const isExpanded = this._expandedSetPanels.has(choice);
-        if (isExpanded) setPanel.classList.add('open');
+
+        // If it renders already expanded, pop it into the panel
+        if (isExpanded) {
+            setPanel.classList.add('open');
+            setPanel.insertBefore(ifContainer, setPanel.firstChild);
+        }
 
         const toggleBtn = row.querySelector('.ap-choice-set-toggle');
         const toggleIcon = toggleBtn.querySelector('i');
         toggleIcon.className = `pi ${isExpanded ? 'pi-chevron-down' : 'pi-chevron-right'}`;
+
         toggleBtn.onclick = () => {
             const nowOpen = setPanel.classList.toggle('open');
             toggleIcon.className = `pi ${nowOpen ? 'pi-chevron-down' : 'pi-chevron-right'}`;
-            if (nowOpen) this._expandedSetPanels.add(choice);
-            else this._expandedSetPanels.delete(choice);
+            if (nowOpen) {
+                this._expandedSetPanels.add(choice);
+                // Move ifContainer to the very top of the set panel
+                setPanel.insertBefore(ifContainer, setPanel.firstChild);
+            } else {
+                this._expandedSetPanels.delete(choice);
+                // Move ifContainer back to the row
+                chanceLabel.after(ifContainer);
+            }
         };
 
         wrapper.appendChild(row);
@@ -497,7 +519,14 @@ const JSONBuilder = {
         panel.className = 'ap-set-panel';
 
         const rebuild = () => {
+            // Safely detach the ifContainer if it was moved here
+            const ifContainer = panel.querySelector('.ap-if-container');
+            if (ifContainer) panel.removeChild(ifContainer);
+
             panel.innerHTML = '';
+
+            // Pop it right back at the top before rendering the rest
+            if (ifContainer) panel.appendChild(ifContainer);
 
             const header = document.createElement('div');
             header.className = 'ap-set-panel-header';

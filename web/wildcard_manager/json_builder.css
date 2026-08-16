@@ -58,6 +58,19 @@
     flex: 1;
 }
 
+#ap-editor-textarea::selection {
+    color: transparent;
+    background: rgba(59, 193, 255, 0.3);
+}
+
+.ap-if-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--ap-text-dim);
+}
+
 .ap-content-builder #ap-json-builder {
     display: flex;
     flex: 1;
