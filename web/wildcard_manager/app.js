@@ -250,6 +250,14 @@ function showFolderContextMenu(e, categoryLabel, subPath, depth) {
     const menu = document.getElementById("ap-context-menu");
     menu.innerHTML = "";
 
+    const revealBtn = document.createElement("button");
+    revealBtn.innerHTML = "<i class='pi pi-external-link'></i> Reveal in OS";
+    revealBtn.onclick = () => {
+        hideContextMenu();
+        revealInExplorer(categoryLabel, subPath);
+    };
+    menu.appendChild(revealBtn);
+
     const addBtn = document.createElement("button");
     addBtn.innerHTML = "<i class='pi pi-folder-plus'></i> New Folder…";
     addBtn.onclick = async () => {
@@ -372,6 +380,7 @@ function renderFileGrid(files) {
         card.innerHTML = `
             <div class="ap-card-toolbar">
                 <button data-action="preview" title="Add Preview"><i class="pi pi-image"></i></button>
+                <button data-action="reveal" title="Reveal in OS"><i class="pi pi-external-link"></i></button>
                 <button data-action="copy" title="Copy wildcard reference"><i class="pi pi-copy"></i></button>
                 <button data-action="generate" title="Generate"><i class="pi pi-bolt"></i></button>
             </div>
@@ -385,7 +394,7 @@ function renderFileGrid(files) {
         //card.querySelector('[data-action="edit"]').onclick = () => openEditor(file);
         card.querySelector('[data-action="generate"]').onclick = () => quickGenerate(file);
         card.querySelector('[data-action="copy"]').onclick = () => copyWildcardRef(file);
-
+        card.querySelector('[data-action="reveal"]').onclick = () => revealInExplorer(file.folder, file.relPath, file.type);
         const fileInput = card.querySelector(".ap-preview-input");
         card.querySelector('[data-action="preview"]').onclick = () => fileInput.click();
         fileInput.onchange = () => uploadPreview(file, fileInput.files[0]);
@@ -577,6 +586,12 @@ function showFileContextMenu(e, file) {
     editBtn.innerHTML = "<i class='pi pi-pencil'></i> Edit";
     editBtn.onclick = () => { hideContextMenu(); openEditor(file); };
     menu.appendChild(editBtn);
+
+    // Add this right after the editBtn is appended
+    const revealBtn = document.createElement("button");
+    revealBtn.innerHTML = "<i class='pi pi-external-link'></i> Reveal in OS";
+    revealBtn.onclick = () => { hideContextMenu(); revealInExplorer(file.folder, file.relPath, file.type); };
+    menu.appendChild(revealBtn);
 
     const previewBtn = document.createElement("button");
     previewBtn.innerHTML = "<i class='pi pi-image'></i> Add Preview";
@@ -857,3 +872,13 @@ document.addEventListener('DOMContentLoaded', () => {
     RenameFileModal.init();
     UnsavedModal.init(); // <--- ADD THIS
 });
+
+
+async function revealInExplorer(folder, path, type = "") {
+    try {
+        await apiSend("/reveal", { folder, path, type });
+        log(`Revealed in OS Explorer`);
+    } catch (e) {
+        log(`Failed to reveal: ${e.message}`, true);
+    }
+}

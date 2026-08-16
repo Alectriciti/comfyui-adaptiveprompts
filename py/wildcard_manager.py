@@ -7,6 +7,8 @@ import os
 import random
 from aiohttp import web
 from server import PromptServer
+import subprocess
+import sys
 
 from .generator import evaluate_prompt_core, SeededRandom
 from .wildcard_utils import build_category_options, clear_category_cache, _default_package_root
@@ -363,5 +365,53 @@ async def rename_folder(request):
         return web.json_response({"error": "Unknown folder"}, status=404)
     except ValueError as e:
         return web.json_response({"error": str(e)}, status=400)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+
+def reveal_in_os(path: str):
+    """Cross-platform function to reveal a file or folder in the native OS file explorer."""
+    try:
+        if sys.platform == "win32":
+            # Windows: Opens Explorer with the item selected
+            subprocess.run(['explorer', '/select,', os.path.normpath(path)])
+        elif sys.platform == "darwin":
+            # macOS: Opens Finder with the item selected
+            subprocess.run(['open', '-R', path])
+        else:
+            # Linux/Unix: Falls back to opening the parent directory
+            target = path if os.path.isdir(path) else os.path.dirname(path)
+            subprocess.run(['xdg-open', target])
+    except Exception as e:
+        print(f"Failed to reveal in OS: {e}")
+
+@PromptServer.instance.routes.post("/adaptiveprompts/api/reveal")
+async def reveal_item(request):
+    try:
+        data = await request.json()
+        label = data["folder"]
+        sub_path = data.get("path", "")
+        file_type = data.get("type", "")
+
+        base_dir = _resolve_folder(label)
+
+        if file_type:
+            # It's a file
+            full_path = _safe_join(base_dir, f"{sub_path}.{file_type}")
+        else:
+            # It's a folder
+            if sub_path == "":
+                full_path = base_dir
+            else:
+                full_path = _folder_dir_for(label, sub_path)
+
+        if not os.path.exists(full_path):
+            return web.json_response({"error": "Path not found"}, status=404)
+
+        reveal_in_os(full_path)
+        return web.json_response({"status": "success"})
+    except KeyError as e:
+        return web.json_response({"error": f"Missing/unknown field: {e}"}, status=400)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
