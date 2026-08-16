@@ -188,3 +188,4 @@ cython_debug/
 /wildcards_yaml
 /wildcards_sec
 config.json
+config_wildcard_manager.json
