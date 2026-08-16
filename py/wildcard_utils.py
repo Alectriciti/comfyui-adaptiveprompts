@@ -556,3 +556,51 @@ def evaluate_json_payload(payload: dict | str,
         "prompts_with_loras": prompts_with_loras,
         "context": resolved_vars,
     }
+
+def bfs_find_file(search_root: str, target_name: str, validator=None) -> str | None:
+    """
+    Searches downwards from search_root using Breadth-First Search.
+    Finds the first occurrence of '{target_name}.txt' or '{target_name}.json'. 
+    Does not support globs (*) to avoid ambiguous tree resolution.
+    """
+    if not search_root or not os.path.isdir(search_root):
+        return None
+        
+    if "*" in target_name:
+        return None # BFS with globs is ambiguous and disabled
+
+    # .json takes precedence over .txt when a directory has both.
+    target_files = (f"{target_name}.json", f"{target_name}.txt")
+    queue = collections.deque([search_root])
+    visited = set()
+
+    while queue:
+        current = queue.popleft()
+        try:
+            current_real = os.path.realpath(current)
+        except OSError:
+            continue
+            
+        if current_real in visited:
+            continue
+        visited.add(current_real)
+
+        for target_file in target_files:
+            candidate = os.path.join(current, target_file)
+            if os.path.isfile(candidate):
+                # NEW: Allow the caller to reject a valid filepath
+                if validator and not validator(candidate):
+                    continue
+                return candidate
+
+        try:
+            entries = sorted(os.listdir(current))
+        except OSError:
+            continue
+            
+        for entry in entries:
+            full = os.path.join(current, entry)
+            if os.path.isdir(full):
+                queue.append(full)
+                
+    return None

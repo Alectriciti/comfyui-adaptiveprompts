@@ -348,6 +348,20 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
     else:
         source_dir = primary_dir
 
+    # NEW: Validation function to force .txt fallbacks for specific .json conditions
+    def _is_valid_candidate(filepath: str) -> bool:
+        if filepath.lower().endswith(".json"):
+            # 1. Prevent a JSON file from calling itself to force a fallback
+            if source_file and os.path.normpath(filepath) == os.path.normpath(source_file):
+                return False
+            
+            # 2. Check if the JSON payload explicitly has an empty "generate" array
+            data = _load_json_file(filepath)
+            if isinstance(data, dict) and "generate" in data:
+                if not data["generate"]:
+                    return False
+        return True
+
     # 1. Parse Explicit Prefixes
     is_explicit = False
     prefix_type = None
@@ -417,7 +431,7 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
         .json takes precedence over .txt when both exist for the same name.
         """
         json_path = os.path.normpath(os.path.join(base, f"{target}.json"))
-        if os.path.isfile(json_path):
+        if os.path.isfile(json_path) and _is_valid_candidate(json_path):
             return json_path
         txt_path = os.path.normpath(os.path.join(base, f"{target}.txt"))
         return txt_path if os.path.isfile(txt_path) else None
@@ -439,8 +453,9 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
             # Non-glob standard explicit check
             match = _check_direct(search_dir, name)
             if match: return match
-            return bfs_find_file(search_dir, name)
-
+            # Pass validator
+            return bfs_find_file(search_dir, name, validator=_is_valid_candidate)
+        
     # --- 3. IMPLICIT RESOLUTION ---
     resolution_strategy = get_config("resolution_strategy")
 
@@ -466,7 +481,7 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
 
         # Step 2: BFS downwards from relative directory
         if source_dir != primary_dir:
-            match = bfs_find_file(source_dir, name)
+            match = bfs_find_file(source_dir, name, validator=_is_valid_candidate)
             if match: return match
 
         # Step 3: Immediate Root directory (No BFS fallback check)
@@ -475,7 +490,7 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
 
         # Step 4: Aggressive Mode (Full BFS from root)
         if resolution_strategy == "Aggressive" or source_file is None:
-            match = bfs_find_file(primary_dir, name)
+            match = bfs_find_file(primary_dir, name, validator=_is_valid_candidate)
             if match: return match
 
         return None
