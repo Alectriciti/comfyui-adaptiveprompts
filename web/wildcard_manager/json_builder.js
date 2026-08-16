@@ -2,7 +2,7 @@
 
 const JSONBuilder = {
     mode: 'raw', // 'raw', 'builder', 'hybrid'
-    data: { variables: {}, loras: [], generate: [] },
+    data: { description: "", notes: "", variables: {}, loras: [], generate: [] },
     _expandedSetPanels: new WeakSet(),
 
     init() {
@@ -87,17 +87,23 @@ const JSONBuilder = {
     },
 
     syncToRaw() {
-        const cleanData = {
-            variables: {},
-            loras: [...this.data.loras],
-            generate: this.data.generate.map(c => this._cleanChoiceEntry(c)),
-        };
+        const cleanData = {};
+
+        // Add metadata to the top of the JSON if they exist
+        if (this.data.description) cleanData.description = this.data.description;
+        if (this.data.notes) cleanData.notes = this.data.notes;
+
+        cleanData.variables = {};
+        cleanData.loras = [...this.data.loras];
+        cleanData.generate = this.data.generate.map(c => this._cleanChoiceEntry(c));
+
         for (const [key, variable] of Object.entries(this.data.variables)) {
             cleanData.variables[key] = this._cleanVariable(variable);
         }
+
         const newJson = JSON.stringify(cleanData, null, 4);
         document.getElementById('ap-editor-textarea').value = newJson;
-        this.updateRawHighlighting(newJson); // Highlight newly synced raw text
+        this.updateRawHighlighting(newJson);
     },
 
     // "set" is a first-class editable field now, not swept into _extra.
@@ -167,7 +173,11 @@ const JSONBuilder = {
     },
 
     normalize(parsed) {
-        this.data = { variables: {}, loras: [], generate: [] };
+        this.data = { description: "", notes: "", variables: {}, loras: [], generate: [] };
+
+        if (parsed.description) this.data.description = parsed.description;
+        if (parsed.notes) this.data.notes = parsed.notes;
+
         if (parsed.variables) {
             for (const [k, v] of Object.entries(parsed.variables)) {
                 this.data.variables[k] = this._normalizeVariableEntry(v);
@@ -251,6 +261,9 @@ const JSONBuilder = {
     render() {
         const container = document.getElementById('ap-json-builder');
         container.innerHTML = '';
+
+        // Render Metadata section first
+        container.appendChild(this.createMetadataCard());
 
         container.appendChild(this.createSection('variables', 'Variables', () => {
             const newKey = prompt("Enter new variable name:");
@@ -590,6 +603,46 @@ const JSONBuilder = {
 
         rebuild();
         return panel;
+    },
+
+    createMetadataCard() {
+        const card = document.createElement('div');
+        card.className = 'ap-builder-meta-card';
+
+        card.innerHTML = `
+            <div class="ap-meta-row">
+                <label>Description (Shows on card)</label>
+                <input type="text" class="ap-desc-input" placeholder="A brief summary of what this wildcard does..." value="${this.data.description.replace(/"/g, '&quot;')}" />
+            </div>
+            <div class="ap-meta-row">
+                <label>Notes (Internal reference)</label>
+                <textarea class="ap-notes-input" placeholder="Paste reference lists, reminders, or complex logic explanations here..." spellcheck="false">${this.data.notes}</textarea>
+            </div>
+        `;
+
+        // Handle Description input
+        card.querySelector('.ap-desc-input').oninput = (e) => {
+            this.data.description = e.target.value;
+            this.syncToRaw();
+        };
+
+        // Handle Notes input with auto-resize
+        const notesInput = card.querySelector('.ap-notes-input');
+        const resizeNotes = () => {
+            notesInput.style.height = 'auto'; // Reset to auto to shrink if text was deleted
+            notesInput.style.height = (notesInput.scrollHeight) + 'px'; // Expand to fit scrollHeight
+        };
+
+        notesInput.oninput = (e) => {
+            this.data.notes = e.target.value;
+            this.syncToRaw();
+            resizeNotes();
+        };
+
+        // Trigger resize on initial render so it fits loaded text without scrolling
+        setTimeout(resizeNotes, 0);
+
+        return card;
     },
 };
 

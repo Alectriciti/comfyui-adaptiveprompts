@@ -15,9 +15,16 @@
             <img class="ap-topbar-logo" src="/adaptiveprompts/assets/banner4.png" alt="">
             <span class="ap-logo">💡 Wildcard Manager</span>
 
-            <button id="ap-editor-toggle" class="ap-icon-btn" title="Toggle Editor Panel">
-                <i class="pi pi-angle-double-left"></i>
-            </button>
+            <!-- NEW: Grouped Top Right Actions -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="ap-btn-settings" class="ap-icon-btn" title="Settings"><i class="pi pi-cog"></i></button>
+                <button id="ap-btn-help" class="ap-icon-btn" title="Help"><i class="pi pi-question-circle"></i></button>
+                <button id="ap-btn-support" class="ap-icon-btn" title="Support"><i class="pi pi-heart"></i></button>
+
+                <button id="ap-editor-toggle" class="ap-icon-btn" title="Toggle Editor Panel">
+                    <i class="pi pi-angle-double-left"></i>
+                </button>
+            </div>
         </header>
 
         <div id="ap-body">
@@ -152,6 +159,103 @@
             </div>
         </div>
     </div>
+    <!-- Settings Modal -->
+    <div id="ap-modal-settings" class="ap-large-modal-overlay">
+        <div class="ap-large-modal-window">
+            <div class="ap-large-modal-header">
+                <h2><i class="pi pi-cog"></i> Settings</h2>
+                <button class="ap-large-modal-close"><i class="pi pi-times"></i></button>
+            </div>
+            <div class="ap-large-modal-body ap-settings-layout">
+                <div class="ap-settings-sidebar">
+                    <ul>
+                        <li class="active">Appearance</li>
+                        <!-- Future categories here -->
+                    </ul>
+                </div>
+                <div class="ap-settings-main">
+                    <div class="ap-setting-row">
+                        <div class="ap-setting-label">
+                            Card Size
+                            <i class="pi pi-question-circle ap-setting-help"
+                                title="Changes the vertical aspect ratio of the wildcard cards. Width remains responsive."></i>
+                        </div>
+                        <select id="ap-setting-aspect">
+                            <option value="portrait">Portrait (2:3)</option>
+                            <option value="square">Square (1:1)</option>
+                            <option value="landscape">Landscape (3:2)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="ap-modal-help" class="ap-large-modal-overlay">
+        <div class="ap-large-modal-window">
+            <div class="ap-large-modal-header">
+                <h2><i class="pi pi-question-circle"></i> Help & Documentation</h2>
+                <button class="ap-large-modal-close"><i class="pi pi-times"></i></button>
+            </div>
+            <div class="ap-large-modal-body" style="padding: 24px; line-height: 1.6;">
+                <h3>Welcome to the Adaptive Prompts Wildcard Manager</h3>
+                <p>This editor provides a full environment to organize, test, and develop your dynamic prompt datasets.
+                </p>
+                <ul>
+                    <li><strong>Folders:</strong> All folders map to directories prefixed with <code>wildcards_</code>
+                        in your custom node folder. Right-click folders to manage them.</li>
+                    <li><strong>File Types:</strong> Use <code>.txt</code> for simple one-per-line lists, or
+                        <code>.json</code> to access the advanced Adaptive Prompts builder (which allows defining
+                        variables and LoRAs).
+                    </li>
+                    <li><strong>Syntax:</strong> Reference files in your workflow text fields using the syntax
+                        <code>__folderName/fileName__</code>.
+                    </li>
+                    <li><strong>Quick Testing:</strong> Click the lightning bolt (<i class="pi pi-bolt"></i>) on any
+                        card or in the editor to simulate a generation in the console.</li>
+                </ul>
+                <p><em>More comprehensive documentation coming soon...</em></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Support Modal -->
+    <div id="ap-modal-support" class="ap-large-modal-overlay">
+        <div class="ap-large-modal-window">
+            <div class="ap-large-modal-header">
+                <h2><i class="pi pi-heart" style="color: var(--ap-danger);"></i> Support</h2>
+                <button class="ap-large-modal-close"><i class="pi pi-times"></i></button>
+            </div>
+            <div class="ap-large-modal-body" style="padding: 24px; text-align: center; line-height: 1.6;">
+                <p>Check out the Github Repository here:<br>
+                    <a href="https://github.com/Alectriciti/comfyui-adaptiveprompts" target="_blank"
+                        style="color: var(--ap-accent); text-decoration: none; font-weight: bold;">github.com/Alectriciti/comfyui-adaptiveprompts</a>
+                </p>
+                <hr style="border: none; border-top: 1px solid var(--ap-border); margin: 24px 0;">
+                <p>If you enjoy what I'm creating, there are a few ways to show your support. Every little bit helps!
+                </p>
+
+                <div style="display: flex; gap: 16px; justify-content: center; margin: 24px 0;">
+                    <a href="https://www.buymeacoffee.com/alectriciti" target="_blank">
+                        <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black"
+                            alt="Buy Me a Coffee">
+                    </a>
+                    <a href="https://open.spotify.com/artist/1gjzBsWjtl4yBmVYWB8vbc" target="_blank">
+                        <img src="https://img.shields.io/badge/Spotify-1DB954?style=for-the-badge&logo=spotify&logoColor=white"
+                            alt="Alectriciti on Spotify">
+                    </a>
+                </div>
+
+                <p>Created by <strong>Alectriciti</strong> ⚡</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Our new logic files -->
+    <script src="/adaptiveprompts/assets/settings.js"></script>
+    <script src="/adaptiveprompts/assets/help.js"></script>
+    <script src="/adaptiveprompts/assets/support.js"></script>
 </body>
 
 </html>

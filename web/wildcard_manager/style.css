@@ -251,8 +251,24 @@ body {
     padding-bottom: 20px;
 }
 
+#ap-file-grid.aspect-portrait .ap-card {
+    aspect-ratio: 2 / 3;
+    min-height: 220px;
+}
+
+#ap-file-grid.aspect-square .ap-card {
+    aspect-ratio: 1 / 1;
+    min-height: 180px;
+}
+
+#ap-file-grid.aspect-landscape .ap-card {
+    aspect-ratio: 3 / 2;
+    min-height: 140px;
+}
+
 .ap-card {
     position: relative;
+    border-radius: 8px;
     aspect-ratio: 3 / 4;
     min-height: 220px;
     /* Prevents overlap collapse */
@@ -736,4 +752,149 @@ body {
 
 #ap-rename-file-input:focus {
     outline: none;
+}
+
+/* ---------- Large Modals (Settings, Help, Support) ---------- */
+.ap-large-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(5px);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.ap-large-modal-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ap-large-modal-window {
+    background: var(--ap-bg);
+    border: 1px solid var(--ap-border);
+    border-radius: 8px;
+    width: 80vw;
+    height: 80vh;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+    transform: scale(0.97);
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ap-large-modal-overlay.open .ap-large-modal-window {
+    transform: scale(1);
+}
+
+.ap-large-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--ap-border);
+    background: var(--ap-panel);
+    border-radius: 8px 8px 0 0;
+}
+
+.ap-large-modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ap-large-modal-close {
+    background: none;
+    border: none;
+    color: var(--ap-text-dim);
+    font-size: 18px;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.ap-large-modal-close:hover {
+    color: var(--ap-danger);
+}
+
+.ap-large-modal-body {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Settings Specific Layout */
+.ap-settings-layout {
+    display: flex;
+    height: 100%;
+}
+
+.ap-settings-sidebar {
+    width: 220px;
+    border-right: 1px solid var(--ap-border);
+    background: var(--ap-panel);
+    padding: 16px 0;
+}
+
+.ap-settings-sidebar ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.ap-settings-sidebar li {
+    padding: 10px 24px;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--ap-text-dim);
+}
+
+.ap-settings-sidebar li.active {
+    background: rgba(59, 193, 255, 0.1);
+    color: var(--ap-accent);
+    border-right: 3px solid var(--ap-accent);
+}
+
+.ap-settings-main {
+    flex: 1;
+    padding: 32px;
+}
+
+.ap-setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: var(--ap-panel);
+    border: 1px solid var(--ap-border);
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+.ap-setting-label {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ap-setting-help {
+    color: var(--ap-text-dim);
+    cursor: help;
+}
+
+#ap-setting-aspect {
+    background: var(--ap-bg);
+    color: var(--ap-text);
+    border: 1px solid var(--ap-border);
+    padding: 6px 12px;
+    border-radius: 4px;
 }

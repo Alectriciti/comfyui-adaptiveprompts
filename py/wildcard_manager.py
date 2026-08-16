@@ -5,6 +5,7 @@ Backend routes for the standalone /adaptiveprompts page.
 
 import os
 import random
+import json
 from aiohttp import web
 from server import PromptServer
 import subprocess
@@ -15,6 +16,17 @@ from .wildcard_utils import build_category_options, clear_category_cache, _defau
 
 _WEB_DIR = os.path.join(_default_package_root(), "web", "wildcard_manager")
 
+# Add this helper function near your other helpers:
+_MANAGER_CONFIG_PATH = os.path.join(_default_package_root(), "config_wildcard_manager.json")
+
+def _load_manager_config():
+    if os.path.isfile(_MANAGER_CONFIG_PATH):
+        try:
+            with open(_MANAGER_CONFIG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"card_aspect": "portrait"} # default
 
 def _safe_join(base_dir: str, rel_path: str) -> str:
     """
@@ -413,5 +425,23 @@ async def reveal_item(request):
         return web.json_response({"status": "success"})
     except KeyError as e:
         return web.json_response({"error": f"Missing/unknown field: {e}"}, status=400)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+    
+@PromptServer.instance.routes.get("/adaptiveprompts/api/config")
+async def get_manager_config(request):
+    return web.json_response(_load_manager_config())
+
+@PromptServer.instance.routes.post("/adaptiveprompts/api/config")
+async def save_manager_config(request):
+    try:
+        data = await request.json()
+        config = _load_manager_config()
+        config.update(data)
+        with open(_MANAGER_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=4)
+        return web.json_response({"status": "success"})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)

@@ -126,6 +126,50 @@
     flex: 1;
 }
 
+/* Metadata Card */
+.ap-builder-meta-card {
+    background: #1a1a1a;
+    border: 1px solid var(--ap-border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ap-meta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ap-meta-row label {
+    font-size: 11px;
+    color: var(--ap-text-dim);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+#ap-json-builder .ap-builder-meta-card textarea {
+    background: #141414;
+    border: 1px solid var(--ap-border);
+    color: var(--ap-text);
+    padding: 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+    min-height: 28px;
+    overflow-y: hidden;
+    /* Hides scrollbar for auto-resize */
+}
+
+#ap-json-builder .ap-builder-meta-card textarea:focus {
+    outline: none;
+    border-color: var(--ap-accent);
+}
+
 /* Common Inputs */
 #ap-json-builder input {
     background: #141414;
