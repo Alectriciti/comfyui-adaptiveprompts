@@ -69,6 +69,8 @@
     gap: 4px;
     font-size: 10px;
     color: var(--ap-text-dim);
+    flex: 0.75;
+    min-width: 70px;
 }
 
 .ap-content-builder #ap-json-builder {
@@ -441,4 +443,49 @@
 
 .ap-set-value {
     flex: 1.4;
+}
+
+.ap-wide-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    background: transparent;
+    border: 1px dashed var(--ap-accent-2);
+    color: var(--ap-accent-2);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ap-wide-add-btn:hover {
+    background: var(--ap-accent-2);
+    color: #10251b;
+}
+
+.ap-choice-drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    flex-shrink: 0;
+    color: var(--ap-text-dim);
+    cursor: grab;
+}
+
+.ap-choice-drag-handle:hover {
+    color: var(--ap-text);
+}
+
+.ap-choice-row-wrapper.dragging {
+    opacity: 0.4;
+}
+
+.ap-choice-row-wrapper.drag-over {
+    box-shadow: 0 -2px 0 0 var(--ap-accent);
 }

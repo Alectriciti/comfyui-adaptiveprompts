@@ -19,14 +19,20 @@ _WEB_DIR = os.path.join(_default_package_root(), "web", "wildcard_manager")
 # Add this helper function near your other helpers:
 _MANAGER_CONFIG_PATH = os.path.join(_default_package_root(), "config_wildcard_manager.json")
 
+_MANAGER_CONFIG_DEFAULTS = {
+    "card_aspect": "portrait",
+    "default_editor_mode": "last_used",  # "last_used" | "raw" | "hybrid" | "builder"
+}
+
 def _load_manager_config():
+    config = _MANAGER_CONFIG_DEFAULTS.copy()
     if os.path.isfile(_MANAGER_CONFIG_PATH):
         try:
             with open(_MANAGER_CONFIG_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
+                config.update(json.load(f))
         except Exception:
             pass
-    return {"card_aspect": "portrait"} # default
+    return config
 
 def _safe_join(base_dir: str, rel_path: str) -> str:
     """

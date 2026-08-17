@@ -2,21 +2,21 @@ const SettingsManager = {
     modal: document.getElementById('ap-modal-settings'),
     btn: document.getElementById('ap-btn-settings'),
     aspectSelect: document.getElementById('ap-setting-aspect'),
+    defaultModeSelect: document.getElementById('ap-setting-default-mode'),
     grid: document.getElementById('ap-file-grid'),
 
     async init() {
-        // Fetch Initial Config
         try {
             const data = await apiGet("/config");
             const aspect = data.card_aspect || 'portrait';
             this.applyAspect(aspect);
             this.aspectSelect.value = aspect;
+            this.defaultModeSelect.value = data.default_editor_mode || 'last_used';
         } catch (e) {
             console.error("Failed to load settings:", e);
-            this.applyAspect('portrait'); // Fallback
+            this.applyAspect('portrait');
         }
 
-        // Bind UI Events
         this.btn.addEventListener('click', () => this.open());
         this.modal.querySelector('.ap-large-modal-close').addEventListener('click', () => this.close());
         this.modal.addEventListener('click', (e) => {
@@ -27,7 +27,6 @@ const SettingsManager = {
             if (e.key === 'Escape' && this.modal.classList.contains('open')) this.close();
         });
 
-        // Handle Change Event
         this.aspectSelect.addEventListener('change', async (e) => {
             const val = e.target.value;
             this.applyAspect(val);
@@ -37,10 +36,20 @@ const SettingsManager = {
                 log(`Failed to save settings: ${err.message}`, true);
             }
         });
+
+        this.defaultModeSelect.addEventListener('change', async (e) => {
+            const val = e.target.value;
+            try {
+                await apiSend("/config", { default_editor_mode: val });
+                if (typeof JSONBuilder !== 'undefined') JSONBuilder.defaultEditorMode = val;
+                log(`Default editor mode set to "${val}"`);
+            } catch (err) {
+                log(`Failed to save settings: ${err.message}`, true);
+            }
+        });
     },
 
     applyAspect(val) {
-        // Clear all previous aspect classes and apply new one
         this.grid.classList.remove('aspect-portrait', 'aspect-square', 'aspect-landscape');
         this.grid.classList.add(`aspect-${val}`);
     },

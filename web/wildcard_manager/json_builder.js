@@ -1,13 +1,18 @@
 // json_builder.js
 
 const JSONBuilder = {
-    mode: 'raw', // 'raw', 'builder', 'hybrid'
+    mode: 'raw', // what's showing RIGHT NOW; close() force-sets this to 'raw' for txt files
+    lastJsonMode: 'builder', // remembers the last mode used for JSON files specifically -- txt files never touch this
+    defaultEditorMode: 'last_used', // from manager config; updated once the fetch below resolves
     data: { description: "", notes: "", variables: {}, loras: [], generate: [] },
     _expandedSetPanels: new WeakSet(),
 
     init() {
         document.querySelectorAll('.ap-mode-btn').forEach(btn => {
-            btn.onclick = () => this.setMode(btn.dataset.mode);
+            btn.onclick = () => {
+                this.setMode(btn.dataset.mode);
+                this.lastJsonMode = btn.dataset.mode; // an explicit user choice while a JSON file is open
+            };
         });
 
         // Hook textarea scrolling and typing for the raw-mode highlighter
@@ -23,6 +28,12 @@ const JSONBuilder = {
             backdrop.scrollTop = textarea.scrollTop;
             backdrop.scrollLeft = textarea.scrollLeft;
         });
+
+        // Fetched independently here (rather than reading something settings.js
+        // populates) so this doesn't depend on script/init execution order.
+        apiGet("/config")
+            .then(data => { this.defaultEditorMode = data.default_editor_mode || 'last_used'; })
+            .catch(() => { });
     },
 
     // The raw-mode syntax highlighter: colors a variable's key wherever it
@@ -52,11 +63,13 @@ const JSONBuilder = {
     open(jsonString) {
         document.getElementById('ap-editor-mode-toggle').classList.remove('hidden');
         this.syncFromRaw(jsonString);
-        // Re-render in whatever mode was already active instead of forcing
-        // 'builder' every time -- only close() (txt files) forces back to raw.
-        this.setMode(this.mode);
-    },
 
+        const targetMode = this.defaultEditorMode === 'last_used'
+            ? (this.lastJsonMode || 'builder')
+            : this.defaultEditorMode;
+        this.setMode(targetMode);
+        this.lastJsonMode = targetMode;
+    },
     close() {
         document.getElementById('ap-editor-mode-toggle').classList.add('hidden');
         this.setMode('raw');
@@ -283,7 +296,7 @@ const JSONBuilder = {
         container.appendChild(this.createSection('generate', 'Generate', () => {
             this.data.generate.push({ output: '', chance: '', if: '', set: null, _extra: null });
             this.update();
-        }));
+        }, [], 'bottom'));
     },
 
     update() {
@@ -291,7 +304,7 @@ const JSONBuilder = {
         this.render();
     },
 
-    createSection(type, title, onAdd, extraButtons = []) {
+    createSection(type, title, onAdd, extraButtons = [], addButtonPosition = 'top') {
         const wrapper = document.createElement('div');
         wrapper.className = 'ap-builder-section';
 
@@ -335,6 +348,11 @@ const JSONBuilder = {
         }
 
         wrapper.appendChild(list);
+
+        if (addButtonPosition === 'bottom') {
+            wrapper.appendChild(this.createWideAddButton('Add Entry', onAdd));
+        }
+
         return wrapper;
     },
 
@@ -357,6 +375,14 @@ const JSONBuilder = {
         };
 
         return row;
+    },
+
+    createWideAddButton(label, onClick) {
+        const btn = document.createElement('button');
+        btn.className = 'ap-wide-add-btn';
+        btn.innerHTML = `<i class="pi pi-plus"></i> ${label}`;
+        btn.onclick = onClick;
+        return btn;
     },
 
     createVariableCard(key, variableData) {
@@ -440,9 +466,15 @@ const JSONBuilder = {
             choicesList.appendChild(this.createChoiceRow(variableData.choices, idx));
         });
 
+        const addChoiceBtn = this.createWideAddButton('Add Choice', () => {
+            this.data.variables[key].choices.push({ output: '', chance: '', if: '', set: null, _extra: null });
+            this.update();
+        });
+
         card.appendChild(header);
         card.appendChild(choicesHeader);
         card.appendChild(choicesList);
+        card.appendChild(addChoiceBtn);
         return card;
     },
 
@@ -456,6 +488,7 @@ const JSONBuilder = {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'ap-choice-row-wrapper';
+        wrapper.draggable = true;
 
         const row = document.createElement('div');
         row.className = 'ap-builder-choice-row';
@@ -521,6 +554,48 @@ const JSONBuilder = {
                 chanceLabel.after(ifContainer);
             }
         };
+
+        // ---------------- Drag & drop reordering ----------------
+        wrapper.addEventListener('dragstart', (e) => {
+            // Only let a drag actually start from the handle -- otherwise a
+            // click-drag inside a text input could get hijacked into a row
+            // drag instead of normal text selection.
+            if (!e.target.closest('.ap-choice-drag-handle')) {
+                e.preventDefault();
+                return;
+            }
+            wrapper.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(index)); // Firefox requires setData to initiate a drag at all
+        });
+
+        wrapper.addEventListener('dragend', () => {
+            wrapper.classList.remove('dragging');
+            document.querySelectorAll('.ap-choice-row-wrapper.drag-over').forEach(el => el.classList.remove('drag-over'));
+        });
+
+        wrapper.addEventListener('dragover', (e) => {
+            e.preventDefault(); // required for a drop to be allowed here
+            e.dataTransfer.dropEffect = 'move';
+            wrapper.classList.add('drag-over');
+        });
+
+        wrapper.addEventListener('dragleave', () => wrapper.classList.remove('drag-over'));
+
+        wrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            wrapper.classList.remove('drag-over');
+            const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            if (Number.isNaN(fromIndex) || fromIndex === index) return;
+
+            const [moved] = choicesArray.splice(fromIndex, 1);
+            // Removing an earlier item shifts everything after it left by one,
+            // so the drop target's effective index needs adjusting to land
+            // exactly where the user dropped it, not one slot off.
+            const insertAt = fromIndex < index ? index - 1 : index;
+            choicesArray.splice(insertAt, 0, moved);
+            this.update();
+        });
 
         wrapper.appendChild(row);
         wrapper.appendChild(setPanel);
