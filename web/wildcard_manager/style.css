@@ -337,9 +337,26 @@ body {
     padding: 8px;
     background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ap-card-footer-row {
+    display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 6px;
+}
+
+.ap-card-description {
+    font-size: 10.5px;
+    color: #d4d4d4;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .ap-card-name {

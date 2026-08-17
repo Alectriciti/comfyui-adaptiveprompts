@@ -23,6 +23,13 @@ function log(message, isError = false) {
     body.scrollTop = body.scrollHeight;
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // ---------- api helpers ----------
 async function apiGet(path) {
     const res = await fetch(`${API}${path}`);
@@ -50,7 +57,7 @@ function saveRecents(list) {
 function recordRecent(file) {
     let recents = getRecents();
     recents = recents.filter(r => !(r.folder === file.folder && r.relPath === file.relPath && r.type === file.type));
-    recents.unshift({ folder: file.folder, relPath: file.relPath, type: file.type, name: file.name, hasPreview: !!file.hasPreview });
+    recents.unshift({ folder: file.folder, relPath: file.relPath, type: file.type, name: file.name, hasPreview: !!file.hasPreview, description: file.description || null });
     if (recents.length > RECENTS_MAX) recents.length = RECENTS_MAX;
     saveRecents(recents);
 }
@@ -367,7 +374,9 @@ function renderFileGrid(files) {
     for (const file of files) {
         const card = document.createElement("div");
         card.className = "ap-card";
-        card.title = `${file.folder}/${file.relPath}.${file.type}`;
+        card.title = file.description
+            ? `${file.folder}/${file.relPath}.${file.type}\n\n${file.description}`
+            : `${file.folder}/${file.relPath}.${file.type}`;
         if (state.activeFile && state.activeFile.folder === file.folder && state.activeFile.relPath === file.relPath && state.activeFile.type === file.type) {
             card.classList.add('active-editing');
         }
@@ -376,6 +385,9 @@ function renderFileGrid(files) {
         }
 
         const typeClass = file.type === "json" ? "ap-badge-json" : "ap-badge-txt";
+        const descriptionHtml = file.description
+            ? `<div class="ap-card-description">${escapeHtml(file.description)}</div>`
+            : '';
         //                <button data-action="edit" title="Edit"><i class="pi pi-pencil"></i></button>
         card.innerHTML = `
             <div class="ap-card-toolbar">
@@ -386,8 +398,11 @@ function renderFileGrid(files) {
             </div>
             <input type="file" accept="image/png" class="ap-preview-input" style="display:none;">
             <div class="ap-card-footer">
-                <span class="ap-card-name">${file.name}</span>
-                <span class="ap-card-type ${typeClass}">${file.type.toUpperCase()}</span>
+                ${descriptionHtml}
+                <div class="ap-card-footer-row">
+                    <span class="ap-card-name">${file.name}</span>
+                    <span class="ap-card-type ${typeClass}">${file.type.toUpperCase()}</span>
+                </div>
             </div>
         `;
 

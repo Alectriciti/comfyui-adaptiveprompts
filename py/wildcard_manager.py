@@ -126,6 +126,26 @@ async def delete_folder(request):
 
 # ---------- files ----------
 
+def _peek_json_description(filepath: str) -> str | None:
+    """
+    Reads just the "description" field out of a .json wildcard file, without
+    caring about the rest of its structure. Used by list_files() to show a
+    short blurb on each card in the Wildcard Manager -- purely cosmetic, has
+    no effect on prompt generation itself. Returns None if the file can't be
+    parsed, isn't a JSON object, or has no non-empty "description" string.
+    """
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if isinstance(data, dict):
+        desc = data.get("description")
+        if isinstance(desc, str) and desc.strip():
+            return desc.strip()
+    return None
+
 @PromptServer.instance.routes.get("/adaptiveprompts/api/files")
 async def list_files(request):
     label = request.query.get("folder", "")
@@ -152,11 +172,13 @@ async def list_files(request):
         if ext.lower() not in (".txt", ".json"):
             continue
         rel_name = f"{sub_path}/{name}".strip("/") if sub_path else name
+        description = _peek_json_description(full) if ext.lower() == ".json" else None
         files.append({
             "name": name,
             "relPath": rel_name,
             "type": ext.lower().lstrip("."),
             "hasPreview": os.path.isfile(os.path.join(target_dir, f"{name}.png")),
+            "description": description,
         })
 
     return web.json_response({"folder": label, "path": sub_path, "subfolders": subfolders, "files": files})
