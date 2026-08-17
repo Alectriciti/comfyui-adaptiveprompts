@@ -374,9 +374,14 @@ function renderFileGrid(files) {
     for (const file of files) {
         const card = document.createElement("div");
         card.className = "ap-card";
+
+        // NEW: Create a reliable identifier for targeting the card later
+        const filepath = `${file.folder}/${file.relPath}.${file.type}`;
+        card.setAttribute('data-filepath', filepath);
+
         card.title = file.description
-            ? `${file.folder}/${file.relPath}.${file.type}\n\n${file.description}`
-            : `${file.folder}/${file.relPath}.${file.type}`;
+            ? `${filepath}\n\n${file.description}`
+            : filepath;
         if (state.activeFile && state.activeFile.folder === file.folder && state.activeFile.relPath === file.relPath && state.activeFile.type === file.type) {
             card.classList.add('active-editing');
         }
@@ -501,7 +506,11 @@ async function performOpenEditor(file) {
         state.activeFile = file;
 
         document.querySelectorAll('.ap-card').forEach(c => c.classList.remove('active-editing'));
-        const activeCard = document.querySelector(`.ap-card[title="${file.folder}/${file.relPath}.${file.type}"]`);
+
+        // FIX: Use the reliable data attribute instead of the title
+        const cardPath = `${file.folder}/${file.relPath}.${file.type}`;
+        const activeCard = document.querySelector(`.ap-card[data-filepath="${cardPath}"]`);
+
         if (activeCard) activeCard.classList.add('active-editing');
 
         document.getElementById("ap-editor-filename").textContent = `${file.folder}/${file.relPath}.${file.type}`;
@@ -548,9 +557,48 @@ async function editorSave() {
             type: state.activeFile.type,
             content: textarea.value,
         });
-        state.lastSavedContent = textarea.value; // <--- ADD THIS
+        state.lastSavedContent = textarea.value;
         log(`Saved ${state.activeFile.relPath}.${state.activeFile.type}`);
         flashSaved();
+
+        if (state.activeFile.type === "json") {
+            try {
+                const parsed = JSON.parse(textarea.value);
+                const newDesc = (parsed && typeof parsed.description === 'string') ? parsed.description.trim() : "";
+
+                // Keep the state object in sync
+                state.activeFile.description = newDesc;
+
+                // Find the specific card using our new data attribute
+                const cardPath = `${state.activeFile.folder}/${state.activeFile.relPath}.${state.activeFile.type}`;
+                const card = document.querySelector(`.ap-card[data-filepath="${cardPath}"]`);
+
+                if (card) {
+                    // 1. Update the hover tooltip
+                    card.title = newDesc ? `${cardPath}\n\n${newDesc}` : cardPath;
+
+                    // 2. Update or generate the visual text description
+                    let descEl = card.querySelector('.ap-card-description');
+                    if (newDesc) {
+                        if (!descEl) {
+                            // The card didn't have a description before, so we create the element
+                            descEl = document.createElement('div');
+                            descEl.className = 'ap-card-description';
+                            const footer = card.querySelector('.ap-card-footer');
+                            footer.insertBefore(descEl, footer.querySelector('.ap-card-footer-row'));
+                        }
+                        // Update the text safely
+                        descEl.textContent = newDesc;
+                    } else if (descEl) {
+                        // The description was completely deleted, so we remove the element
+                        descEl.remove();
+                    }
+                }
+            } catch (err) {
+                // If they saved structurally invalid JSON, fail silently without breaking the UI
+            }
+        }
+
     } catch (e) {
         log(`Failed to save: ${e.message}`, true);
     }
