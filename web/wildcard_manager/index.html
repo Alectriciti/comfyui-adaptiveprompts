@@ -174,6 +174,7 @@
                     </ul>
                 </div>
                 <div class="ap-settings-main">
+                    <!-- Row 1: Card Size -->
                     <div class="ap-setting-row">
                         <div class="ap-setting-label">
                             Card Size
@@ -185,19 +186,21 @@
                             <option value="square">Square (1:1)</option>
                             <option value="landscape">Landscape (3:2)</option>
                         </select>
-                        <div class="ap-setting-row">
-                            <div class="ap-setting-label">
-                                Default Editor Mode
-                                <i class="pi pi-question-circle ap-setting-help"
-                                    title="Which mode a JSON wildcard opens in. 'Last Used' remembers whichever mode you had active for JSON files specifically -- opening a .txt file (always Raw) won't disturb that memory."></i>
-                            </div>
-                            <select id="ap-setting-default-mode">
-                                <option value="last_used">Last Used</option>
-                                <option value="raw">Raw</option>
-                                <option value="hybrid">Hybrid</option>
-                                <option value="builder">Builder</option>
-                            </select>
+                    </div>
+
+                    <!-- Row 2: Default Editor Mode -->
+                    <div class="ap-setting-row">
+                        <div class="ap-setting-label">
+                            Default Editor Mode
+                            <i class="pi pi-question-circle ap-setting-help"
+                                title="Which mode a JSON wildcard opens in. 'Last Used' remembers whichever mode you had active for JSON files specifically -- opening a .txt file (always Raw) won't disturb that memory."></i>
                         </div>
+                        <select id="ap-setting-default-mode">
+                            <option value="last_used">Last Used</option>
+                            <option value="raw">Raw</option>
+                            <option value="hybrid">Hybrid</option>
+                            <option value="builder">Builder</option>
+                        </select>
                     </div>
                 </div>
             </div>

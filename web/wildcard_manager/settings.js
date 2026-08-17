@@ -4,14 +4,15 @@ const SettingsManager = {
     aspectSelect: document.getElementById('ap-setting-aspect'),
     defaultModeSelect: document.getElementById('ap-setting-default-mode'),
     grid: document.getElementById('ap-file-grid'),
+    config: {}, // Local cache to prevent overwriting keys on save
 
     async init() {
         try {
-            const data = await apiGet("/config");
-            const aspect = data.card_aspect || 'portrait';
+            this.config = await apiGet("/config");
+            const aspect = this.config.card_aspect || 'portrait';
             this.applyAspect(aspect);
             this.aspectSelect.value = aspect;
-            this.defaultModeSelect.value = data.default_editor_mode || 'last_used';
+            this.defaultModeSelect.value = this.config.default_editor_mode || 'last_used';
         } catch (e) {
             console.error("Failed to load settings:", e);
             this.applyAspect('portrait');
@@ -31,7 +32,8 @@ const SettingsManager = {
             const val = e.target.value;
             this.applyAspect(val);
             try {
-                await apiSend("/config", { card_aspect: val });
+                this.config.card_aspect = val;
+                await apiSend("/config", this.config); // Send the complete object
             } catch (err) {
                 log(`Failed to save settings: ${err.message}`, true);
             }
@@ -40,7 +42,9 @@ const SettingsManager = {
         this.defaultModeSelect.addEventListener('change', async (e) => {
             const val = e.target.value;
             try {
-                await apiSend("/config", { default_editor_mode: val });
+                this.config.default_editor_mode = val;
+                await apiSend("/config", this.config); // Send the complete object
+
                 if (typeof JSONBuilder !== 'undefined') JSONBuilder.defaultEditorMode = val;
                 log(`Default editor mode set to "${val}"`);
             } catch (err) {

@@ -555,48 +555,6 @@ const JSONBuilder = {
             }
         };
 
-        // ---------------- Drag & drop reordering ----------------
-        wrapper.addEventListener('dragstart', (e) => {
-            // Only let a drag actually start from the handle -- otherwise a
-            // click-drag inside a text input could get hijacked into a row
-            // drag instead of normal text selection.
-            if (!e.target.closest('.ap-choice-drag-handle')) {
-                e.preventDefault();
-                return;
-            }
-            wrapper.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', String(index)); // Firefox requires setData to initiate a drag at all
-        });
-
-        wrapper.addEventListener('dragend', () => {
-            wrapper.classList.remove('dragging');
-            document.querySelectorAll('.ap-choice-row-wrapper.drag-over').forEach(el => el.classList.remove('drag-over'));
-        });
-
-        wrapper.addEventListener('dragover', (e) => {
-            e.preventDefault(); // required for a drop to be allowed here
-            e.dataTransfer.dropEffect = 'move';
-            wrapper.classList.add('drag-over');
-        });
-
-        wrapper.addEventListener('dragleave', () => wrapper.classList.remove('drag-over'));
-
-        wrapper.addEventListener('drop', (e) => {
-            e.preventDefault();
-            wrapper.classList.remove('drag-over');
-            const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-            if (Number.isNaN(fromIndex) || fromIndex === index) return;
-
-            const [moved] = choicesArray.splice(fromIndex, 1);
-            // Removing an earlier item shifts everything after it left by one,
-            // so the drop target's effective index needs adjusting to land
-            // exactly where the user dropped it, not one slot off.
-            const insertAt = fromIndex < index ? index - 1 : index;
-            choicesArray.splice(insertAt, 0, moved);
-            this.update();
-        });
-
         wrapper.appendChild(row);
         wrapper.appendChild(setPanel);
         return wrapper;
