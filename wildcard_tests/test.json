@@ -1,0 +1,26 @@
+{
+    "variables": {
+        "g": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": ""
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "hello world"
+        },
+        {
+            "output": "option a",
+            "chance": 2
+        },
+        {
+            "output": "options {x%2|y%3|z%4}",
+            "chance": 0.5
+        }
+    ]
+}

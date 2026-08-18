@@ -467,6 +467,35 @@ const JSONBuilder = {
 
         const choicesList = document.createElement('div');
         choicesList.className = 'ap-builder-choices-list';
+
+        // --- NEW: Empty Drop Zone Fallback ---
+        // If a user deletes all choices in a variable, give them a place to drop new ones
+        if (variableData.choices.length === 0) {
+            choicesList.style.padding = '10px';
+            choicesList.style.border = '1px dashed transparent';
+            choicesList.style.borderRadius = '4px';
+
+            choicesList.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (this._draggedItem) choicesList.style.borderColor = '#4ade80';
+            });
+
+            choicesList.addEventListener('dragleave', () => {
+                choicesList.style.borderColor = 'transparent';
+            });
+
+            choicesList.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (this._draggedItem) {
+                    // Splice it out of the old variable and push it into this empty one
+                    const [movedItem] = this._draggedItem.array.splice(this._draggedItem.index, 1);
+                    variableData.choices.push(movedItem);
+                    this.update();
+                }
+            });
+        }
+        // -------------------------------------
+
         variableData.choices.forEach((choice, idx) => {
             choicesList.appendChild(this.createChoiceRow(variableData.choices, idx));
         });
@@ -550,9 +579,45 @@ const JSONBuilder = {
             e.preventDefault(); // Necessary to allow dropping
             e.dataTransfer.dropEffect = 'move';
 
-            // Only show the green bar if we are dragging within the same choice list
-            if (this._draggedItem && this._draggedItem.array === choicesArray) {
+            // REMOVED the "draggedItem.array === choicesArray" check.
+            // Now the green bar shows up no matter which variable you hover over!
+            if (this._draggedItem) {
                 wrapper.classList.add('drag-over');
+            }
+        });
+
+        // dragleave stays exactly the same...
+        wrapper.addEventListener('dragleave', (e) => {
+            wrapper.classList.remove('drag-over');
+        });
+
+        wrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            wrapper.classList.remove('drag-over');
+
+            const dragged = this._draggedItem;
+
+            // Proceed if we have a dragged item, and make sure we aren't dropping it onto itself
+            // We now check if the arrays are DIFFERENT, or if the indices are DIFFERENT
+            if (dragged && (dragged.array !== choicesArray || dragged.index !== index)) {
+
+                // 1. Remove the item from its ORIGINAL array
+                const [movedItem] = dragged.array.splice(dragged.index, 1);
+
+                // 2. Calculate the target index for the NEW array
+                let targetIndex = index;
+
+                // If moving within the SAME array, and moving downwards, removing the item
+                // shifted the target index up by 1. We must adjust for that.
+                if (dragged.array === choicesArray && dragged.index < index) {
+                    targetIndex = index - 1;
+                }
+
+                // 3. Insert the item into the target array
+                choicesArray.splice(targetIndex, 0, movedItem);
+
+                // Re-render and sync to raw JSON
+                this.update();
             }
         });
 
