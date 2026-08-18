@@ -1,11 +1,12 @@
 // json_builder.js
 
 const JSONBuilder = {
-    mode: 'raw', // what's showing RIGHT NOW; close() force-sets this to 'raw' for txt files
-    lastJsonMode: 'builder', // remembers the last mode used for JSON files specifically -- txt files never touch this
-    defaultEditorMode: 'last_used', // from manager config; updated once the fetch below resolves
+    mode: 'raw',
+    lastJsonMode: 'builder',
+    defaultEditorMode: 'last_used',
     data: { displayname: "", color: "", description: "", notes: "", variables: {}, loras: [], generate: [] },
     _expandedSetPanels: new WeakSet(),
+    _draggedItem: null, // Add this to track the active drag payload
 
     init() {
         document.querySelectorAll('.ap-mode-btn').forEach(btn => {
@@ -509,6 +510,9 @@ const JSONBuilder = {
 
         // Note: The If input is removed from this HTML block
         row.innerHTML = `
+            <div class="ap-choice-drag-handle" title="Drag to reorder">
+                <i class="pi pi-bars"></i>
+            </div>
             <button class="ap-icon-btn small ap-choice-set-toggle ${hasSet ? 'has-set' : ''}" title="Set variables when this choice is picked">
                 <i class="pi pi-chevron-right"></i>
             </button>
@@ -525,6 +529,65 @@ const JSONBuilder = {
         // Insert the ifContainer directly after the Chance label
         const chanceLabel = row.querySelector('.ap-choice-chance').parentNode;
         chanceLabel.after(ifContainer);
+
+        // Only make the row draggable when holding down on the drag handle
+        const dragHandle = row.querySelector('.ap-choice-drag-handle');
+        dragHandle.addEventListener('mousedown', () => wrapper.draggable = true);
+        dragHandle.addEventListener('mouseup', () => wrapper.draggable = false);
+        dragHandle.addEventListener('mouseleave', () => wrapper.draggable = false);
+
+        wrapper.addEventListener('dragstart', (e) => {
+            // Store the source array and index so we know exactly what is moving
+            this._draggedItem = { array: choicesArray, index: index };
+            e.dataTransfer.effectAllowed = 'move';
+
+            // A tiny timeout allows the browser to grab a snapshot of the element 
+            // before we apply the opacity fade in CSS
+            setTimeout(() => wrapper.classList.add('dragging'), 0);
+        });
+
+        wrapper.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessary to allow dropping
+            e.dataTransfer.dropEffect = 'move';
+
+            // Only show the green bar if we are dragging within the same choice list
+            if (this._draggedItem && this._draggedItem.array === choicesArray) {
+                wrapper.classList.add('drag-over');
+            }
+        });
+
+        wrapper.addEventListener('dragleave', (e) => {
+            wrapper.classList.remove('drag-over');
+        });
+
+        wrapper.addEventListener('drop', (e) => {
+            e.preventDefault();
+            wrapper.classList.remove('drag-over');
+
+            const dragged = this._draggedItem;
+
+            // Proceed only if dropping in the same array, and not on itself
+            if (dragged && dragged.array === choicesArray && dragged.index !== index) {
+                // Remove the item from its old position
+                const [movedItem] = choicesArray.splice(dragged.index, 1);
+
+                // If the item was dragged downwards, removing it shifted the target 
+                // index up by 1. We account for that here.
+                const targetIndex = dragged.index < index ? index - 1 : index;
+
+                // Insert it at the new position
+                choicesArray.splice(targetIndex, 0, movedItem);
+
+                // Call your existing update method to re-render and sync to raw JSON
+                this.update();
+            }
+        });
+
+        wrapper.addEventListener('dragend', () => {
+            wrapper.classList.remove('dragging');
+            this._draggedItem = null;
+            wrapper.draggable = false;
+        });
 
         row.querySelector('.ap-choice-out').oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
         row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };

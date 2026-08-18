@@ -411,6 +411,19 @@
     gap: 4px;
 }
 
+.ap-choice-row-wrapper.dragging {
+    opacity: 0.4;
+}
+
+.ap-choice-row-wrapper.drag-over {
+    box-shadow: 0 -3px 0 0 #4ade80;
+    /* A solid, bright green bar */
+}
+
+.ap-choice-row-wrapper.drag-over * {
+    pointer-events: none;
+}
+
 .ap-choice-set-toggle {
     color: var(--ap-text-dim);
     border-color: var(--ap-border);
@@ -503,12 +516,4 @@
 
 .ap-choice-drag-handle:hover {
     color: var(--ap-text);
-}
-
-.ap-choice-row-wrapper.dragging {
-    opacity: 0.4;
-}
-
-.ap-choice-row-wrapper.drag-over {
-    box-shadow: 0 -2px 0 0 var(--ap-accent);
 }
