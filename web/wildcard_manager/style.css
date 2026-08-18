@@ -359,6 +359,22 @@ body {
     -webkit-box-orient: vertical;
 }
 
+.ap-card-description b {
+    color: var(--ap-text);
+    /* Brighter white than the dim description text */
+    font-weight: 600;
+}
+
+.ap-desc-code {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--ap-accent);
+    /* Blue accent for inline code */
+    font-family: monospace;
+    font-size: 9.5px;
+}
+
 .ap-card-name {
     color: #fff;
     font-weight: 700;

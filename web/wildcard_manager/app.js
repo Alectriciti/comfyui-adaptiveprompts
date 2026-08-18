@@ -30,6 +30,26 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function parseMiniMarkdown(str, color = null) {
+    if (!str) return '';
+
+    // 1. Escape HTML first to prevent XSS and broken layouts
+    let parsed = escapeHtml(str);
+
+    // 2. Parse **bold**
+    parsed = parsed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+
+    // 3. Parse *italic* or _italic_
+    parsed = parsed.replace(/(^|[^\w*])\*([^\s*](?:.*?[^\s*])?)\*(?=[^\w*]|$)/g, '$1<i>$2</i>');
+    parsed = parsed.replace(/(^|[^\w_])_([^\s_](?:.*?[^\s_])?)_(?=[^\w_]|$)/g, '$1<i>$2</i>');
+
+    // 4. Parse `code` (applies custom color if present, otherwise defaults to CSS class)
+    const codeStyle = (color && color.toUpperCase() !== "#FFFFFF") ? ` style="color: ${color};"` : '';
+    parsed = parsed.replace(/`([^`]+)`/g, `<code class="ap-desc-code"${codeStyle}>$1</code>`);
+
+    return parsed;
+}
+
 // ---------- api helpers ----------
 async function apiGet(path) {
     const res = await fetch(`${API}${path}`);
@@ -393,7 +413,7 @@ function renderFileGrid(files) {
         const nameColorStyle = (file.color && file.color.toUpperCase() !== "#FFFFFF") ? `style="color: ${file.color};"` : "";
         const typeClass = file.type === "json" ? "ap-badge-json" : "ap-badge-txt";
         const descriptionHtml = file.description
-            ? `<div class="ap-card-description">${escapeHtml(file.description)}</div>`
+            ? `<div class="ap-card-description">${parseMiniMarkdown(file.description, file.color)}</div>`
             : '';
         //                <button data-action="edit" title="Edit"><i class="pi pi-pencil"></i></button>
         card.innerHTML = `
@@ -588,7 +608,19 @@ async function editorSave() {
                     card.title = newDesc ? `${cardPath}\n\n${newDesc}` : cardPath;
 
                     let descEl = card.querySelector('.ap-card-description');
-                    // ... [existing description element updates] ...
+                    if (newDesc) {
+                        if (descEl) {
+                            descEl.innerHTML = parseMiniMarkdown(newDesc, newColor);
+                        } else {
+                            descEl = document.createElement('div');
+                            descEl.className = 'ap-card-description';
+                            descEl.innerHTML = parseMiniMarkdown(newDesc, newColor);
+                            const footer = card.querySelector('.ap-card-footer');
+                            if (footer) footer.insertBefore(descEl, footer.firstChild);
+                        }
+                    } else if (descEl) {
+                        descEl.remove();
+                    }
 
                     // Update Display Name and Color visually
                     let nameEl = card.querySelector('.ap-card-name');
