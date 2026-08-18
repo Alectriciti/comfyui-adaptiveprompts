@@ -30,6 +30,11 @@
     color: #10251b;
 }
 
+.ap-mode-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
 /* Layout Engine */
 #ap-editor-content-area {
     display: flex;
@@ -69,8 +74,8 @@
     gap: 4px;
     font-size: 10px;
     color: var(--ap-text-dim);
-    flex: 0.75;
-    min-width: 70px;
+    flex: 1 1 0px;
+    min-width: 0;
 }
 
 .ap-content-builder #ap-json-builder {
@@ -145,12 +150,28 @@
     gap: 4px;
 }
 
+.ap-meta-row-horizontal {
+    display: flex;
+    gap: 12px;
+}
+
+.ap-meta-row-horizontal .ap-meta-row {
+    flex: 1;
+}
+
 .ap-meta-row label {
     font-size: 11px;
     color: var(--ap-text-dim);
     text-transform: uppercase;
     font-weight: 600;
     letter-spacing: 0.5px;
+}
+
+#ap-json-builder .ap-builder-meta-card input[type="color"] {
+    padding: 2px;
+    height: 28px;
+    width: 100%;
+    cursor: pointer;
 }
 
 #ap-json-builder .ap-builder-meta-card textarea {
@@ -256,16 +277,18 @@
     border: 1px solid #333;
 }
 
-.ap-choice-out {
-    flex: 2;
-}
-
 .ap-choice-chance {
     width: 80px;
 }
 
 .ap-choice-if {
-    flex: 1;
+    min-width: 0;
+    width: 100%;
+}
+
+.ap-choice-out {
+    flex: 2;
+    min-width: 50px;
 }
 
 .ap-builder-choice-row label {

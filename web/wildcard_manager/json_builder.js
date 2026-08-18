@@ -4,14 +4,15 @@ const JSONBuilder = {
     mode: 'raw', // what's showing RIGHT NOW; close() force-sets this to 'raw' for txt files
     lastJsonMode: 'builder', // remembers the last mode used for JSON files specifically -- txt files never touch this
     defaultEditorMode: 'last_used', // from manager config; updated once the fetch below resolves
-    data: { description: "", notes: "", variables: {}, loras: [], generate: [] },
+    data: { displayname: "", color: "", description: "", notes: "", variables: {}, loras: [], generate: [] },
     _expandedSetPanels: new WeakSet(),
 
     init() {
         document.querySelectorAll('.ap-mode-btn').forEach(btn => {
             btn.onclick = () => {
+                if (btn.disabled) return; // Ignore if disabled
                 this.setMode(btn.dataset.mode);
-                this.lastJsonMode = btn.dataset.mode; // an explicit user choice while a JSON file is open
+                this.lastJsonMode = btn.dataset.mode;
             };
         });
 
@@ -102,7 +103,8 @@ const JSONBuilder = {
     syncToRaw() {
         const cleanData = {};
 
-        // Add metadata to the top of the JSON if they exist
+        if (this.data.displayname) cleanData.displayname = this.data.displayname;
+        if (this.data.color && this.data.color.toUpperCase() !== "#FFFFFF") cleanData.color = this.data.color;
         if (this.data.description) cleanData.description = this.data.description;
         if (this.data.notes) cleanData.notes = this.data.notes;
 
@@ -186,8 +188,10 @@ const JSONBuilder = {
     },
 
     normalize(parsed) {
-        this.data = { description: "", notes: "", variables: {}, loras: [], generate: [] };
+        this.data = { displayname: "", color: "", description: "", notes: "", variables: {}, loras: [], generate: [] };
 
+        if (parsed.displayname) this.data.displayname = parsed.displayname;
+        if (parsed.color) this.data.color = parsed.color;
         if (parsed.description) this.data.description = parsed.description;
         if (parsed.notes) this.data.notes = parsed.notes;
 
@@ -643,15 +647,37 @@ const JSONBuilder = {
         card.className = 'ap-builder-meta-card';
 
         card.innerHTML = `
+            <div class="ap-meta-row-horizontal">
+                <div class="ap-meta-row" style="flex: 1;">
+                    <label>Display Name</label>
+                    <input type="text" class="ap-disp-input" placeholder="Overrides filename..." value="${(this.data.displayname || '').replace(/"/g, '&quot;')}" />
+                </div>
+                <div class="ap-meta-row" style="flex: 0.3;">
+                    <label>Color</label>
+                    <input type="color" class="ap-color-input" value="${this.data.color || '#ffffff'}" />
+                </div>
+            </div>
             <div class="ap-meta-row">
                 <label>Description (Shows on card)</label>
-                <input type="text" class="ap-desc-input" placeholder="A brief summary of what this wildcard does..." value="${this.data.description.replace(/"/g, '&quot;')}" />
+                <input type="text" class="ap-desc-input" placeholder="A brief summary of what this wildcard does..." value="${(this.data.description || '').replace(/"/g, '&quot;')}" />
             </div>
             <div class="ap-meta-row">
                 <label>Notes (Internal reference)</label>
-                <textarea class="ap-notes-input" placeholder="Paste reference lists, reminders, or complex logic explanations here..." spellcheck="false">${this.data.notes}</textarea>
+                <textarea class="ap-notes-input" placeholder="Paste reference lists, reminders, or complex logic explanations here..." spellcheck="false">${this.data.notes || ''}</textarea>
             </div>
         `;
+
+        // Handle Display Name input
+        card.querySelector('.ap-disp-input').oninput = (e) => {
+            this.data.displayname = e.target.value;
+            this.syncToRaw();
+        };
+
+        // Handle Color input
+        card.querySelector('.ap-color-input').oninput = (e) => {
+            this.data.color = e.target.value;
+            this.syncToRaw();
+        };
 
         // Handle Description input
         card.querySelector('.ap-desc-input').oninput = (e) => {

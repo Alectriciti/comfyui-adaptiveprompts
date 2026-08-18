@@ -3,6 +3,7 @@ const SettingsManager = {
     btn: document.getElementById('ap-btn-settings'),
     aspectSelect: document.getElementById('ap-setting-aspect'),
     defaultModeSelect: document.getElementById('ap-setting-default-mode'),
+    renameDupCheck: document.getElementById('ap-setting-rename-duplicate'),
     grid: document.getElementById('ap-file-grid'),
     config: {}, // Local cache to prevent overwriting keys on save
 
@@ -13,6 +14,9 @@ const SettingsManager = {
             this.applyAspect(aspect);
             this.aspectSelect.value = aspect;
             this.defaultModeSelect.value = this.config.default_editor_mode || 'last_used';
+            if (this.renameDupCheck) {
+                this.renameDupCheck.checked = !!this.config.rename_on_duplicate;
+            }
         } catch (e) {
             console.error("Failed to load settings:", e);
             this.applyAspect('portrait');
@@ -51,6 +55,17 @@ const SettingsManager = {
                 log(`Failed to save settings: ${err.message}`, true);
             }
         });
+
+        if (this.renameDupCheck) {
+            this.renameDupCheck.addEventListener('change', async (e) => {
+                try {
+                    this.config.rename_on_duplicate = e.target.checked;
+                    await apiSend("/config", this.config);
+                } catch (err) {
+                    log(`Failed to save settings: ${err.message}`, true);
+                }
+            });
+        }
     },
 
     applyAspect(val) {

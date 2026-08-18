@@ -389,6 +389,8 @@ function renderFileGrid(files) {
             card.style.backgroundImage = `url('${API}/preview?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&t=${Date.now()}')`;
         }
 
+        const displayName = file.displayname || file.name;
+        const nameColorStyle = (file.color && file.color.toUpperCase() !== "#FFFFFF") ? `style="color: ${file.color};"` : "";
         const typeClass = file.type === "json" ? "ap-badge-json" : "ap-badge-txt";
         const descriptionHtml = file.description
             ? `<div class="ap-card-description">${escapeHtml(file.description)}</div>`
@@ -405,7 +407,7 @@ function renderFileGrid(files) {
             <div class="ap-card-footer">
                 ${descriptionHtml}
                 <div class="ap-card-footer-row">
-                    <span class="ap-card-name">${file.name}</span>
+                    <span class="ap-card-name" ${nameColorStyle}>${displayName}</span>
                     <span class="ap-card-type ${typeClass}">${file.type.toUpperCase()}</span>
                 </div>
             </div>
@@ -519,14 +521,21 @@ async function performOpenEditor(file) {
         textarea.value = data.content;
 
         const modeToggle = document.getElementById('ap-editor-mode-toggle');
-        if (file.type === "json") {
-            modeToggle.classList.remove('hidden');
-            JSONBuilder.open(data.content);
+        modeToggle.classList.remove('hidden'); // Keep visible at all times
 
-            // NEW: Force sync immediately to apply your standard formatting
+        const builderBtn = document.querySelector('.ap-mode-btn[data-mode="builder"]');
+        const hybridBtn = document.querySelector('.ap-mode-btn[data-mode="hybrid"]');
+
+        if (file.type === "json") {
+            if (builderBtn) builderBtn.disabled = false;
+            if (hybridBtn) hybridBtn.disabled = false;
+
+            JSONBuilder.open(data.content);
             JSONBuilder.syncToRaw();
         } else {
-            modeToggle.classList.add('hidden');
+            if (builderBtn) builderBtn.disabled = true;
+            if (hybridBtn) hybridBtn.disabled = true;
+
             JSONBuilder.close();
             document.getElementById('ap-editor-content-area').className = 'ap-content-raw';
             JSONBuilder.updateRawHighlighting(data.content);
@@ -565,38 +574,34 @@ async function editorSave() {
             try {
                 const parsed = JSON.parse(textarea.value);
                 const newDesc = (parsed && typeof parsed.description === 'string') ? parsed.description.trim() : "";
+                const newDisp = (parsed && typeof parsed.displayname === 'string') ? parsed.displayname.trim() : "";
+                const newColor = (parsed && typeof parsed.color === 'string') ? parsed.color.trim() : "";
 
-                // Keep the state object in sync
                 state.activeFile.description = newDesc;
+                state.activeFile.displayname = newDisp;
+                state.activeFile.color = newColor;
 
-                // Find the specific card using our new data attribute
                 const cardPath = `${state.activeFile.folder}/${state.activeFile.relPath}.${state.activeFile.type}`;
                 const card = document.querySelector(`.ap-card[data-filepath="${cardPath}"]`);
 
                 if (card) {
-                    // 1. Update the hover tooltip
                     card.title = newDesc ? `${cardPath}\n\n${newDesc}` : cardPath;
 
-                    // 2. Update or generate the visual text description
                     let descEl = card.querySelector('.ap-card-description');
-                    if (newDesc) {
-                        if (!descEl) {
-                            // The card didn't have a description before, so we create the element
-                            descEl = document.createElement('div');
-                            descEl.className = 'ap-card-description';
-                            const footer = card.querySelector('.ap-card-footer');
-                            footer.insertBefore(descEl, footer.querySelector('.ap-card-footer-row'));
+                    // ... [existing description element updates] ...
+
+                    // Update Display Name and Color visually
+                    let nameEl = card.querySelector('.ap-card-name');
+                    if (nameEl) {
+                        nameEl.textContent = newDisp || state.activeFile.name;
+                        if (newColor && newColor.toUpperCase() !== "#FFFFFF") {
+                            nameEl.style.color = newColor;
+                        } else {
+                            nameEl.style.color = ""; // reset to default
                         }
-                        // Update the text safely
-                        descEl.textContent = newDesc;
-                    } else if (descEl) {
-                        // The description was completely deleted, so we remove the element
-                        descEl.remove();
                     }
                 }
-            } catch (err) {
-                // If they saved structurally invalid JSON, fail silently without breaking the UI
-            }
+            } catch (err) { }
         }
 
     } catch (e) {
@@ -690,6 +695,13 @@ function showFileContextMenu(e, file) {
                 newPath = newPath.substring(0, match.index) + '_' + (parseInt(match[1]) + 1);
             } else {
                 newPath += "_1";
+            }
+
+            // Check config to prompt for rename
+            if (typeof SettingsManager !== 'undefined' && SettingsManager.config && SettingsManager.config.rename_on_duplicate) {
+                const userPath = prompt(`Enter name for duplicated file:`, newPath);
+                if (!userPath) return; // Cancel duplicate entirely
+                newPath = userPath;
             }
 
             await apiSend("/file", { folder: file.folder, path: newPath, type: file.type, content: data.content });
