@@ -7,9 +7,11 @@ const JSONBuilder = {
     data: { displayname: "", color: "", description: "", notes: "", variables: {}, loras: [], generate: [] },
     _expandedSetPanels: new WeakSet(),
     _draggedItem: null, // Add this to track the active drag payload
+    _legacyWarningShown: false, // Tracks the one-time legacy paste warning
 
     init() {
         document.querySelectorAll('.ap-mode-btn').forEach(btn => {
+            if (!btn) return;
             btn.onclick = () => {
                 if (btn.disabled) return; // Ignore if disabled
                 this.setMode(btn.dataset.mode);
@@ -21,15 +23,17 @@ const JSONBuilder = {
         const textarea = document.getElementById('ap-editor-textarea');
         const backdrop = document.getElementById('ap-raw-backdrop');
 
-        textarea.addEventListener('input', (e) => {
-            // true flag avoids full re-render on every keystroke so we don't lose focus
-            this.syncFromRaw(e.target.value, true);
-        });
+        if (textarea && backdrop) {
+            textarea.addEventListener('input', (e) => {
+                // true flag avoids full re-render on every keystroke so we don't lose focus
+                this.syncFromRaw(e.target.value, true);
+            });
 
-        textarea.addEventListener('scroll', () => {
-            backdrop.scrollTop = textarea.scrollTop;
-            backdrop.scrollLeft = textarea.scrollLeft;
-        });
+            textarea.addEventListener('scroll', () => {
+                backdrop.scrollTop = textarea.scrollTop;
+                backdrop.scrollLeft = textarea.scrollLeft;
+            });
+        }
 
         // Fetched independently here (rather than reading something settings.js
         // populates) so this doesn't depend on script/init execution order.
@@ -63,7 +67,8 @@ const JSONBuilder = {
     },
 
     open(jsonString) {
-        document.getElementById('ap-editor-mode-toggle').classList.remove('hidden');
+        const modeToggle = document.getElementById('ap-editor-mode-toggle');
+        if (modeToggle) modeToggle.classList.remove('hidden');
         this.syncFromRaw(jsonString);
 
         const targetMode = this.defaultEditorMode === 'last_used'
@@ -73,14 +78,16 @@ const JSONBuilder = {
         this.lastJsonMode = targetMode;
     },
     close() {
-        document.getElementById('ap-editor-mode-toggle').classList.add('hidden');
+        const modeToggle = document.getElementById('ap-editor-mode-toggle');
+        if (modeToggle) modeToggle.classList.add('hidden');
         this.setMode('raw');
         this.updateRawHighlighting('');
     },
 
     setMode(mode) {
         this.mode = mode;
-        document.getElementById('ap-editor-content-area').className = `ap-content-${mode}`;
+        const contentArea = document.getElementById('ap-editor-content-area');
+        if (contentArea) contentArea.className = `ap-content-${mode}`;
         document.querySelectorAll('.ap-mode-btn').forEach(b => {
             b.classList.toggle('active', b.dataset.mode === mode);
         });
@@ -118,7 +125,8 @@ const JSONBuilder = {
         }
 
         const newJson = JSON.stringify(cleanData, null, 4);
-        document.getElementById('ap-editor-textarea').value = newJson;
+        const textarea = document.getElementById('ap-editor-textarea');
+        if (textarea) textarea.value = newJson;
         this.updateRawHighlighting(newJson);
     },
 
@@ -274,6 +282,97 @@ const JSONBuilder = {
         this.update();
     },
 
+    // ---------------- Choice Functions ----------------
+
+    showChoiceFunctions(event, targetArray) {
+        // Remove existing menu if any to prevent duplicates
+        let existing = document.getElementById('ap-choice-funcs-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'ap-choice-funcs-menu';
+        menu.className = 'ap-context-menu'; // Re-use styling from context menus
+        menu.style.display = 'block';
+
+        // Position menu slightly offset from the cursor
+        menu.style.left = `${event.clientX}px`;
+        menu.style.top = `${event.clientY}px`;
+
+        const pasteLegacyBtn = document.createElement('button');
+        pasteLegacyBtn.innerHTML = '<i class="pi pi-clipboard"></i> Paste Legacy Text';
+        pasteLegacyBtn.onclick = () => {
+            menu.remove();
+            this.pasteLegacyText(targetArray);
+        };
+        menu.appendChild(pasteLegacyBtn);
+
+        document.body.appendChild(menu);
+
+        // Auto-close when clicking outside
+        setTimeout(() => {
+            const closeMenu = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                }
+            };
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    },
+
+    async pasteLegacyText(targetArray) {
+        if (!this._legacyWarningShown) {
+            const proceed = confirm("this will convert legacy text files and their respective weights to JSON entries, continue?");
+            if (!proceed) return;
+            this._legacyWarningShown = true;
+        }
+
+        let text;
+        try {
+            text = await navigator.clipboard.readText();
+        } catch (e) {
+            log(`Clipboard read failed: ${e.message}`, true);
+            return;
+        }
+
+        if (!text) return;
+
+        const lines = text.split(/\r?\n/);
+        let addedCount = 0;
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue; // Ignore empty and whitespace lines
+            if (line.startsWith('#')) continue; // Ignore comments
+
+            let output = line;
+            let chance = "";
+
+            // Matches patterns like "%2%" or "%0.5%" securely at the end of the line
+            const weightMatch = line.match(/%([\d.]+)%$/);
+            if (weightMatch) {
+                chance = Number(weightMatch[1]);
+                output = line.substring(0, weightMatch.index).trim();
+            }
+
+            targetArray.push({
+                output: output,
+                chance: chance,
+                if: '',
+                set: null,
+                _extra: null
+            });
+            addedCount++;
+        }
+
+        if (addedCount > 0) {
+            log(`Parsed and converted ${addedCount} legacy entries.`);
+            this.update();
+        } else {
+            log("No valid lines found in clipboard to parse.", true);
+        }
+    },
+
     // ---------------- Rendering & Interactions ----------------
 
     render() {
@@ -298,10 +397,13 @@ const JSONBuilder = {
             this.update();
         }));
 
+        // Choice Functions Button added securely to the left of the + Create Entry button. 
         container.appendChild(this.createSection('generate', 'Generate', () => {
             this.data.generate.push({ output: '', chance: '', if: '', set: null, _extra: null });
             this.update();
-        }, [], 'bottom'));
+        }, [
+            { icon: 'pi-file-edit', title: 'Choice Functions', onClick: (e) => this.showChoiceFunctions(e, this.data.generate) }
+        ], 'bottom'));
     },
 
     update() {
@@ -459,8 +561,18 @@ const JSONBuilder = {
 
         const choicesHeader = document.createElement('div');
         choicesHeader.className = 'ap-builder-choices-header';
-        choicesHeader.innerHTML = `<span>Choices</span> <button class="ap-icon-btn small add" title="Add Choice"><i class="pi pi-plus"></i></button>`;
-        choicesHeader.querySelector('button').onclick = () => {
+
+        // Structure aligns standard actions uniformly beside the add choice button
+        choicesHeader.innerHTML = `
+            <span>Choices</span> 
+            <div class="ap-builder-section-header-actions">
+                <button class="ap-icon-btn small ap-choice-funcs-btn" title="Choice Functions"><i class="pi pi-file-edit"></i></button>
+                <button class="ap-icon-btn small add ap-add-choice-btn" title="Add Choice"><i class="pi pi-plus"></i></button>
+            </div>
+        `;
+
+        choicesHeader.querySelector('.ap-choice-funcs-btn').onclick = (e) => this.showChoiceFunctions(e, variableData.choices);
+        choicesHeader.querySelector('.ap-add-choice-btn').onclick = () => {
             this.data.variables[key].choices.push({ output: '', chance: '', if: '', set: null, _extra: null });
             this.update();
         };
@@ -617,33 +729,6 @@ const JSONBuilder = {
                 choicesArray.splice(targetIndex, 0, movedItem);
 
                 // Re-render and sync to raw JSON
-                this.update();
-            }
-        });
-
-        wrapper.addEventListener('dragleave', (e) => {
-            wrapper.classList.remove('drag-over');
-        });
-
-        wrapper.addEventListener('drop', (e) => {
-            e.preventDefault();
-            wrapper.classList.remove('drag-over');
-
-            const dragged = this._draggedItem;
-
-            // Proceed only if dropping in the same array, and not on itself
-            if (dragged && dragged.array === choicesArray && dragged.index !== index) {
-                // Remove the item from its old position
-                const [movedItem] = choicesArray.splice(dragged.index, 1);
-
-                // If the item was dragged downwards, removing it shifted the target 
-                // index up by 1. We account for that here.
-                const targetIndex = dragged.index < index ? index - 1 : index;
-
-                // Insert it at the new position
-                choicesArray.splice(targetIndex, 0, movedItem);
-
-                // Call your existing update method to re-render and sync to raw JSON
                 this.update();
             }
         });
