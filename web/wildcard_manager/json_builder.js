@@ -294,10 +294,6 @@ const JSONBuilder = {
         menu.className = 'ap-context-menu'; // Re-use styling from context menus
         menu.style.display = 'block';
 
-        // Position menu slightly offset from the cursor
-        menu.style.left = `${event.clientX}px`;
-        menu.style.top = `${event.clientY}px`;
-
         const pasteLegacyBtn = document.createElement('button');
         pasteLegacyBtn.innerHTML = '<i class="pi pi-clipboard"></i> Paste Legacy Text';
         pasteLegacyBtn.onclick = () => {
@@ -306,7 +302,28 @@ const JSONBuilder = {
         };
         menu.appendChild(pasteLegacyBtn);
 
+        // 1. Append to body FIRST so the browser gives it physical dimensions
         document.body.appendChild(menu);
+
+        // 2. Measure the bounds of the newly appended menu
+        const menuRect = menu.getBoundingClientRect();
+
+        let x = event.clientX;
+        let y = event.clientY;
+
+        // 3. Prevent overflow off the right side of the screen
+        if (x + menuRect.width > window.innerWidth) {
+            x = window.innerWidth - menuRect.width - 10; // 10px safety padding
+        }
+
+        // 4. Prevent overflow off the bottom of the screen
+        if (y + menuRect.height > window.innerHeight) {
+            y = window.innerHeight - menuRect.height - 10;
+        }
+
+        // Apply bounded coordinates
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
 
         // Auto-close when clicking outside
         setTimeout(() => {
@@ -876,7 +893,8 @@ const JSONBuilder = {
             </div>
             <div class="ap-meta-row">
                 <label>Notes (Internal reference)</label>
-                <textarea class="ap-notes-input" placeholder="Paste reference lists, reminders, or complex logic explanations here..." spellcheck="false">${this.data.notes || ''}</textarea>
+                <!-- Added rows="2" as a baseline -->
+                <textarea class="ap-notes-input" placeholder="Paste reference lists, reminders, or complex logic explanations here..." spellcheck="false" rows="2">${this.data.notes || ''}</textarea>
             </div>
         `;
 
@@ -901,8 +919,10 @@ const JSONBuilder = {
         // Handle Notes input with auto-resize
         const notesInput = card.querySelector('.ap-notes-input');
         const resizeNotes = () => {
-            notesInput.style.height = 'auto'; // Reset to auto to shrink if text was deleted
-            notesInput.style.height = (notesInput.scrollHeight) + 'px'; // Expand to fit scrollHeight
+            // Setting height to 0px forces scrollHeight to read purely the text contents, 
+            // ignoring any massive flex-stretching it might have inherited.
+            notesInput.style.height = '0px';
+            notesInput.style.height = (notesInput.scrollHeight) + 'px';
         };
 
         notesInput.oninput = (e) => {
@@ -911,8 +931,13 @@ const JSONBuilder = {
             resizeNotes();
         };
 
-        // Trigger resize on initial render so it fits loaded text without scrolling
-        setTimeout(resizeNotes, 0);
+        // Delay the initial resize to ensure the DOM is fully visible and painted 
+        // so scrollHeight doesn't pull a wildly incorrect layout value.
+        requestAnimationFrame(() => {
+            resizeNotes();
+            // Secondary fallback catch for slightly slower rendering cycles
+            setTimeout(resizeNotes, 50);
+        });
 
         return card;
     },
