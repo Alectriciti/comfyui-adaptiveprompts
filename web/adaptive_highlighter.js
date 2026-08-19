@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { applyHighlights } from "./adaptive_highlighter_core.js";
 
 const themeLink = document.createElement("link");
 themeLink.rel = "stylesheet";
@@ -64,21 +65,6 @@ style.innerHTML = `
         line-height: inherit;
         border-radius: 4px;
         overflow: auto;                /* FIXED: Forces identical scrolling behaviors */
-    }
-
-    .ap-bracket { color: var(--ap-bracket); font-weight: bold; }
-    .ap-wildcard { color: var(--ap-wildcard); }
-    .ap-wildcard-var { color: var(--ap-wildcard-var); }
-    .ap-lora { color: var(--ap-lora-base); }
-    .ap-lora-name { color: var(--ap-lora-name); }
-    .ap-lora-x { color: var(--ap-lora-x); }
-    .ap-lora-y { color: var(--ap-lora-y); }
-    .ap-lora-z { color: var(--ap-lora-z); }
-    .ap-prob { color: var(--ap-prob); }
-    .ap-error { 
-        color: var(--ap-error); 
-        text-decoration: underline wavy var(--ap-error); 
-        background: rgba(248, 113, 113, 0.1);
     }
 
     /* Visual toggles */

@@ -64,6 +64,13 @@ async def wildcard_manager_page(request):
 
 PromptServer.instance.routes.static("/adaptiveprompts/assets", _WEB_DIR)
 
+# Serves the top-level web/ folder (adaptive_highlighter_core.js,
+# adaptive_theme.css) so the Wildcard Manager's Raw editor can load the exact
+# same syntax-highlighting source the ComfyUI node editor uses, rather than a
+# duplicated copy.
+_SHARED_WEB_DIR = os.path.join(_default_package_root(), "web")
+PromptServer.instance.routes.static("/adaptiveprompts/shared", _SHARED_WEB_DIR)
+
 
 # ---------- folders ----------
 

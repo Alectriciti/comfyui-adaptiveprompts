@@ -25,8 +25,14 @@ const JSONBuilder = {
 
         if (textarea && backdrop) {
             textarea.addEventListener('input', (e) => {
-                // true flag avoids full re-render on every keystroke so we don't lose focus
-                this.syncFromRaw(e.target.value, true);
+                if (state.activeFile && state.activeFile.type === 'json') {
+                    // true flag avoids full re-render on every keystroke so we don't lose focus
+                    this.syncFromRaw(e.target.value, true);
+                } else {
+                    // .txt files use the shared Adaptive Prompts syntax highlighter
+                    // instead of JSON's variable-key coloring.
+                    applyTxtHighlighting(e.target.value);
+                }
             });
 
             textarea.addEventListener('scroll', () => {

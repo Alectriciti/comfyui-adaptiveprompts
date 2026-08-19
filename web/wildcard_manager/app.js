@@ -30,6 +30,22 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+// Adaptive-prompt syntax highlighting for the Raw editor -- used only for
+// .txt files (JSON files use JSONBuilder.updateRawHighlighting's own
+// variable-key coloring instead). Sourced from the same shared
+// adaptive_highlighter_core.js module the ComfyUI node editor uses.
+function applyTxtHighlighting(text) {
+    const backdrop = document.getElementById('ap-raw-backdrop');
+    if (!backdrop) return;
+    if (typeof applyHighlights === 'function') {
+        backdrop.innerHTML = applyHighlights(text);
+    } else {
+        // Shared highlighter hasn't loaded (or failed to) -- fall back to
+        // plain escaped text so the backdrop still mirrors what's typed.
+        backdrop.innerHTML = escapeHtml(text).replace(/\n/g, '<br/>');
+    }
+}
+
 function parseMiniMarkdown(str, color = null) {
     if (!str) return '';
 
@@ -558,7 +574,7 @@ async function performOpenEditor(file) {
 
             JSONBuilder.close();
             document.getElementById('ap-editor-content-area').className = 'ap-content-raw';
-            JSONBuilder.updateRawHighlighting(data.content);
+            applyTxtHighlighting(data.content);
         }
 
         // NEW: Take the snapshot AFTER the formatting finishes, ensuring a 1:1 match

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons/primeicons.css">
     <link rel="stylesheet" href="/adaptiveprompts/assets/style.css">
     <link rel="stylesheet" href="/adaptiveprompts/assets/json_builder.css">
+    <link rel="stylesheet" href="/adaptiveprompts/shared/adaptive_theme.css">
 </head>
 
 <body>
@@ -98,6 +99,13 @@
 
     <div id="ap-context-menu" class="ap-context-menu"></div>
 
+    <script type="module">
+        // Bridges the shared (ES module) highlighter into the plain global
+        // scope this page's classic scripts use -- same source file the
+        // ComfyUI node editor imports, see adaptive_highlighter.js.
+        import { applyHighlights } from '/adaptiveprompts/shared/adaptive_highlighter_core.js';
+        window.applyHighlights = applyHighlights;
+    </script>
     <script src="/adaptiveprompts/assets/app.js"></script>
     <script src="/adaptiveprompts/assets/json_builder.js"></script>
     <!-- New File Modal -->
