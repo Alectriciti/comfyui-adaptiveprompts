@@ -48,6 +48,29 @@ const JSONBuilder = {
             .catch(() => { });
     },
 
+    _bindHighlighter(inputEl, backdropEl) {
+        const updateHighlight = () => {
+            if (window.applyHighlights) {
+                // Fetch the active file state dynamically 
+                const selfRef = (typeof state !== 'undefined' && state.activeFile) ? state.activeFile.relPath : null;
+                backdropEl.innerHTML = window.applyHighlights(inputEl.value, selfRef);
+            } else {
+                backdropEl.textContent = inputEl.value; // Fallback
+            }
+        };
+
+        // Sync typing
+        inputEl.addEventListener('input', updateHighlight);
+
+        // Sync horizontal scrolling if the text gets longer than the input width
+        inputEl.addEventListener('scroll', () => {
+            backdropEl.scrollLeft = inputEl.scrollLeft;
+        });
+
+        // Trigger initial paint
+        updateHighlight();
+    },
+
     // The raw-mode syntax highlighter: colors a variable's key wherever it
     // appears in the raw JSON text using that variable's "label" color.
     updateRawHighlighting(text) {
@@ -657,7 +680,7 @@ const JSONBuilder = {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'ap-choice-row-wrapper';
-        wrapper.draggable = true;
+        wrapper.draggable = false;
 
         const row = document.createElement('div');
         row.className = 'ap-builder-choice-row';
@@ -666,13 +689,23 @@ const JSONBuilder = {
             ? `<span class="ap-choice-extra-badge" title="Has additional unrecognized data preserved but not editable here yet"><i class="pi pi-info-circle"></i></span>`
             : '';
 
-        // NEW: Create the If Container dynamically as its own node
         const ifContainer = document.createElement('label');
         ifContainer.className = 'ap-if-container';
-        ifContainer.innerHTML = `If: <input type="text" class="ap-choice-if" value="${choice.if}" placeholder="cond == val" />`;
-        ifContainer.querySelector('.ap-choice-if').oninput = (e) => { choice.if = e.target.value; this.syncToRaw(); };
+        ifContainer.innerHTML = `If: 
+            <div class="ap-highlight-wrapper ap-choice-if-wrapper">
+                <div class="ap-highlight-backdrop"></div>
+                <input type="text" class="ap-choice-if" value="${choice.if.replace(/"/g, '&quot;')}" placeholder="cond == val" spellcheck="false" />
+            </div>
+        `;
 
-        // Note: The If input is removed from this HTML block
+        const ifInput = ifContainer.querySelector('.ap-choice-if');
+        const ifBackdrop = ifContainer.querySelector('.ap-highlight-backdrop');
+        this._bindHighlighter(ifInput, ifBackdrop);
+
+        ifInput.oninput = (e) => { choice.if = e.target.value; this.syncToRaw(); };
+
+
+        // Wrap the Output input in the highlight container
         row.innerHTML = `
             <div class="ap-choice-drag-handle" title="Drag to reorder">
                 <i class="pi pi-bars"></i>
@@ -684,11 +717,22 @@ const JSONBuilder = {
                 <button class="ap-icon-btn small ap-choice-up" title="Move Up"><i class="pi pi-chevron-up"></i></button>
                 <button class="ap-icon-btn small ap-choice-down" title="Move Down"><i class="pi pi-chevron-down"></i></button>
             </div>
-            <input type="text" class="ap-choice-out" value="${choice.output}" placeholder="Output text..." />
+            <div class="ap-highlight-wrapper ap-choice-out-wrapper">
+                <div class="ap-highlight-backdrop"></div>
+                <input type="text" class="ap-choice-out" value="${choice.output.replace(/"/g, '&quot;')}" placeholder="Output text..." spellcheck="false" />
+            </div>
             <label>Chance: <input type="number" step="0.25" class="ap-choice-chance" value="${choice.chance}" placeholder="1" /></label>
             ${extraBadge}
             <button class="ap-icon-btn small danger ap-choice-remove" title="Remove"><i class="pi pi-minus"></i></button>
         `;
+
+        // Bind the output highlight
+        const outInput = row.querySelector('.ap-choice-out');
+        const outBackdrop = row.querySelector('.ap-highlight-backdrop');
+        this._bindHighlighter(outInput, outBackdrop);
+
+        outInput.oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
+        row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
 
         // Insert the ifContainer directly after the Chance label
         const chanceLabel = row.querySelector('.ap-choice-chance').parentNode;
@@ -845,7 +889,10 @@ const JSONBuilder = {
                 setRow.className = 'ap-set-row';
                 setRow.innerHTML = `
                     <input type="text" class="ap-set-key" value="${k}" placeholder="variable name" />
-                    <input type="text" class="ap-set-value" value="${v}" placeholder="value" />
+                    <div class="ap-highlight-wrapper ap-set-value-wrapper">
+                        <div class="ap-highlight-backdrop"></div>
+                        <input type="text" class="ap-set-value" value="${v.replace(/"/g, '&quot;')}" placeholder="value" spellcheck="false" />
+                    </div>
                     <button class="ap-icon-btn small danger" title="Remove"><i class="pi pi-minus"></i></button>
                 `;
                 setRow.querySelector('.ap-set-key').onchange = (e) => {
@@ -860,6 +907,17 @@ const JSONBuilder = {
                         e.target.value = k;
                     }
                 };
+
+                // Bind the set value highlight
+                const valInput = setRow.querySelector('.ap-set-value');
+                const valBackdrop = setRow.querySelector('.ap-highlight-backdrop');
+                this._bindHighlighter(valInput, valBackdrop);
+
+                valInput.oninput = (e) => {
+                    choice.set[k] = e.target.value;
+                    this.syncToRaw();
+                };
+
                 setRow.querySelector('.ap-set-value').oninput = (e) => {
                     choice.set[k] = e.target.value;
                     this.syncToRaw();

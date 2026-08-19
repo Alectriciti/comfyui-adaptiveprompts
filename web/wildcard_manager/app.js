@@ -37,11 +37,13 @@ function escapeHtml(str) {
 function applyTxtHighlighting(text) {
     const backdrop = document.getElementById('ap-raw-backdrop');
     if (!backdrop) return;
+
+    // Grab the relative path (e.g., "coolwildcard" or "subfolder/coolwildcard")
+    const selfRef = state.activeFile ? state.activeFile.relPath : null;
+
     if (typeof applyHighlights === 'function') {
-        backdrop.innerHTML = applyHighlights(text);
+        backdrop.innerHTML = applyHighlights(text, selfRef);
     } else {
-        // Shared highlighter hasn't loaded (or failed to) -- fall back to
-        // plain escaped text so the backdrop still mirrors what's typed.
         backdrop.innerHTML = escapeHtml(text).replace(/\n/g, '<br/>');
     }
 }

@@ -9,7 +9,7 @@
 // logic -- just the pure text-to-HTML transform, so it loads as a plain ES
 // module from either context.
 
-export function applyHighlights(text) {
+export function applyHighlights(text, selfRefName = null) {
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const tokens = [];
@@ -47,6 +47,12 @@ export function applyHighlights(text) {
         if (variable && !name) {
             return saveToken(`<span class="ap-wildcard-var">${match}</span>`);
         }
+
+        // NEW: Check for self-reference
+        if (selfRefName && name === selfRefName) {
+            return saveToken(`<span class="ap-wildcard-self">${match}</span>`);
+        }
+
         return saveToken(`<span class="ap-wildcard">${match}</span>`);
     });
 

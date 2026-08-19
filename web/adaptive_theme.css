@@ -6,6 +6,7 @@
   --ap-bracket: #4ade80;
   --ap-wildcard: #3bc1ff;
   --ap-wildcard-var: #49ffe1;
+  --ap-wildcard-self: #496aff;
   --ap-lora-base: #5f5db4;
   --ap-lora-name: #9b95ee;
   --ap-lora-x: #ac58ff;
@@ -35,6 +36,10 @@
 
 .ap-wildcard-var {
   color: var(--ap-wildcard-var);
+}
+
+.ap-wildcard-self {
+  color: var(--ap-wildcard-self);
 }
 
 .ap-lora {

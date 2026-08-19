@@ -517,3 +517,60 @@
 .ap-choice-drag-handle:hover {
     color: var(--ap-text);
 }
+
+/* -------------------------------------
+   Input Syntax Highlight Wrappers
+   ------------------------------------- */
+.ap-highlight-wrapper {
+    position: relative;
+    display: flex;
+    min-width: 0;
+}
+
+/* Match the layout proportions of the original inputs */
+.ap-highlight-wrapper.ap-choice-out-wrapper {
+    flex: 2;
+    min-width: 50px;
+}
+
+.ap-highlight-wrapper.ap-set-value-wrapper {
+    flex: 1.4;
+}
+
+.ap-highlight-wrapper.ap-choice-if-wrapper {
+    flex: 1;
+}
+
+.ap-highlight-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 6px;
+    font-family: monospace;
+    font-size: 12px;
+    white-space: pre;
+    overflow: hidden;
+    background: #141414;
+    color: var(--ap-text);
+    border: 1px solid transparent;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* The actual inputs become transparent layers on top */
+.ap-highlight-wrapper input {
+    position: relative;
+    z-index: 2;
+    background: transparent !important;
+    color: transparent !important;
+    caret-color: var(--ap-text);
+    width: 100%;
+}
+
+.ap-highlight-wrapper input::selection {
+    color: transparent;
+    background: rgba(59, 193, 255, 0.3);
+}
