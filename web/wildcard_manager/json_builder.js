@@ -918,10 +918,6 @@ const JSONBuilder = {
                     this.syncToRaw();
                 };
 
-                setRow.querySelector('.ap-set-value').oninput = (e) => {
-                    choice.set[k] = e.target.value;
-                    this.syncToRaw();
-                };
                 setRow.querySelector('button').onclick = () => {
                     delete choice.set[k];
                     if (Object.keys(choice.set).length === 0) choice.set = null;
