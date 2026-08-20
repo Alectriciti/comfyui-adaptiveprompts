@@ -222,24 +222,10 @@
                 <h2><i class="pi pi-question-circle"></i> Help & Documentation</h2>
                 <button class="ap-large-modal-close"><i class="pi pi-times"></i></button>
             </div>
-            <div class="ap-large-modal-body" style="padding: 24px; line-height: 1.6;">
-                <h3>Welcome to the Adaptive Prompts Wildcard Manager</h3>
-                <p>This editor provides a full environment to organize, test, and develop your dynamic prompt datasets.
-                </p>
-                <ul>
-                    <li><strong>Folders:</strong> All folders map to directories prefixed with <code>wildcards_</code>
-                        in your custom node folder. Right-click folders to manage them.</li>
-                    <li><strong>File Types:</strong> Use <code>.txt</code> for simple one-per-line lists, or
-                        <code>.json</code> to access the advanced Adaptive Prompts builder (which allows defining
-                        variables and LoRAs).
-                    </li>
-                    <li><strong>Syntax:</strong> Reference files in your workflow text fields using the syntax
-                        <code>__folderName/fileName__</code>.
-                    </li>
-                    <li><strong>Quick Testing:</strong> Click the lightning bolt (<i class="pi pi-bolt"></i>) on any
-                        card or in the editor to simulate a generation in the console.</li>
-                </ul>
-                <p><em>More comprehensive documentation coming soon...</em></p>
+            <!-- help.js will inject help.html here -->
+            <div id="ap-help-content" class="ap-large-modal-body">
+                <div style="padding: 24px; text-align: center; color: var(--ap-editor-text);">Loading documentation...
+                </div>
             </div>
         </div>
     </div>

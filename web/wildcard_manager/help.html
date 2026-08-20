@@ -1,0 +1,62 @@
+<div style="padding: 24px; line-height: 1.6;">
+    <h3>Welcome to the Adaptive Prompts Wildcard Manager</h3>
+    <p>This editor provides a full environment to organize, test, and develop your dynamic prompt datasets.</p>
+
+    <hr style="border: none; border-top: 1px solid var(--ap-border); margin: 24px 0;">
+
+    <h4>Building JSON Wildcards</h4>
+    <p>While <code>.txt</code> files are excellent for simple one-per-line lists, <code>.json</code> wildcards unlock
+        the advanced capabilities of the Adaptive Prompts evaluation engine.</p>
+    <ul>
+        <li><strong>Variables:</strong> Define reusable subsets of text, weights, and conditionals that exist
+            exclusively within the current file.</li>
+        <li><strong>LoRAs:</strong> A dedicated array to manage LoRA networks associated with this specific dataset.
+        </li>
+        <li><strong>Generate:</strong> The primary pool of choices evaluated and returned when the wildcard is invoked.
+        </li>
+    </ul>
+
+    <h4>Syntax & Highlighting Guide</h4>
+    <p>Adaptive Prompts evaluates specific syntax tokens dynamically. These are color-coded in your editor for quick
+        visual reference:</p>
+    <ul>
+        <li><strong class="ap-bracket">{choice A|choice B|choice C}</strong>: Dynamic bracket syntax. This is the
+            fastest way to use adaptive prompts</li>
+        <li><strong class="ap-bracket">{1-2$$choice A|choice B|choice C}</strong>: This will pick 1 to 2 items</li>
+        <li><strong class="ap-bracket">{3??common<strong class="ap-prob">%2</strong>|normal|rare<strong
+                    class="ap-prob">%0.1</strong>}</strong>: This will pick 2 items with probability assigned. The
+            default probability is always 1.0</li>
+        <li><strong class="ap-wildcard">__wildcard__</strong>: Standard wildcard reference to another file.</li>
+        <li><strong class="ap-wildcard-var">__^variable__</strong>: Calls a variable wildcard, which can be defined with
+            the syntax of <strong class="ap-wildcard-var">__example^variable__</strong> or <strong
+                class="ap-wildcard-var">{__example__|example2}^variable</strong>, the <b>Set Variable</b> node,
+            or within JSON wildcards. If the variable is not defined, it will fall back to <strong
+                class="ap-wildcard">__variable__</strong> and try resolving normally. Multiple values can be assigned to
+            the same variable wildcard, and when called, a random one will be selected.</li>
+        <li><strong class="ap-bracket">{*$$__wildcard__}</strong>: This will expend all possible choices within that
+            wildcard. This can be used with variable wildcards as well.</li>
+        <li><strong class="ap-lora">&lt;lora:</strong><strong class="ap-lora-name">network_name</strong><strong
+                class="ap-lora-x">:1.0</strong><strong class="ap-lora-y">:1.0</strong><strong
+                class="ap-lora-z">:2.5</strong><strong class="ap-lora">&gt;</strong>: LoRA network definitions. This is
+            intended for use with the <b>Load Tags Loader</b> node.
+        <li><strong class="ap-lora-x">x</strong> represents
+            Model Weight</li>
+        <li><strong class="ap-lora-y">y</strong> represents Clip Weight</li>
+        <li><strong class="ap-lora-z">z</strong> represents Tag Weight, which is multiplied by the base_keywords
+            parameter,
+            and output any found keywords within the safetensors.
+        </li>
+        </li>
+        <li><strong class="ap-prob">%20</strong>: Chance/probability weights appended to the end of txt files. For
+            brackets, use <strong class="ap-prob">{3??low chance%0.2|normal|high chance%2}</strong>
+        </li>
+    </ul>
+
+    <h4>The Self-Calling Rule</h4>
+    <p>To prevent infinite generation loops, Adaptive Prompts handles self-referential wildcards with a strict fallback
+        mechanism. <strong>If you are evaluating <code>color.json</code> and output its own reference name (<strong
+                class="ap-wildcard-self">__color__</strong>), the engine will automatically redirect that specific call
+            to <code>color.txt</code> instead.</strong></p>
+    <p>If you intend to recursively call the root wildcard name from within its own JSON structure, ensure you maintain
+        a fallback <code>.txt</code> file in the same directory.</p>
+</div>
