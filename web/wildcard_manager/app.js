@@ -41,11 +41,19 @@ function applyTxtHighlighting(text) {
     // Grab the relative path (e.g., "coolwildcard" or "subfolder/coolwildcard")
     const selfRef = state.activeFile ? state.activeFile.relPath : null;
 
+    let htmlOut = "";
     if (typeof applyHighlights === 'function') {
-        backdrop.innerHTML = applyHighlights(text, selfRef);
+        htmlOut = applyHighlights(text, selfRef, true);
     } else {
-        backdrop.innerHTML = escapeHtml(text).replace(/\n/g, '<br/>');
+        htmlOut = escapeHtml(text).replace(/\n/g, '<br/>');
     }
+
+    // NEW: Highlight legacy weights (%2, %0.5) in yellow locally for the editor
+    // The regex ensures it only matches % followed by numbers/decimals at the 
+    // end of a string, line break, or before a space, avoiding HTML attribute conflicts.
+    htmlOut = htmlOut.replace(/(%[0-9.]+)(?=\s|<br\/?>|$)/g, '<span style="color: #ffd700;">$1</span>');
+
+    backdrop.innerHTML = htmlOut;
 }
 
 function parseMiniMarkdown(str, color = null) {

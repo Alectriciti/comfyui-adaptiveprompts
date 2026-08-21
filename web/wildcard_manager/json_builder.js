@@ -388,14 +388,14 @@ const JSONBuilder = {
 
         for (let line of lines) {
             line = line.trim();
-            if (!line) continue; // Ignore empty and whitespace lines
-            if (line.startsWith('#')) continue; // Ignore comments
+            if (!line) continue;
+            if (line.startsWith('#')) continue;
 
             let output = line;
             let chance = "";
 
-            // Matches patterns like "%2%" or "%0.5%" securely at the end of the line
-            const weightMatch = line.match(/%([\d.]+)%$/);
+            // Matches patterns like "%2%", "%0.5%", "%2", or "%0.5" securely at the end of the line
+            const weightMatch = line.match(/%([\d.]+)(?:%)?$/);
             if (weightMatch) {
                 chance = Number(weightMatch[1]);
                 output = line.substring(0, weightMatch.index).trim();

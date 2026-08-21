@@ -9,7 +9,7 @@
 // logic -- just the pure text-to-HTML transform, so it loads as a plain ES
 // module from either context.
 
-export function applyHighlights(text, selfRefName = null) {
+export function applyHighlights(text, selfRefName = null, isTxtBuilder = false) {
     let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     const tokens = [];
@@ -99,6 +99,14 @@ export function applyHighlights(text, selfRefName = null) {
                 }
             }
         }
+    }
+
+    if (isTxtBuilder) {
+        // Matches % followed by numbers/decimals, allowing for trailing spaces/carriage returns at the end of a line
+        const lineEndWeightRegex = /(%[0-9.]+)([ \t\r]*)$/gm;
+        html = html.replace(lineEndWeightRegex, (match, weight, spaces) => {
+            return saveToken(`<span class="ap-prob">${weight}</span>`) + spaces;
+        });
     }
 
     while (bracketStack.length > 0) {

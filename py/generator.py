@@ -197,7 +197,7 @@ def _split_top_level_pipes(s: str) -> list[str]:
 
 # ------------------------ Weighted file helpers -----------------------------
 
-_WEIGHT_RE = re.compile(r'(?<!\\)%([0-9]*\.?[0-9]+)(?=\s*$)')
+_WEIGHT_RE = re.compile(r'(?<!\\)%([0-9]*\.?[0-9]+)(?:%|(?=\s*$))')
 
 def _extract_choice_weight(choice: str) -> tuple[str, float]:
     """
@@ -216,7 +216,7 @@ def _extract_choice_weight(choice: str) -> tuple[str, float]:
 
 def _parse_weighted_options(lines_iterable):
     """
-    Parse lines with optional %w% weight tag.
+    Parse lines with optional %w% or %w weight tag.
     Returns (items, weights). Defaults to weight 1.0 per item.
     """
     items, weights = [], []
@@ -227,12 +227,15 @@ def _parse_weighted_options(lines_iterable):
         line = re.split(r'(?<!\\)#', line)[0].strip()
         if not line:
             continue
-        m = re.search(r'(?<!\\)%([0-9]*\.?[0-9]+)%', line)
+            
+        # Updated to capture either %weight% or %weight at the end of the string
+        m = re.search(r'(?<!\\)%([0-9]*\.?[0-9]+)(?:%|(?=\s*$))', line)
         if m:
             w = float(m.group(1))
             line = (line[:m.start()] + line[m.end():]).strip()
         else:
             w = 1.0
+            
         line = line.replace(r'\%', '%')
         if line:
             items.append(line)
