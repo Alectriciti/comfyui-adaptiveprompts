@@ -196,8 +196,8 @@ body {
 /* Change 5: Navigation Actions Header */
 .ap-nav-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 12px;
     margin-bottom: 10px;
     flex-shrink: 0;
 }
@@ -205,6 +205,7 @@ body {
 #ap-breadcrumb {
     font-size: 12px;
     color: var(--ap-text-dim);
+    order: 2;
 }
 
 #ap-breadcrumb span {
@@ -218,6 +219,7 @@ body {
 .ap-nav-actions {
     display: flex;
     gap: 8px;
+    order: 1;
 }
 
 .ap-nav-actions button {
