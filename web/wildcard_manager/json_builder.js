@@ -198,6 +198,7 @@ const JSONBuilder = {
         let qty = 1;
         let choices = [];
         let label = null;
+        let local = false;
 
         if (Array.isArray(v)) {
             choices = v;
@@ -205,6 +206,7 @@ const JSONBuilder = {
             qty = v.quantity ?? 1;
             choices = v.choices || [];
             label = v.label || null;
+            local = v.local || false;
         } else {
             choices = [v];
         }
@@ -212,13 +214,15 @@ const JSONBuilder = {
         return {
             quantity: qty,
             label: label,
+            local: local,
             choices: choices.map(c => this._normalizeChoiceEntry(c)),
         };
     },
 
     _cleanVariable(variableData) {
         const cleaned = {};
-        if (variableData.label) cleaned.label = variableData.label; // Inject label first
+        if (variableData.label) cleaned.label = variableData.label;
+        if (variableData.local) cleaned.local = true;
 
         cleaned.quantity = variableData.quantity || 1;
         cleaned.choices = variableData.choices.map(c => this._cleanChoiceEntry(c));
@@ -431,7 +435,7 @@ const JSONBuilder = {
         container.appendChild(this.createSection('variables', 'Variables', () => {
             const newKey = prompt("Enter new variable name:");
             if (newKey && !this.data.variables[newKey]) {
-                this.data.variables[newKey] = { quantity: 1, label: null, choices: [{ output: '', chance: '', if: '', set: null, _extra: null }] };
+                this.data.variables[newKey] = { quantity: 1, label: null, local: false, choices: [{ output: '', chance: '', if: '', set: null, _extra: null }] };
                 this.update();
             }
         }, [
@@ -560,6 +564,11 @@ const JSONBuilder = {
 
                 <input type="text" class="ap-var-key" value="${key}" placeholder="Key name" title="Variable Key" ${variableData.label ? `style="color: ${variableData.label};"` : ''} />
                 <label>Qty: <input type="text" class="ap-var-qty" value="${variableData.quantity}" placeholder="1 or 1-3" /></label>
+                
+                <label class="ap-var-local-label" title="Keep this variable strictly local">
+                    <input type="checkbox" class="ap-var-local-cb" ${variableData.local ? 'checked' : ''} />
+                    Local
+                </label>
             </div>
             <div class="ap-var-header-actions">
                 <button class="ap-icon-btn small ap-var-up" title="Move Up"><i class="pi pi-chevron-up"></i></button>
@@ -603,6 +612,10 @@ const JSONBuilder = {
                 delete this.data.variables[key];
                 this.update();
             }
+        };
+        header.querySelector('.ap-var-local-cb').onchange = (e) => {
+            this.data.variables[key].local = e.target.checked;
+            this.syncToRaw();
         };
 
         const choicesHeader = document.createElement('div');

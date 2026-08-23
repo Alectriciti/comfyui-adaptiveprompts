@@ -514,22 +514,36 @@ def _try_process_json_payload(filepath: str,
         return None
 
     local_rng = seeded_rng if seeded_rng is not None else SeededRandom(rng.getrandbits(64))
-    local_vars = _resolved_vars if _resolved_vars is not None else {}
 
-    # --- 1. Snapshot and Pre-populate Context ---
-    local_var_snapshots = {}
+    # Work in an isolated context for this JSON payload.
+    # This lets local variables exist for the entire payload generation
+    # without ever becoming part of the caller's persistent context.
+    parent_vars = _resolved_vars if _resolved_vars is not None else {}
+
+    local_vars = {
+        var_name: dict(bucket) if isinstance(bucket, dict) else bucket
+        for var_name, bucket in parent_vars.items()
+    }
+
+    local_variable_names = set()
 
     for var_name, definition in (data.get("variables") or {}).items():
-        # Check for the local flag on the definition
-        if isinstance(definition, dict) and definition.get("local") is True:
-            # Snapshot existing keys if the variable is already established in context
-            if var_name in local_vars and isinstance(local_vars[var_name], dict):
-                local_var_snapshots[var_name] = list(local_vars[var_name].keys())
-            else:
-                local_var_snapshots[var_name] = None
-                
+        is_local = (
+            isinstance(definition, dict)
+            and definition.get("local") is True
+        )
+
+        if is_local:
+            local_variable_names.add(var_name)
+
         var_rng = local_rng.branch(f"json_var_{var_name}")
-        _resolve_variable_definition(var_name, definition, var_rng, wildcard_dir, local_vars)
+        _resolve_variable_definition(
+            var_name,
+            definition,
+            var_rng,
+            wildcard_dir,
+            local_vars
+        )
 
     # --- 2. Resolve Loras ---
     lora_parts = []
@@ -543,23 +557,34 @@ def _try_process_json_payload(filepath: str,
     lora_string = " ".join(lora_parts)
 
     # --- 3. Generate ---
-    picked_raw = pick_generate_entry(data.get("generate") or [], local_rng.next_rng(), wildcard_dir, local_vars)
-    
-    # --- 4. Cleanup Local Variables ---
-    for var_name, snapshot_keys in local_var_snapshots.items():
-        if snapshot_keys is None:
-            # Variable didn't exist before; remove it completely
-            if var_name in local_vars:
-                del local_vars[var_name]
-        else:
-            # Revert variable bucket by stripping out anything added during this payload
-            if var_name in local_vars and isinstance(local_vars[var_name], dict):
-                for k in list(local_vars[var_name].keys()):
-                    if k not in snapshot_keys:
-                        del local_vars[var_name][k]
+    picked_raw = pick_generate_entry(
+        data.get("generate") or [],
+        local_rng.next_rng(),
+        wildcard_dir,
+        local_vars
+    )
 
-    if not picked_raw:
-        return lora_string
+    # Resolve the generated text BEFORE local variables are cleaned up.
+    if picked_raw:
+        picked_raw = resolve_wildcards(
+            picked_raw,
+            local_rng,
+            wildcard_dir,
+            source_file=filepath,
+            _resolved_vars=local_vars,
+            bracket_ctx=None,
+            bracket_overflow=True
+        )
+
+    # --- 4. Commit only NON-LOCAL variables back to the parent context ---
+    for var_name, value in local_vars.items():
+        if var_name in local_variable_names:
+            continue
+
+        if isinstance(value, dict):
+            parent_vars[var_name] = dict(value)
+        else:
+            parent_vars[var_name] = value
 
     return f"{picked_raw} {lora_string}" if lora_string else picked_raw
 
