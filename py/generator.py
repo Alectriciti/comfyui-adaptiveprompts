@@ -506,38 +506,32 @@ def _try_process_json_payload(filepath: str,
                               _resolved_vars: dict | None,
                               seeded_rng: 'SeededRandom | None') -> str | None:
     """
-    If `filepath` is a JSON file shaped like a JSON Payload (has a "generate"
-    key), merges its "variables" into _resolved_vars, resolves+filters its
-    "loras", weighted-picks ONE "generate" line (same %weight% syntax as a
-    .txt line), and returns it -- deliberately still UNRESOLVED. The caller
-    (process_file_wildcard's caller, eg _resolve_token) already runs a
-    resolve_wildcards() pass over whatever we return, and by then
-    _resolved_vars has already been populated above, so __^name__ etc.
-    inside the picked line resolve correctly without us resolving it twice.
-
-    Returns None if the file isn't payload-shaped (no "generate" key) -- the
-    caller then falls back to treating it as a plain JSON choices file,
-    unchanged from before.
+    If `filepath` is a JSON file shaped like a JSON Payload, merges its variables, 
+    resolves loras, and weighted-picks ONE generate line.
     """
     data = _load_json_file(filepath)
     if not isinstance(data, dict) or "generate" not in data:
         return None
 
-    # Fallback for callers that don't have a real SeededRandom/_resolved_vars
-    # handy (still resolves correctly, just can't merge variables into a
-    # caller's context or stay continuous with the outer Adaptive RNG stream).
     local_rng = seeded_rng if seeded_rng is not None else SeededRandom(rng.getrandbits(64))
     local_vars = _resolved_vars if _resolved_vars is not None else {}
 
-    # 1. Pre-populate context from "variables". This is what makes __jsontest__
-    #    merge name/age/color etc. into the node's normal DICT output.
+    # --- 1. Snapshot and Pre-populate Context ---
+    local_var_snapshots = {}
+
     for var_name, definition in (data.get("variables") or {}).items():
+        # Check for the local flag on the definition
+        if isinstance(definition, dict) and definition.get("local") is True:
+            # Snapshot existing keys if the variable is already established in context
+            if var_name in local_vars and isinstance(local_vars[var_name], dict):
+                local_var_snapshots[var_name] = list(local_vars[var_name].keys())
+            else:
+                local_var_snapshots[var_name] = None
+                
         var_rng = local_rng.branch(f"json_var_{var_name}")
         _resolve_variable_definition(var_name, definition, var_rng, wildcard_dir, local_vars)
 
-    # 2. Resolve + filter "loras" now -- dropping empty pipe-fallback results
-    #    (eg "{...|}") requires seeing each one's resolved value, so this has
-    #    to happen here rather than being deferred to the caller.
+    # --- 2. Resolve Loras ---
     lora_parts = []
     for lora_tpl in (data.get("loras") or []):
         resolved_lora = resolve_wildcards(
@@ -548,11 +542,22 @@ def _try_process_json_payload(filepath: str,
             lora_parts.append(resolved_lora)
     lora_string = " ".join(lora_parts)
 
-    # "generate" entries now support the same {"output", "chance", "if", "set"}
-    # shape as a variable's "choices" -- pick_generate_entry() applies the
-    # winning entry's "if"/"chance"/"set" the same way a variable choice does,
-    # just always picking exactly one.
+    # --- 3. Generate ---
     picked_raw = pick_generate_entry(data.get("generate") or [], local_rng.next_rng(), wildcard_dir, local_vars)
+    
+    # --- 4. Cleanup Local Variables ---
+    for var_name, snapshot_keys in local_var_snapshots.items():
+        if snapshot_keys is None:
+            # Variable didn't exist before; remove it completely
+            if var_name in local_vars:
+                del local_vars[var_name]
+        else:
+            # Revert variable bucket by stripping out anything added during this payload
+            if var_name in local_vars and isinstance(local_vars[var_name], dict):
+                for k in list(local_vars[var_name].keys()):
+                    if k not in snapshot_keys:
+                        del local_vars[var_name][k]
+
     if not picked_raw:
         return lora_string
 

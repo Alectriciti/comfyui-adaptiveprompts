@@ -475,47 +475,30 @@ def evaluate_json_payload(payload: dict | str,
                            base_seed: int,
                            wildcard_dir: str,
                            rng_mode: str | None = None) -> dict:
-    """
-    Top-level entry point for the JSON Payload Engine (v0.1).
-
-    `payload` may be an already-parsed dict, or a raw JSON string (a
-    malformed string will raise json.JSONDecodeError -- deliberately not
-    caught here, since this is the primary input and a silent empty result
-    would be more confusing than a clear error).
-
-    Runs the three phases in order, sharing one _resolved_vars context and
-    one continuously-advancing SeededRandom across all of them, so __^name__
-    style recalls stay consistent across every "generate" entry:
-        1. variables -> pre-populates _resolved_vars (see _resolve_variable_definition)
-        2. loras     -> resolved in turn; empty results (eg "{...|}" landing on
-                        the empty branch) are dropped, non-empty ones space-joined
-        3. generate  -> each template run through evaluate_prompt_core()
-
-    Returns:
-        {
-          "prompts": [str, ...],           one resolved string per "generate" entry
-          "lora_string": str,               non-empty resolved loras, space-joined
-          "prompts_with_loras": [str, ...], each prompt with lora_string appended
-          "context": dict,                  final _resolved_vars, for chaining into
-                                             another node's context input
-        }
-    """
     from .generator import SeededRandom, resolve_wildcards, evaluate_prompt_core
 
     if isinstance(payload, str):
         payload = json.loads(payload)
 
-    rng = SeededRandom(base_seed, mode=rng_mode)  # rng_mode=None -> config default ("Adaptive")
+    rng = SeededRandom(base_seed, mode=rng_mode)
     resolved_vars: dict = {}
+    
+    # --- NEW: Local Variable Snapshots ---
+    local_var_snapshots = {}
 
-    # 1. variables -- each gets its own RNG branch so re-ordering or adding
-    #    entries in the JSON doesn't cascade-shift another variable's random
-    #    result. Same stability guarantee "Adaptive" mode gives everywhere else.
+    # 1. Variables
     for var_name, definition in (payload.get("variables") or {}).items():
+        # Check for the local flag on the definition
+        if isinstance(definition, dict) and definition.get("local") is True:
+            if var_name in resolved_vars and isinstance(resolved_vars[var_name], dict):
+                local_var_snapshots[var_name] = list(resolved_vars[var_name].keys())
+            else:
+                local_var_snapshots[var_name] = None
+                
         var_rng = rng.branch(f"json_var_{var_name}")
         _resolve_variable_definition(var_name, definition, var_rng, wildcard_dir, resolved_vars)
 
-    # 2. loras
+    # 2. Loras
     lora_parts = []
     for lora_tpl in (payload.get("loras") or []):
         resolved = resolve_wildcards(
@@ -527,10 +510,7 @@ def evaluate_json_payload(payload: dict | str,
             lora_parts.append(resolved)
     lora_string = " ".join(lora_parts)
 
-    # 3. generate -- batch mode: every entry whose "if" condition passes
-    # produces its own prompt (unlike pick_generate_entry's single weighted
-    # pick, used for __name__-style wildcard calls). "chance" is intentionally
-    # not used as an inclusion probability here.
+    # 3. Generate
     prompts = []
     for template in (payload.get("generate") or []):
         if isinstance(template, dict):
@@ -549,6 +529,17 @@ def evaluate_json_payload(payload: dict | str,
         )
 
     prompts_with_loras = [f"{p}{lora_string}" if lora_string else p for p in prompts]
+    
+    # --- NEW: Cleanup Local Variables ---
+    for var_name, snapshot_keys in local_var_snapshots.items():
+        if snapshot_keys is None:
+            if var_name in resolved_vars:
+                del resolved_vars[var_name]
+        else:
+            if var_name in resolved_vars and isinstance(resolved_vars[var_name], dict):
+                for k in list(resolved_vars[var_name].keys()):
+                    if k not in snapshot_keys:
+                        del resolved_vars[var_name][k]
 
     return {
         "prompts": prompts,
