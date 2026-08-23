@@ -287,11 +287,20 @@ def _resolve_variable_definition(var_name: str,
         _resolve_count_expression, _ensure_var_bucket, _deck_draw,
     )
 
-    resolved_vars[var_name] = {}
+    _ensure_bucket = resolved_vars.get(var_name)
+
+    if not isinstance(_ensure_bucket, dict):
+        resolved_vars[var_name] = {}
+        
     bucket = resolved_vars[var_name]
 
     def _store(value: str):
-        bucket[f"__json_{len(bucket)}"] = value
+        # Find the next available JSON-specific origin index.
+        json_index = 0
+        while f"__json_{json_index}" in bucket:
+            json_index += 1
+
+        bucket[f"__json_{json_index}"] = value
 
     if isinstance(definition, list):
         definition = {"choices": definition}
