@@ -21,12 +21,24 @@ export function applyHighlights(text, selfRefName = null, isTxtBuilder = false) 
         return id;
     }
 
+    // A. Inline Comments (Adaptive Prompts)
     const commentRegex = /##(.*?)##/gs;
     html = html.replace(commentRegex, (match, content) => {
         return saveToken(`<span class="ap-comment">##${content}##</span>`);
     });
 
-    // A. Improved LoRA Parsing
+    // B. Line Comments (TxtBuilder Only)
+    if (isTxtBuilder) {
+        // Matches a line starting with # ...
+        const lineCommentRegex = /^[ \t]*#.*(?:\r?\n|$)/gm;
+        html = html.replace(lineCommentRegex, (match, content) => {
+            // FIX: Use 'match' to include the full line (including the #) in the comment span.
+            // Previously, we used 'content' which would cut off the leading '#'.
+            return saveToken(`<span class="ap-comment">${match}</span>`);
+        });
+    }
+
+    // C. Improved LoRA Parsing
     const loraRegex = /(&lt;lora:)([^:&>]+)((?::[^:&>]*){0,3})(&gt;)/gi;
     html = html.replace(loraRegex, (match, open, name, args, close) => {
         let res = `<span class="ap-lora">${open}</span>`;
@@ -46,14 +58,14 @@ export function applyHighlights(text, selfRefName = null, isTxtBuilder = false) 
         return saveToken(res);
     });
 
-    // B. Wildcards + Variables
+    // D. Wildcards + Variables
     const wildcardRegex = /__(?:([A-Za-z0-9_\-/\*\.~]+))?(?:\^([A-Za-z0-9_\-\*]+))?__/g;
     html = html.replace(wildcardRegex, (match, name, variable) => {
         if (variable && !name) {
             return saveToken(`<span class="ap-wildcard-var">${match}</span>`);
         }
 
-        // NEW: Check for self-reference
+        // Check for self-reference
         if (selfRefName && name === selfRefName) {
             return saveToken(`<span class="ap-wildcard-self">${match}</span>`);
         }
@@ -61,7 +73,7 @@ export function applyHighlights(text, selfRefName = null, isTxtBuilder = false) 
         return saveToken(`<span class="ap-wildcard">${match}</span>`);
     });
 
-    // C. Integrated Bracket & Separator Parsing
+    // E. Integrated Bracket & Separator Parsing
     let chars = html.split('');
     let bracketStack = [];
 
@@ -126,7 +138,7 @@ export function applyHighlights(text, selfRefName = null, isTxtBuilder = false) 
         return `${closeBracket}<span class="ap-wildcard-var">${variables}</span>`;
     });
 
-    // D. Restore Tokens
+    // F. Restore Tokens
     for (let i = tokens.length - 1; i >= 0; i--) {
         html = html.replace(tokens[i].id, tokens[i].markup);
     }
