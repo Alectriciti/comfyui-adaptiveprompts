@@ -23,48 +23,64 @@ style.innerHTML = `
     .ap-editor-backdrop {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        overflow: auto;                /* FIXED: Let layout engine account for scrollbar width */
+        
+        /* FIX 1: Both elements MUST have native scrollbars enabled. 
+           Do NOT hide this scrollbar with CSS, otherwise the backdrop 
+           gets wider than the textarea and text wraps differently! */
+        overflow-y: scroll !important;
+        overflow-x: hidden;
+        
         white-space: pre-wrap;
         word-wrap: break-word;
+        overflow-wrap: break-word;
+        
         color: var(--ap-editor-text);
         background: var(--ap-editor-bg);
         pointer-events: none;
+        
+        /* FIX 2: Strict dimension matching */
         padding: 6px;
-        margin: 0;                     /* FIXED: Explicitly strip margins */
+        margin: 0;
         box-sizing: border-box;
         border-radius: 4px;
-        border: 1px solid transparent; /* FIXED: Footprint must match textarea border width */
+        border: 1px solid transparent; /* Exactly matches textarea border */
         
-        /* Optional: Makes backdrop scrollbars transparent if they ever peek out slightly */
-        scrollbar-color: transparent transparent; 
-    }
-
-    /* Webkit-specific layout footprint adjustments to ensure sync */
-    .ap-editor-backdrop::-webkit-scrollbar {
-        background: transparent;
-    }
-    .ap-editor-backdrop::-webkit-scrollbar-thumb {
-        background: transparent;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: inherit;
+        letter-spacing: normal;
+        text-transform: none;
+        font-variant-ligatures: none;
     }
 
     .ap-editor-textarea {
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
         width: 100%; height: 100%;
+        
         background: transparent !important;
         color: transparent !important;
         caret-color: white;
         resize: none;
-        border: 1px solid #333;
-        margin: 0;                     /* FIXED: Explicitly strip margins */
-        outline: none;
+        
+        /* FIX 3: Strict dimension matching */
         padding: 6px;
+        margin: 0;
         box-sizing: border-box;
+        border-radius: 4px;
+        border: 1px solid #333;
+        outline: none;
+        
         font-family: inherit;
         font-size: inherit;
         line-height: inherit;
-        border-radius: 4px;
-        overflow: auto;                /* FIXED: Forces identical scrolling behaviors */
+        letter-spacing: normal;
+        text-transform: none;
+        font-variant-ligatures: none;
+        
+        /* Textarea scrollbar perfectly covers the backdrop scrollbar */
+        overflow-y: scroll !important;
+        overflow-x: hidden;
     }
 
     /* Visual toggles */
