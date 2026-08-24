@@ -21,6 +21,11 @@ export function applyHighlights(text, selfRefName = null, isTxtBuilder = false) 
         return id;
     }
 
+    const commentRegex = /##(.*?)##/gs;
+    html = html.replace(commentRegex, (match, content) => {
+        return saveToken(`<span class="ap-comment">##${content}##</span>`);
+    });
+
     // A. Improved LoRA Parsing
     const loraRegex = /(&lt;lora:)([^:&>]+)((?::[^:&>]*){0,3})(&gt;)/gi;
     html = html.replace(loraRegex, (match, open, name, args, close) => {
