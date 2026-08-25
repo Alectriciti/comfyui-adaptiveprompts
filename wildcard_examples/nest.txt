@@ -1,2 +1,0 @@
-__fruit__
-{2-3$$__fruit__|__animal__}

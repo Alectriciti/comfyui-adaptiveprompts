@@ -1,3 +1,0 @@
-t-shirt
-tanktop
-__other_shirts__ # designed to fail

@@ -1,8 +1,0 @@
-{cat|dog|pig|cow}
-{fox|owl}
-{eel|fly|bat}
-{rat|bee|elk|yak|eel}
-#{ram|koi|hen|doe}
-#{rhino|hippo|giraffe}
-{tiger|lion}
-{bear|wolf}

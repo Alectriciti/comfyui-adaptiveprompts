@@ -1,9 +1,0 @@
-red
-green
-blue
-yellow
-white
-black
-pink
-purple
-aqua

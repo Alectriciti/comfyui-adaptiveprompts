@@ -1,0 +1,23 @@
+{
+    "displayname": "Camera Settings",
+    "color": "#ffcc7c",
+    "variables": {
+        "model": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": ""
+                },
+                {
+                    "output": ""
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": ""
+        }
+    ]
+}
