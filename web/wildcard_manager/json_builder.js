@@ -717,8 +717,7 @@ const JSONBuilder = {
 
         ifInput.oninput = (e) => { choice.if = e.target.value; this.syncToRaw(); };
 
-
-        // Wrap the Output input in the highlight container
+        // Wrap the Output input in the highlight container with textarea support
         row.innerHTML = `
             <div class="ap-choice-drag-handle" title="Drag to reorder">
                 <i class="pi pi-bars"></i>
@@ -732,19 +731,85 @@ const JSONBuilder = {
             </div>
             <div class="ap-highlight-wrapper ap-choice-out-wrapper">
                 <div class="ap-highlight-backdrop"></div>
-                <input type="text" class="ap-choice-out" value="${choice.output.replace(/"/g, '&quot;')}" placeholder="Output text..." spellcheck="false" />
+                <textarea class="ap-choice-out" placeholder="Output text..." spellcheck="false" rows="1"></textarea>
             </div>
             <label>Chance: <input type="number" step="0.25" class="ap-choice-chance" value="${choice.chance}" placeholder="1" /></label>
             ${extraBadge}
             <button class="ap-icon-btn small danger ap-choice-remove" title="Remove"><i class="pi pi-minus"></i></button>
         `;
 
-        // Bind the output highlight
+        // Bind the output highlight with textarea support
         const outInput = row.querySelector('.ap-choice-out');
         const outBackdrop = row.querySelector('.ap-highlight-backdrop');
+        outInput.value = choice.output || '';
+
         this._bindHighlighter(outInput, outBackdrop);
 
-        outInput.oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
+        // Handle textarea input with proper line handling
+        const handleTextareaInput = (e) => {
+            choice.output = e.target.value;
+            this.syncToRaw();
+
+            // Auto-resize textarea - FIXED: Use requestAnimationFrame to prevent layout thrashing
+            requestAnimationFrame(() => {
+                e.target.style.height = 'auto';
+                // Add some padding to prevent it from being too tight
+                const scrollHeight = e.target.scrollHeight;
+                e.target.style.height = Math.max(scrollHeight, 30) + 'px';
+            });
+        };
+
+        outInput.addEventListener('input', handleTextareaInput);
+
+        // Handle Enter key for new lines - IMPROVED: Better cursor management
+        outInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+
+                // Get current cursor position
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                const value = e.target.value;
+
+                // Insert newline at cursor position
+                const newValue = value.substring(0, start) + '\n' + value.substring(end);
+                e.target.value = newValue;
+
+                // Move cursor to just after the newline
+                setTimeout(() => {
+                    e.target.selectionStart = start + 1;
+                    e.target.selectionEnd = start + 1;
+                    // Force re-render to make sure cursor is visible
+                    handleTextareaInput(e);
+                }, 0);
+            }
+        });
+
+        // Ensure textarea gets proper initial sizing and focus handling
+        outInput.addEventListener('focus', () => {
+            // Ensure we're scrolled into view
+            const wrapper = outInput.closest('.ap-choice-row-wrapper');
+            if (wrapper) {
+                wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+
+        // Auto-resize textarea on initial render with better timing
+        requestAnimationFrame(() => {
+            outInput.style.height = 'auto';
+            const scrollHeight = outInput.scrollHeight;
+            outInput.style.height = Math.max(scrollHeight, 30) + 'px';
+        });
+
+        // Make sure the textarea doesn't lose focus when clicking other elements
+        outInput.addEventListener('mousedown', (e) => {
+            // Prevent losing focus when clicking on the textarea itself
+            if (e.target === outInput) {
+                e.preventDefault();
+                outInput.focus();
+            }
+        });
+
         row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
 
         // Insert the ifContainer directly after the Chance label
@@ -819,8 +884,8 @@ const JSONBuilder = {
             wrapper.draggable = false;
         });
 
-        row.querySelector('.ap-choice-out').oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
-        row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
+        //row.querySelector('.ap-choice-out').oninput = (e) => { choice.output = e.target.value; this.syncToRaw(); };
+        //row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
         row.querySelector('.ap-choice-up').onclick = () => { this.moveArrayItem(choicesArray, index, -1); this.update(); };
         row.querySelector('.ap-choice-down').onclick = () => { this.moveArrayItem(choicesArray, index, 1); this.update(); };
         row.querySelector('.ap-choice-remove').onclick = () => { choicesArray.splice(index, 1); this.update(); };
