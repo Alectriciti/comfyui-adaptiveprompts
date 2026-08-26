@@ -199,20 +199,26 @@ def _build_choice_pool(raw_choices: list, resolved_vars: dict):
     ready for _parse_weighted_options(), after dropping any entry whose "if"
     condition fails against resolved_vars's CURRENT state.
 
-    Shared by a variable's "choices" list AND a "generate" list, since a
-    "generate" entry is exactly one of these same choice objects now --
-    Adaptive Prompts just always draws exactly one from "generate" (no
-    surrounding "quantity"), since resolving a wildcard call can only ever
-    produce one string.
+    Shared by a variable's "choices" list AND a "generate" list.
 
-    Returns (items, weights, choice_metadata) where choice_metadata maps the
-    internal uid-tagged string (still embedded in `items`) to that choice's
-    raw "set" data -- see _extract_and_apply_picked.
+    Returns (items, weights, choice_metadata, choice_outputs).
+
+    choice_outputs maps a dict-choice's uid to its RAW (possibly multi-line)
+    "output" text, kept OUT of the string that gets weight-parsed here --
+    otherwise a "%N%" tag embedded inside a multi-line output (meant for the
+    SECOND-stage per-line selection) could get mistaken for the choice's own
+    "chance" field by this FIRST-stage parse, which just does a plain
+    re.search for the first "%number%" it finds, not specifically the
+    trailing one. Bare string choices (no "chance"/"if"/"set") skip this
+    indirection entirely and keep their existing behavior unchanged: any
+    inline "%weight%" they carry IS their first-stage selection weight,
+    extracted directly, same as before this feature existed.
     """
     from .generator import _parse_weighted_options
 
     valid_choices = []
     choice_metadata = {}
+    choice_outputs = {}
 
     for i, c in enumerate(raw_choices):
         if isinstance(c, dict):
@@ -222,9 +228,9 @@ def _build_choice_pool(raw_choices: list, resolved_vars: dict):
 
             out_str = str(c.get("output", ""))
             chance = c.get("chance", c.get("weight"))
+            uid_str = f"__uid_{i}__"
 
-            # Unique id tag so "set" commands survive the %weight% string parser.
-            uid_str = f"__uid_{i}__:{out_str}"
+            choice_outputs[uid_str] = out_str
 
             if chance is not None:
                 valid_choices.append(f"{uid_str}%{chance}%")
@@ -237,24 +243,81 @@ def _build_choice_pool(raw_choices: list, resolved_vars: dict):
             valid_choices.append(str(c))
 
     items, weights = _parse_weighted_options(valid_choices)
-    return items, weights, choice_metadata
+    return items, weights, choice_metadata, choice_outputs
 
 
-def _extract_and_apply_picked(picked: str, choice_metadata: dict, resolved_vars: dict) -> str:
+def _extract_and_apply_picked(
+    picked: str,
+    choice_metadata: dict,
+    choice_outputs: dict,
+    resolved_vars: dict,
+    rng=None
+) -> str:
     """
-    Given one item drawn from a _build_choice_pool() result, strips the
-    internal uid tag back off, applies that choice's "set" commands (if any)
-    to resolved_vars, and returns the clean output text -- still unresolved,
-    ready for resolve_wildcards()/evaluate_prompt_core().
+    Given one item drawn from a JSON choice pool:
+
+      1. if it's a dict-choice's uid, recovers its actual output text and
+         applies any `set` commands,
+      2. if an RNG is supplied, performs the second-stage multiline weighted
+         selection on the resulting output (a .txt-wildcard-style pick among
+         its lines).
+
+    Stages:  JSON `chance` -> selected choice -> output lines / `%weight%`
     """
-    if picked.startswith("__uid_"):
-        uid_parts = picked.split(":", 1)
-        if len(uid_parts) == 2:
-            uid_key = f"{uid_parts[0]}:{uid_parts[1]}"
-            if uid_key in choice_metadata:
-                _apply_set_commands(choice_metadata[uid_key], resolved_vars)
-            picked = uid_parts[1]
+    if picked in choice_outputs:
+        if picked in choice_metadata:
+            _apply_set_commands(choice_metadata[picked], resolved_vars)
+        picked = choice_outputs[picked]
+    # else: bare-string choice -- `picked` (already %weight%-stripped by the
+    # first-stage parse) IS the output text, nothing further to look up.
+
+    if rng is not None:
+        picked = _select_json_output_line(picked, rng)
+
     return picked
+
+
+def _select_json_output_line(output: str, rng) -> str:
+    """
+    Treat a JSON choice's output as a miniature TXT wildcard.
+
+    Example:
+
+        red%7
+        green
+        blue
+        yellow
+
+    becomes a weighted pool:
+
+        red    -> 7
+        green  -> 1
+        blue   -> 1
+        yellow -> 1
+
+    The returned line has its inline %weight marker removed.
+    """
+    if output is None:
+        return ""
+
+    output = str(output)
+
+    # splitlines() handles \n, \r\n, and \r.
+    lines = output.splitlines()
+
+    # Preserve a single-line output as a valid one-item pool.
+    if not lines:
+        lines = [output]
+
+    from .generator import _parse_weighted_options, _weighted_index
+
+    items, weights = _parse_weighted_options(lines)
+
+    if not items:
+        return ""
+
+    idx = _weighted_index(weights, rng)
+    return items[idx]
 
 def _resolve_variable_definition(var_name: str,
                                   definition,
@@ -311,7 +374,7 @@ def _resolve_variable_definition(var_name: str,
         quantity_expr = str(definition.get("quantity", "1"))
 
         # --- 1. EVALUATE CONDITIONS AND BIND METADATA ---
-        items, weights, choice_metadata = _build_choice_pool(raw_choices, resolved_vars)
+        items, weights, choice_metadata, choice_outputs = _build_choice_pool(raw_choices, resolved_vars)
         if not items:
             return
 
@@ -327,18 +390,40 @@ def _resolve_variable_definition(var_name: str,
             "remain_items": list(items), "remain_weights": list(weights),
         }
         for _ in range(quantity):
-                picked = _deck_draw(deck, var_rng.next_rng(), allow_overflow=True)
-                if picked is None:
-                    break
+            picked = _deck_draw(
+                deck,
+                var_rng.next_rng(),
+                allow_overflow=True
+            )
 
-                picked = _extract_and_apply_picked(picked, choice_metadata, resolved_vars)
+            if picked is None:
+                break
 
-                resolved = resolve_wildcards(
-                    picked, var_rng, wildcard_dir,
-                    _resolved_vars=resolved_vars,
-                    bracket_ctx=None, bracket_overflow=True
-                )
-                _store(resolved)
+            # Stage 1:
+            # Select the JSON row using its `chance`.
+
+            picked = _extract_and_apply_picked(
+                picked,
+                choice_metadata,
+                choice_outputs,
+                resolved_vars,
+                rng=var_rng.next_rng()
+            )
+
+            # Stage 2 happened inside _extract_and_apply_picked():
+            # if the row contains multiple lines, select one of them
+            # using the normal TXT weighted-line rules.
+
+            resolved = resolve_wildcards(
+                picked,
+                var_rng,
+                wildcard_dir,
+                _resolved_vars=resolved_vars,
+                bracket_ctx=None,
+                bracket_overflow=True
+            )
+
+            _store(resolved)
     else:
         resolved = resolve_wildcards(
             str(definition), var_rng, wildcard_dir,
@@ -428,12 +513,19 @@ def pick_generate_entry(raw_generate: list, rng, wildcard_dir: str, resolved_var
     """
     from .generator import _weighted_index
 
-    items, weights, choice_metadata = _build_choice_pool(raw_generate, resolved_vars)
+    items, weights, choice_metadata, choice_outputs = _build_choice_pool(raw_generate, resolved_vars)
     if not items:
         return ""
 
     idx = _weighted_index(weights, rng)
-    return _extract_and_apply_picked(items[idx], choice_metadata, resolved_vars)
+
+    return _extract_and_apply_picked(
+        items[idx],
+        choice_metadata,
+        choice_outputs,
+        resolved_vars,
+        rng=rng
+    )
 
 def evaluate_json_payload(payload: dict | str,
                            base_seed: int,
