@@ -558,7 +558,12 @@
     padding: 6px;
     font-family: monospace;
     font-size: 12px;
-    white-space: pre;
+    line-height: 1.5;
+    /* Force identical tracking */
+    white-space: pre-wrap;
+    /* Allow the backdrop to wrap matching the textarea */
+    word-break: break-word;
+    /* Ensure identical breaking points */
     overflow: hidden;
     background: #141414;
     color: var(--ap-text);
@@ -568,7 +573,6 @@
     z-index: 1;
 }
 
-/* Make sure the input is properly layered */
 .ap-highlight-wrapper input,
 .ap-highlight-wrapper textarea {
     position: relative;
@@ -576,7 +580,6 @@
     background: transparent !important;
     color: transparent !important;
     caret-color: var(--ap-text) !important;
-    /* Force the cursor color */
     width: 100%;
     height: 100%;
     border: none;
@@ -584,7 +587,22 @@
     resize: none;
     overflow: hidden;
     padding: 6px;
+    margin: 0;
+    /* Prevent browser default margins from misaligning text */
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    /* Force identical tracking */
+    white-space: pre-wrap;
+    word-break: break-word;
     box-sizing: border-box;
+}
+
+/* Include textarea in the selection highlight */
+.ap-highlight-wrapper input::selection,
+.ap-highlight-wrapper textarea::selection {
+    color: transparent;
+    background: rgba(59, 193, 255, 0.3);
 }
 
 .ap-highlight-wrapper input::selection {

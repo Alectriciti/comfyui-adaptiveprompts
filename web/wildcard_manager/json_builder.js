@@ -750,10 +750,9 @@ const JSONBuilder = {
             choice.output = e.target.value;
             this.syncToRaw();
 
-            // Auto-resize textarea - FIXED: Use requestAnimationFrame to prevent layout thrashing
+            // Use the 0px trick to accurately measure scrollHeight without layout jumping
             requestAnimationFrame(() => {
-                e.target.style.height = 'auto';
-                // Add some padding to prevent it from being too tight
+                e.target.style.height = '0px';
                 const scrollHeight = e.target.scrollHeight;
                 e.target.style.height = Math.max(scrollHeight, 30) + 'px';
             });
@@ -796,18 +795,9 @@ const JSONBuilder = {
 
         // Auto-resize textarea on initial render with better timing
         requestAnimationFrame(() => {
-            outInput.style.height = 'auto';
+            outInput.style.height = '0px';
             const scrollHeight = outInput.scrollHeight;
             outInput.style.height = Math.max(scrollHeight, 30) + 'px';
-        });
-
-        // Make sure the textarea doesn't lose focus when clicking other elements
-        outInput.addEventListener('mousedown', (e) => {
-            // Prevent losing focus when clicking on the textarea itself
-            if (e.target === outInput) {
-                e.preventDefault();
-                outInput.focus();
-            }
         });
 
         row.querySelector('.ap-choice-chance').oninput = (e) => { choice.chance = e.target.value; this.syncToRaw(); };
@@ -815,6 +805,7 @@ const JSONBuilder = {
         // Insert the ifContainer directly after the Chance label
         const chanceLabel = row.querySelector('.ap-choice-chance').parentNode;
         chanceLabel.after(ifContainer);
+
 
         // Only make the row draggable when holding down on the drag handle
         const dragHandle = row.querySelector('.ap-choice-drag-handle');
