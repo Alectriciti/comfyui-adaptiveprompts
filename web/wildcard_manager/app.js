@@ -282,6 +282,42 @@ function buildTreeNode(displayName, categoryLabel, path, children, depth) {
     };
     row.oncontextmenu = (e) => showFolderContextMenu(e, categoryLabel, path, depth);
 
+    // --- NEW: Drag & Drop targets ---
+    row.addEventListener('dragover', (e) => {
+        // Must prevent default to allow drop
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    });
+
+    row.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        row.classList.add('ap-drag-over');
+    });
+
+    row.addEventListener('dragleave', (e) => {
+        // Prevent flickering when hovering over text/icons inside the row
+        if (!row.contains(e.relatedTarget)) {
+            row.classList.remove('ap-drag-over');
+        }
+    });
+
+    row.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        row.classList.remove('ap-drag-over');
+
+        try {
+            const fileData = e.dataTransfer.getData('application/json');
+            if (!fileData) return; // Invalid drag item
+
+            const file = JSON.parse(fileData);
+            if (!file || !file.name || !file.folder) return; // Verify it's our file object
+
+            await moveWildcardFile(file, categoryLabel, path);
+        } catch (err) {
+            console.error("Drop parsing error:", err);
+        }
+    });
+
     li.appendChild(row);
 
     if (hasChildren && isExpanded) {
@@ -364,6 +400,77 @@ document.getElementById("ap-add-folder").onclick = async () => {
     try { await apiSend("/folders", { name }); log(`Created folder wildcards_${name}`); loadFolderTree(); }
     catch (err) { log(`Failed to create folder: ${err.message}`, true); }
 };
+
+// ---------- drag and drop handler ----------
+async function moveWildcardFile(file, targetCategory, targetPath) {
+    const targetRelPath = targetPath ? `${targetPath}/${file.name}` : file.name;
+
+    // Abort if dropping into the exact same location
+    if (file.folder === targetCategory && file.relPath === targetRelPath) {
+        return;
+    }
+
+    try {
+        // 1. Fetch current file content
+        const data = await apiGet(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
+
+        // 2. Safely grab the preview image blob if one exists
+        let previewBlob = null;
+        if (file.hasPreview) {
+            try {
+                const previewRes = await fetch(`${API}/preview?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}`);
+                if (previewRes.ok) previewBlob = await previewRes.blob();
+            } catch (err) {
+                console.warn("Failed to fetch preview for move", err);
+            }
+        }
+
+        // 3. Post file data to the new location
+        await apiSend("/file", {
+            folder: targetCategory,
+            path: targetRelPath,
+            type: file.type,
+            content: data.content
+        });
+
+        // 4. Post the preview thumbnail to the new location (if it existed)
+        if (previewBlob) {
+            const formData = new FormData();
+            formData.append("folder", targetCategory);
+            formData.append("path", targetRelPath);
+            formData.append("image", previewBlob);
+            await fetch(`${API}/preview`, { method: "POST", body: formData });
+        }
+
+        // 5. Delete old text/json file
+        await apiSend(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`, {}, "DELETE");
+
+        // 6. Delete old preview thumbnail
+        if (file.hasPreview) {
+            try {
+                await apiSend(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=png`, {}, "DELETE");
+            } catch (err) {
+                // Ignore silent preview deletion errors
+            }
+        }
+
+        log(`Moved ${file.name}.${file.type} to ${targetCategory}/${targetPath}`);
+
+        // Remove old file location from recents history
+        removeFromRecents(file);
+
+        // If the moved file was currently open in the editor, cleanly close it
+        if (state.activeFile && state.activeFile.folder === file.folder && state.activeFile.relPath === file.relPath) {
+            setEditorOpen(false);
+        }
+
+        // Calling loadFolderTree automatically invokes loadFiles(), refreshing everything
+        await loadFolderTree();
+
+    } catch (err) {
+        log(`Failed to move file: ${err.message}`, true);
+    }
+}
 
 // ---------- files / cards ----------
 async function loadFiles() {
@@ -472,10 +579,27 @@ function renderFileGrid(files) {
             openEditor(file);
         });
 
+        card.draggable = true;
+        card.addEventListener('dragstart', (e) => {
+            // Attach the file data to the drag event
+            e.dataTransfer.setData('application/json', JSON.stringify(file));
+            e.dataTransfer.effectAllowed = 'move';
+            // Use timeout so the dragging class doesn't strip the native drag ghost image
+            setTimeout(() => card.classList.add('ap-dragging'), 0);
+        });
+
+        card.addEventListener('dragend', () => {
+            card.classList.remove('ap-dragging');
+        });
+
+        grid.appendChild(card);
+
         card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             showFileContextMenu(e, file);
         });
+
+
 
         grid.appendChild(card);
     }
