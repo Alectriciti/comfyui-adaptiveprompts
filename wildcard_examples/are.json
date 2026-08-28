@@ -1,0 +1,18 @@
+{
+    "displayname": "Utility: Are",
+    "color": "#84a4f0",
+    "description": "Converts \"He\"/\"She\" into `is`, and \"They\" into `are` respectively",
+    "notes": "\nHe `is`\nShe `is`\nThey `are`",
+    "variables": {},
+    "loras": [],
+    "generate": [
+        {
+            "output": "is",
+            "if": "gender == male || gender == female"
+        },
+        {
+            "output": "are",
+            "if": "gender == they"
+        }
+    ]
+}

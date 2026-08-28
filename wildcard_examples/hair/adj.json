@@ -1,0 +1,48 @@
+{
+    "displayname": "Adjective (Hair)",
+    "description": "shape, condition, length, etc",
+    "variables": {
+        "hair_length": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "absurdly long"
+                },
+                {
+                    "output": "__very__ long\nlong"
+                },
+                {
+                    "output": "medium\nmedium-cut"
+                },
+                {
+                    "output": "short"
+                }
+            ]
+        },
+        "hair_shape": {
+            "local": true,
+            "quantity": "1-3",
+            "choices": [
+                {
+                    "output": "voluminous"
+                },
+                {
+                    "output": "lush"
+                },
+                {
+                    "output": "wavy\nstraight"
+                },
+                {
+                    "output": "flowing"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "{*$$__^hair_*__}"
+        }
+    ]
+}

@@ -1,0 +1,171 @@
+{
+    "displayname": "Mercy (Overwatch)",
+    "color": "#ffcf72",
+    "description": "Your Guardian Angel `Angela Ziegler`",
+    "notes": "In this example, we create some variables for this character.\n\n1. The VARIABLES section will be where we supply a name, personality, hair color, and other variables that establish the overall look of the character.\n\n\"personality\" will be a parameter that we can either call directly, or use with conditions to set flags later in the prompt chain. For instance, if the personality is \"confident\", we could use that to allow the pose \"hands on hips\".\n\n2. The LORA section will be what we supply to automatically append a lora tag (which is intended for use with the `Load Lora Tags` node). This is a completely optional feature, you can apply loras however you like.\n\n3. The GENERATE section is what actually gets output when calling __character/mercy__.",
+    "variables": {
+        "state": {
+            "label": "#ffffff",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "##this will be used as a variable to determine what variation of Mercy is created. See the if statements in some of these variables to see how this is used. ##\ncombat",
+                    "chance": 2
+                },
+                {
+                    "output": "casual"
+                }
+            ]
+        },
+        "has": {
+            "label": "#a7d4a3",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "glasses",
+                    "if": "state == casual"
+                }
+            ]
+        },
+        "gender": {
+            "label": "#6cda5c",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "female"
+                }
+            ]
+        },
+        "name": {
+            "label": "#ffda6a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "Mercy \\(Overwatch\\)"
+                },
+                {
+                    "output": "Angela Ziegler \\(Overwatch\\)"
+                }
+            ]
+        },
+        "heritage": {
+            "label": "#e7944a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "swiss"
+                }
+            ]
+        },
+        "profession": {
+            "label": "#f25e46",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "angel medic\nguardian angel",
+                    "chance": 2.5
+                },
+                {
+                    "output": "{1-2$$ $$angelic|field|combat} medic"
+                }
+            ]
+        },
+        "personality": {
+            "label": "#e085e7",
+            "quantity": "1-3",
+            "choices": [
+                {
+                    "output": "confident"
+                },
+                {
+                    "output": "compassionate"
+                },
+                {
+                    "output": "kind"
+                },
+                {
+                    "output": "heroic"
+                },
+                {
+                    "output": "graceful"
+                }
+            ]
+        },
+        "color": {
+            "label": "#dd61e1",
+            "quantity": "1-2",
+            "choices": [
+                {
+                    "output": "## this will be used as a generic color palette. In this case, 1 to 2 values will be set to __^color__ ##\nwhite"
+                },
+                {
+                    "output": "## only one of these will be picked exclusively, never both##\ngold\nyellow\nred"
+                }
+            ]
+        },
+        "eyecolor": {
+            "label": "#3cc1ff",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "blue\n{sky|light} blue"
+                }
+            ]
+        },
+        "haircolor": {
+            "label": "#c2743b",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "blonde",
+                    "chance": 1
+                },
+                {
+                    "output": "light blonde",
+                    "chance": 0.75
+                },
+                {
+                    "output": "white",
+                    "chance": 0.25
+                }
+            ]
+        },
+        "clothes": {
+            "label": "#71df82",
+            "quantity": "1-3",
+            "choices": [
+                {
+                    "output": "a __^color__ halo"
+                },
+                {
+                    "output": "a __^color__ {shirt|blouse|top} and a white lab coat",
+                    "if": "state == casual"
+                },
+                {
+                    "output": "{casual|jean} {pants|shorts}",
+                    "if": "state == casual"
+                },
+                {
+                    "output": "valkyrie armor",
+                    "if": "state == combat"
+                },
+                {
+                    "output": "glowing {1-2$$ $$valkyrie|angel} wings",
+                    "if": "state == combat"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__generate__ ## <-- This is a generic character template, it will utilize some of the variables we set here, but may not be as tailored ##",
+            "chance": 5
+        },
+        {
+            "output": "__^name__, the __^profession__. She has __^haircolor__ __hair__, __^eyecolor__. She is wearing {*$$__^clothes__}.",
+            "chance": 0.01
+        }
+    ]
+}

@@ -1,0 +1,18 @@
+{
+    "displayname": "Utility: Have",
+    "color": "#84a4f0",
+    "description": "Converts \"He\"/\"She\" into `has`, and \"They\" into `have` respectively",
+    "notes": "He `has`\nShe `has`\nThey `have`",
+    "variables": {},
+    "loras": [],
+    "generate": [
+        {
+            "output": "has",
+            "if": "gender == male || gender == female"
+        },
+        {
+            "output": "have",
+            "if": "gender == they"
+        }
+    ]
+}

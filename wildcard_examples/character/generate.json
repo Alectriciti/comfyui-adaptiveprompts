@@ -1,0 +1,47 @@
+{
+    "displayname": "Generate Character",
+    "color": "#8c8c8c",
+    "description": "Internal tool - Applies character details. Use `__character/generate__` to trigger",
+    "notes": "This is a generic use generator that will apply details of a character automatically.\n\nWe establish `they` first, which will help with the grammatical context. It's important we do this before `details` so that it knows what grammar to use.\n\nNotice how the `details` variable has `*` as it's Qty. This will ensure that if the condition has been met, it will be applied to that variable. We localize this variable to make sure it is only used within this wildcard and does not leak to the global context.\n\nThen, in the GENERATE section, we will call every detail that was assigned, which ideally describes every aspect of the character.",
+    "variables": {
+        "they": {
+            "label": "#777777",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "he",
+                    "if": "gender == male"
+                },
+                {
+                    "output": "she",
+                    "if": "gender == female"
+                },
+                {
+                    "output": "## a fallback if gender is not specified ##\nthey",
+                    "if": "gender != male && gender != female"
+                }
+            ]
+        },
+        "details": {
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "__^they__ __have__ __^haircolor__ __hair__"
+                },
+                {
+                    "output": "__^they__ __are__ wearing {*$$__^clothes__}"
+                },
+                {
+                    "output": "__^they__ __have__ __^eyecolor__ eyes",
+                    "if": "has != mask"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^name__, the __^profession__. {*$$__^details__} ## This will completely randomize all the details we listed above --> ## "
+        }
+    ]
+}

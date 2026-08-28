@@ -1,0 +1,25 @@
+{
+    "displayname": "Hair Color",
+    "color": "#ffe0b9",
+    "description": "Prioritizes `__^haircolor__`",
+    "variables": {},
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^haircolor__",
+            "chance": 100,
+            "if": "haircolor"
+        },
+        {
+            "output": "{brunette|brown}\nblonde\nmixed {brown|blonde}\n{orange|red}",
+            "chance": 1
+        },
+        {
+            "output": "black"
+        },
+        {
+            "output": "white",
+            "chance": 0.5
+        }
+    ]
+}

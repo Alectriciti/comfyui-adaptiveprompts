@@ -1,0 +1,13 @@
+{
+    "displayname": "Hair",
+    "color": "#ffdfac",
+    "description": "Complete Hair Stylization",
+    "variables": {},
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^color__ __style__ hair with __^color__ hat",
+            "if": "has == hat"
+        }
+    ]
+}
