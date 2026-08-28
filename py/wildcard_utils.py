@@ -323,7 +323,8 @@ def _resolve_variable_definition(var_name: str,
                                   definition,
                                   var_rng,
                                   wildcard_dir: str,
-                                  resolved_vars: dict) -> None:
+                                  resolved_vars: dict,
+                                  source_file: str | None = None) -> None:
     """
     Pre-populates resolved_vars[var_name] from ONE entry of a payload's
     "variables" object. Mutates resolved_vars in place.
@@ -373,14 +374,13 @@ def _resolve_variable_definition(var_name: str,
         raw_choices = definition.get("choices", [])
         quantity_expr = str(definition.get("quantity", "1"))
 
-        # --- 1. EVALUATE CONDITIONS AND BIND METADATA ---
         items, weights, choice_metadata, choice_outputs = _build_choice_pool(raw_choices, resolved_vars)
         if not items:
             return
 
         quantity, exhaust_all = _resolve_count_expression(
             quantity_expr, var_rng, wildcard_dir,
-            source_file=None, _resolved_vars=resolved_vars,
+            source_file=source_file, _resolved_vars=resolved_vars,  # Pass source_file
             bracket_ctx=None, bracket_overflow=True
         )
         quantity = len(items) if exhaust_all else max(1, quantity)
@@ -399,9 +399,6 @@ def _resolve_variable_definition(var_name: str,
             if picked is None:
                 break
 
-            # Stage 1:
-            # Select the JSON row using its `chance`.
-
             picked = _extract_and_apply_picked(
                 picked,
                 choice_metadata,
@@ -410,14 +407,11 @@ def _resolve_variable_definition(var_name: str,
                 rng=var_rng.next_rng()
             )
 
-            # Stage 2 happened inside _extract_and_apply_picked():
-            # if the row contains multiple lines, select one of them
-            # using the normal TXT weighted-line rules.
-
             resolved = resolve_wildcards(
                 picked,
                 var_rng,
                 wildcard_dir,
+                source_file=source_file,
                 _resolved_vars=resolved_vars,
                 bracket_ctx=None,
                 bracket_overflow=True
@@ -427,6 +421,7 @@ def _resolve_variable_definition(var_name: str,
     else:
         resolved = resolve_wildcards(
             str(definition), var_rng, wildcard_dir,
+            source_file=source_file,
             _resolved_vars=resolved_vars,
             bracket_ctx=None, bracket_overflow=True
         )
@@ -527,82 +522,6 @@ def pick_generate_entry(raw_generate: list, rng, wildcard_dir: str, resolved_var
         rng=rng
     )
 
-def evaluate_json_payload(payload: dict | str,
-                           base_seed: int,
-                           wildcard_dir: str,
-                           rng_mode: str | None = None) -> dict:
-    from .generator import SeededRandom, resolve_wildcards, evaluate_prompt_core
-
-    if isinstance(payload, str):
-        payload = json.loads(payload)
-
-    rng = SeededRandom(base_seed, mode=rng_mode)
-    resolved_vars: dict = {}
-    
-    # --- NEW: Local Variable Snapshots ---
-    local_var_snapshots = {}
-
-    # 1. Variables
-    for var_name, definition in (payload.get("variables") or {}).items():
-        # Check for the local flag on the definition
-        if isinstance(definition, dict) and definition.get("local") is True:
-            if var_name in resolved_vars and isinstance(resolved_vars[var_name], dict):
-                local_var_snapshots[var_name] = list(resolved_vars[var_name].keys())
-            else:
-                local_var_snapshots[var_name] = None
-                
-        var_rng = rng.branch(f"json_var_{var_name}")
-        _resolve_variable_definition(var_name, definition, var_rng, wildcard_dir, resolved_vars)
-
-    # 2. Loras
-    lora_parts = []
-    for lora_tpl in (payload.get("loras") or []):
-        resolved = resolve_wildcards(
-            str(lora_tpl), rng, wildcard_dir,
-            _resolved_vars=resolved_vars,
-            bracket_ctx=None, bracket_overflow=True
-        ).strip()
-        if resolved:
-            lora_parts.append(resolved)
-    lora_string = " ".join(lora_parts)
-
-    # 3. Generate
-    prompts = []
-    for template in (payload.get("generate") or []):
-        if isinstance(template, dict):
-            cond = template.get("if")
-            if cond and not _evaluate_condition(cond, resolved_vars):
-                continue
-            if "set" in template:
-                _apply_set_commands(template["set"], resolved_vars)
-            template = template.get("output", "")
-
-        prompts.append(
-            evaluate_prompt_core(
-                str(template), rng, wildcard_dir,
-                resolved_vars=resolved_vars, hide_comments=True
-            )
-        )
-
-    prompts_with_loras = [f"{p}{lora_string}" if lora_string else p for p in prompts]
-    
-    # --- NEW: Cleanup Local Variables ---
-    for var_name, snapshot_keys in local_var_snapshots.items():
-        if snapshot_keys is None:
-            if var_name in resolved_vars:
-                del resolved_vars[var_name]
-        else:
-            if var_name in resolved_vars and isinstance(resolved_vars[var_name], dict):
-                for k in list(resolved_vars[var_name].keys()):
-                    if k not in snapshot_keys:
-                        del resolved_vars[var_name][k]
-
-    return {
-        "prompts": prompts,
-        "lora_string": lora_string,
-        "prompts_with_loras": prompts_with_loras,
-        "context": resolved_vars,
-    }
 
 def bfs_find_file(search_root: str, target_name: str, validator=None) -> str | None:
     """

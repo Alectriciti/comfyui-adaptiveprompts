@@ -1,15 +1,3 @@
-"""
-Adaptive Prompts: generator
-The brain of parsing bracket/file wildcards
-Designed by Alectriciti
-
-Changes:
-- Removed arbitrary strip() in order to preserve likeness to the original prompt
-  This allows for prompts like {2$${ and | }$$apple|banana|cherry} to function properly}
-- Newlines are preserved
-- Unified handling for __fruit__, __fruit^var__, and __^var__ tokens.
-"""
-
 import re
 import os
 import random
@@ -491,10 +479,9 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
         match = _check_direct(primary_dir, name)
         if match: return match
 
-        # Step 4: Aggressive Mode (Full BFS from root)
-        if resolution_strategy == "Aggressive" or source_file is None:
-            match = bfs_find_file(primary_dir, name, validator=_is_valid_candidate)
-            if match: return match
+        # Step 4: Fallback Full BFS from root (now applied for both Scoped and Aggressive to ensure root files are captured properly)
+        match = bfs_find_file(primary_dir, name, validator=_is_valid_candidate)
+        if match: return match
 
         return None
 
@@ -542,7 +529,8 @@ def _try_process_json_payload(filepath: str,
             definition,
             var_rng,
             wildcard_dir,
-            local_vars
+            local_vars,
+            source_file=filepath # Passes the active payload file for relative variables mapping
         )
 
     # --- 2. Resolve Loras ---
@@ -1370,6 +1358,10 @@ def _final_sweep_resolve(text: str,
             lazy_rng=True,
             on_missing=_handle_missing,
         )
+        
+        # Explicit safety fallback to ensure failed tokens do not cause exceptions further down
+        if replacement is None:
+            replacement = ""
 
         text = text[:m.start()] + replacement + text[m.end():]
         i = m.start() + len(replacement)
