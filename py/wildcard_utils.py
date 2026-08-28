@@ -318,19 +318,23 @@ def _resolve_variable_definition(var_name: str,
     )
 
     _ensure_bucket = resolved_vars.get(var_name)
-
     if not isinstance(_ensure_bucket, dict):
         resolved_vars[var_name] = {}
-        
-    bucket = resolved_vars[var_name]
 
     def _store(value: str):
+        # Dynamically fetch the fresh reference to prevent orphaned scopes 
+        # in the event nested payloads clear/replace the dictionary.
+        current_bucket = resolved_vars.get(var_name)
+        if not isinstance(current_bucket, dict):
+            resolved_vars[var_name] = {}
+            current_bucket = resolved_vars[var_name]
+            
         # Find the next available JSON-specific origin index.
         json_index = 0
-        while f"__json_{json_index}" in bucket:
+        while f"__json_{json_index}" in current_bucket:
             json_index += 1
 
-        bucket[f"__json_{json_index}"] = value
+        current_bucket[f"__json_{json_index}"] = value
 
     if isinstance(definition, list):
         definition = {"choices": definition}
@@ -482,22 +486,29 @@ def _apply_set_commands(set_data, resolved_vars: dict) -> None:
             else:
                 # Treat as an empty flag
                 flag_str = str(item)
-                resolved_vars[flag_str] = {"__set": ""} 
+                if flag_str in resolved_vars and isinstance(resolved_vars[flag_str], dict):
+                    resolved_vars[flag_str].clear()
+                else:
+                    resolved_vars[flag_str] = {}
+                resolved_vars[flag_str]["__set"] = "" 
             
     # Handle Dictionary format
     elif isinstance(set_data, dict):
         for k, v in set_data.items():
             k_str = str(k)
             
+            if k_str in resolved_vars and isinstance(resolved_vars[k_str], dict):
+                resolved_vars[k_str].clear()
+            else:
+                resolved_vars[k_str] = {}
+                
             # Handle an array of multiple values for a single variable
             if isinstance(v, list):
-                # Clear the bucket and populate it with multiple indexed values
-                resolved_vars[k_str] = {}
                 for i, val in enumerate(v):
                     resolved_vars[k_str][f"__set_{i}"] = str(val)
             else:
                 # Handle a single scalar value
-                resolved_vars[k_str] = {"__set": str(v)}
+                resolved_vars[k_str]["__set"] = str(v)
 
 
 def pick_generate_entry(raw_generate: list, rng, wildcard_dir: str, resolved_vars: dict) -> str:

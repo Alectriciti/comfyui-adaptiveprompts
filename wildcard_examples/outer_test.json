@@ -1,0 +1,21 @@
+{
+    "displayname": "Outer Test",
+    "description": "This file is `/wildcard_examples/outer_test.json`",
+    "notes": "This will be used for BFS testing. When this is called from test.json, it should take it's existing context, and append the new entry here, `temp`.",
+    "variables": {
+        "temp": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "testing {1|2|3|4|5|6|7|8}"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^temp__"
+        }
+    ]
+}

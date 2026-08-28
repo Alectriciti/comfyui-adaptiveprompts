@@ -1,0 +1,42 @@
+{
+    "displayname": "Test",
+    "color": "#ffd36a",
+    "description": "This file is `/wildcard_examples/test/test.json`",
+    "notes": "This is the file that will be called in Prompt Generator.",
+    "variables": {
+        "var": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "__outer_test__"
+                }
+            ]
+        },
+        "multiple_choice": {
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "a"
+                },
+                {
+                    "output": "b"
+                },
+                {
+                    "output": "c"
+                },
+                {
+                    "output": "d"
+                },
+                {
+                    "output": "__this_wildcard_does_not_exist__"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^var__ with __^multiple_choice__"
+        }
+    ]
+}

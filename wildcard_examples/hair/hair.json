@@ -6,8 +6,7 @@
     "loras": [],
     "generate": [
         {
-            "output": "__^color__ __style__ hair with __^color__ hat",
-            "if": "has == hat"
+            "output": "__color__ __style__ hair"
         }
     ]
 }

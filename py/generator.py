@@ -571,7 +571,12 @@ def _try_process_json_payload(filepath: str,
             continue
 
         if isinstance(value, dict):
-            parent_vars[var_name] = dict(value)
+            # Maintain reference stability for parent closures to avoid orphaned data
+            if var_name in parent_vars and isinstance(parent_vars[var_name], dict):
+                parent_vars[var_name].clear()
+                parent_vars[var_name].update(value)
+            else:
+                parent_vars[var_name] = dict(value)
         else:
             parent_vars[var_name] = value
 

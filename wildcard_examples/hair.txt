@@ -1,2 +1,1 @@
-# a shortcut to hair/hair.json
 __hair/hair__
