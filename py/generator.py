@@ -339,7 +339,7 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
     else:
         source_dir = primary_dir
 
-    # NEW: Validation function to force .txt fallbacks for specific .json conditions
+    # Validation function to force .txt fallbacks for specific .json conditions
     def _is_valid_candidate(filepath: str) -> bool:
         if filepath.lower().endswith(".json"):
             # 1. Prevent a JSON file from calling itself to force a fallback
@@ -479,9 +479,10 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
         match = _check_direct(primary_dir, name)
         if match: return match
 
-        # Step 4: Fallback Full BFS from root (now applied for both Scoped and Aggressive to ensure root files are captured properly)
-        match = bfs_find_file(primary_dir, name, validator=_is_valid_candidate)
-        if match: return match
+        # Step 4: Fallback Full BFS from root (Applied for both Scoped and Aggressive to ensure proper fallback)
+        if resolution_strategy in ("Aggressive", "Scoped"):
+            match = bfs_find_file(primary_dir, name, validator=_is_valid_candidate)
+            if match: return match
 
         return None
 

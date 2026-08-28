@@ -193,27 +193,6 @@ def load_json_payload_file(filepath: str) -> dict:
         return json.load(f)
 
 def _build_choice_pool(raw_choices: list, resolved_vars: dict):
-    """
-    Normalizes a raw choices/generate array -- a mix of plain strings and/or
-    {"output", "chance"/"weight", "if", "set"} objects -- into a weighted pool
-    ready for _parse_weighted_options(), after dropping any entry whose "if"
-    condition fails against resolved_vars's CURRENT state.
-
-    Shared by a variable's "choices" list AND a "generate" list.
-
-    Returns (items, weights, choice_metadata, choice_outputs).
-
-    choice_outputs maps a dict-choice's uid to its RAW (possibly multi-line)
-    "output" text, kept OUT of the string that gets weight-parsed here --
-    otherwise a "%N%" tag embedded inside a multi-line output (meant for the
-    SECOND-stage per-line selection) could get mistaken for the choice's own
-    "chance" field by this FIRST-stage parse, which just does a plain
-    re.search for the first "%number%" it finds, not specifically the
-    trailing one. Bare string choices (no "chance"/"if"/"set") skip this
-    indirection entirely and keep their existing behavior unchanged: any
-    inline "%weight%" they carry IS their first-stage selection weight,
-    extracted directly, same as before this feature existed.
-    """
     from .generator import _parse_weighted_options
 
     valid_choices = []
@@ -221,26 +200,30 @@ def _build_choice_pool(raw_choices: list, resolved_vars: dict):
     choice_outputs = {}
 
     for i, c in enumerate(raw_choices):
-        if isinstance(c, dict):
-            cond = c.get("if")
-            if cond and not _evaluate_condition(cond, resolved_vars):
-                continue  # condition failed -- not in the pool at all
+        try:
+            if isinstance(c, dict):
+                cond = c.get("if")
+                if cond and not _evaluate_condition(cond, resolved_vars):
+                    continue  # condition failed -- not in the pool at all
 
-            out_str = str(c.get("output", ""))
-            chance = c.get("chance", c.get("weight"))
-            uid_str = f"__uid_{i}__"
+                out_str = str(c.get("output", ""))
+                chance = c.get("chance", c.get("weight"))
+                uid_str = f"__uid_{i}__"
 
-            choice_outputs[uid_str] = out_str
+                choice_outputs[uid_str] = out_str
 
-            if chance is not None:
-                valid_choices.append(f"{uid_str}%{chance}%")
+                if chance is not None:
+                    valid_choices.append(f"{uid_str}%{chance}%")
+                else:
+                    valid_choices.append(uid_str)
+
+                if "set" in c:
+                    choice_metadata[uid_str] = c["set"]
             else:
-                valid_choices.append(uid_str)
-
-            if "set" in c:
-                choice_metadata[uid_str] = c["set"]
-        else:
-            valid_choices.append(str(c))
+                valid_choices.append(str(c))
+        except Exception as e:
+            print(f"[Adaptive Prompts] Skipping invalid choice in pool: {e}")
+            continue
 
     items, weights = _parse_weighted_options(valid_choices)
     return items, weights, choice_metadata, choice_outputs
@@ -328,24 +311,6 @@ def _resolve_variable_definition(var_name: str,
     """
     Pre-populates resolved_vars[var_name] from ONE entry of a payload's
     "variables" object. Mutates resolved_vars in place.
-
-    This is the JSON equivalent of the manual {a|b|c}^x^y^z chain-assignment
-    syntax -- it just runs from data instead of from prompt text.
-
-    `definition` shapes:
-      - a plain string/scalar:
-            resolved once through resolve_wildcards() and stored as the
-            variable's single entry. eg "age": "{30|35|40}"
-
-      - {"quantity": <expr>, "choices": [...]}:
-            "quantity" accepts anything a bracket count does -- a plain int
-            ("5"), a range ("3-8"), "*" (meaning "one of every choice"), or a
-            bracket/wildcard expression that resolves to one of those
-            ("{1|2|3|4|5|__number__}"). That many DISTINCT choices (no
-            repeats until the pool is exhausted, then it wraps) are drawn
-            from "choices" -- same %weight% + nested bracket/wildcard syntax
-            as a .txt wildcard file -- and each is resolved and stored as
-            its own entry, exactly like repeated ^x^y^z picks.
     """
     from .generator import (
         resolve_wildcards, _parse_weighted_options,
@@ -372,60 +337,100 @@ def _resolve_variable_definition(var_name: str,
 
     if isinstance(definition, dict):
         raw_choices = definition.get("choices", [])
-        quantity_expr = str(definition.get("quantity", "1"))
+        
+        try:
+            quantity_expr = str(definition.get("quantity", "1"))
+        except Exception:
+            quantity_expr = "1"
 
         items, weights, choice_metadata, choice_outputs = _build_choice_pool(raw_choices, resolved_vars)
         if not items:
             return
 
-        quantity, exhaust_all = _resolve_count_expression(
-            quantity_expr, var_rng, wildcard_dir,
-            source_file=source_file, _resolved_vars=resolved_vars,  # Pass source_file
-            bracket_ctx=None, bracket_overflow=True
-        )
+        try:
+            quantity, exhaust_all = _resolve_count_expression(
+                quantity_expr, var_rng, wildcard_dir,
+                source_file=source_file, _resolved_vars=resolved_vars,
+                bracket_ctx=None, bracket_overflow=True
+            )
+        except Exception as e:
+            print(f"[Adaptive Prompts] Failed to resolve quantity for '{var_name}': {e}")
+            quantity, exhaust_all = 1, False
+
         quantity = len(items) if exhaust_all else max(1, quantity)
 
         deck = {
             "all_items": list(items), "all_weights": list(weights),
             "remain_items": list(items), "remain_weights": list(weights),
         }
-        for _ in range(quantity):
-            picked = _deck_draw(
-                deck,
-                var_rng.next_rng(),
-                allow_overflow=True
-            )
+        
+        collected = 0
+        attempts = 0
+        max_attempts = max(quantity * 10, 100) # Prevents infinite loops on permanent failures
+        
+        while collected < quantity and attempts < max_attempts:
+            attempts += 1
+            try:
+                picked = _deck_draw(
+                    deck,
+                    var_rng.next_rng(),
+                    allow_overflow=True
+                )
 
-            if picked is None:
-                break
+                if picked is None:
+                    break
 
-            picked = _extract_and_apply_picked(
-                picked,
-                choice_metadata,
-                choice_outputs,
-                resolved_vars,
-                rng=var_rng.next_rng()
-            )
+                picked_str = _extract_and_apply_picked(
+                    picked,
+                    choice_metadata,
+                    choice_outputs,
+                    resolved_vars,
+                    rng=var_rng.next_rng()
+                )
 
+                resolved = resolve_wildcards(
+                    picked_str,
+                    var_rng,
+                    wildcard_dir,
+                    source_file=source_file,
+                    _resolved_vars=resolved_vars,
+                    bracket_ctx=None,
+                    bracket_overflow=True
+                )
+
+                # Only store and increment if it actually resolved to valid text
+                if resolved and resolved.strip():
+                    _store(resolved)
+                    collected += 1
+                else:
+                    # Remove from master pool so it doesn't get redrawn on overflow, preventing early cancellation
+                    if picked in deck["all_items"]:
+                        deck["all_items"].remove(picked)
+                    if exhaust_all:
+                        # Consume the slot so we don't draw duplicates in exhaust mode
+                        collected += 1
+                        
+            except Exception as e:
+                print(f"[Adaptive Prompts] Error resolving choice for variable '{var_name}': {e}")
+                # Same removal logic on thrown exceptions
+                if 'picked' in locals() and picked in deck["all_items"]:
+                    deck["all_items"].remove(picked)
+                if exhaust_all:
+                    collected += 1
+                continue
+    else:
+        try:
             resolved = resolve_wildcards(
-                picked,
-                var_rng,
-                wildcard_dir,
+                str(definition), var_rng, wildcard_dir,
                 source_file=source_file,
                 _resolved_vars=resolved_vars,
-                bracket_ctx=None,
-                bracket_overflow=True
+                bracket_ctx=None, bracket_overflow=True
             )
-
-            _store(resolved)
-    else:
-        resolved = resolve_wildcards(
-            str(definition), var_rng, wildcard_dir,
-            source_file=source_file,
-            _resolved_vars=resolved_vars,
-            bracket_ctx=None, bracket_overflow=True
-        )
-        _store(resolved)
+            # Only store plain string definitions if they are valid
+            if resolved and resolved.strip():
+                _store(resolved)
+        except Exception as e:
+            print(f"[Adaptive Prompts] Error resolving variable '{var_name}': {e}")
 
 def _evaluate_condition(cond_expr: str, resolved_vars: dict) -> bool:
     """Evaluates lightweight logic: 'flag', 'key == val', 'key != val', '&&', '||'."""
