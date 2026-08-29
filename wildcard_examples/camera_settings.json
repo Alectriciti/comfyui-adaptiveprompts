@@ -1,15 +1,241 @@
 {
     "displayname": "Camera Settings",
     "color": "#ffcc7c",
+    "description": "Designs camera settings and metadata `__camera_settings__`",
+    "notes": "Model entries should be separated by brand. Internally, model chances should be weighted by popularity, such as a7r iii having a weight of 2.5. Settings are intended to resemble realistic photographic EXIF metadata rather than lighting descriptions.",
     "variables": {
-        "model": {
+        "camera_model": {
+            "label": "#71d2ff",
             "quantity": 1,
             "choices": [
                 {
-                    "output": ""
+                    "output": "__camera/model__"
+                }
+            ]
+        },
+        "lens": {
+            "label": "#a8e4ff",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "__camera/lens__"
+                }
+            ]
+        },
+        "focal_length": {
+            "label": "#3bff9a",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "24mm\n28mm\n35mm\n40mm\n50mm\n55mm\n85mm",
+                    "chance": 2
                 },
                 {
-                    "output": ""
+                    "output": "20mm\n21mm\n23mm\n30mm\n58mm\n75mm\n90mm\n105mm\n135mm",
+                    "chance": 1
+                },
+                {
+                    "output": "14mm\n16mm\n18mm\n200mm\n300mm",
+                    "chance": 0.35
+                }
+            ]
+        },
+        "fstop": {
+            "label": "#d4ff3b",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "f/2.8\nf/3.2\nf/3.5\nf/4\nf/4.5\nf/5.6",
+                    "chance": 3
+                },
+                {
+                    "output": "f/1.8\nf/2\nf/2.2\nf/2.4\nf/2.5",
+                    "chance": 2
+                },
+                {
+                    "output": "f/6.3\nf/7.1\nf/8\nf/9\nf/11",
+                    "chance": 1
+                },
+                {
+                    "output": "f/1.2\nf/1.4\nf/1.6",
+                    "chance": 0.5
+                },
+                {
+                    "output": "f/0.95",
+                    "chance": 0.1
+                }
+            ]
+        },
+        "shutter": {
+            "label": "#ff973b",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "1/30 sec\n1/40 sec\n1/50 sec\n1/60 sec\n1/80 sec\n1/100 sec\n1/125 sec\n1/160 sec\n1/200 sec\n1/250 sec\n1/320 sec\n1/400 sec\n1/500 sec",
+                    "chance": 3
+                },
+                {
+                    "output": "1/640 sec\n1/800 sec\n1/1000 sec\n1/1250 sec\n1/1600 sec\n1/2000 sec",
+                    "chance": 1.5
+                },
+                {
+                    "output": "1/4000 sec\n1/5000 sec\n1/8000 sec",
+                    "chance": 0.5
+                },
+                {
+                    "output": "1/15 sec\n1/8 sec\n1/4 sec\n1/2 sec\n1 sec",
+                    "chance": 0.5
+                }
+            ]
+        },
+        "iso": {
+            "label": "#ffb997",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "50 iso",
+                    "chance": 1.5
+                },
+                {
+                    "output": "64 iso\n80 iso\n100 iso\n125 iso\n160 iso\n200 iso\n250 iso\n320 iso\n400 iso\n500 iso",
+                    "chance": 3
+                },
+                {
+                    "output": "640 iso\n800 iso\n1000 iso\n1250 iso\n1600 iso\n2000 iso\n2500 iso\n3200 iso",
+                    "chance": 1.5
+                },
+                {
+                    "output": "4000 iso\n5000 iso\n6400 iso\n8000 iso\n10000 iso\n12800 iso",
+                    "chance": 0.5
+                },
+                {
+                    "output": "25600 iso\n32000 iso\n51200 iso",
+                    "chance": 0.15
+                }
+            ]
+        },
+        "exposure": {
+            "label": "#ffeae3",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "EV 0",
+                    "chance": 4
+                },
+                {
+                    "output": "EV -0.3\nEV +0.3",
+                    "chance": 2
+                },
+                {
+                    "output": "EV -0.7\nEV +0.7",
+                    "chance": 1
+                },
+                {
+                    "output": "EV -1\nEV +1\nEV -1.3\nEV +1.3",
+                    "chance": 0.35
+                }
+            ]
+        },
+        "focus": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "autofocus\nAF-S\nsingle autofocus\nsingle-point autofocus",
+                    "chance": 3
+                },
+                {
+                    "output": "AF-C\ncontinuous autofocus\nsubject-tracking autofocus\neye-detect autofocus",
+                    "chance": 2
+                },
+                {
+                    "output": "manual focus\nMF",
+                    "chance": 0.75
+                }
+            ]
+        },
+        "metering": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "matrix metering\nevaluative metering",
+                    "chance": 3
+                },
+                {
+                    "output": "center-weighted metering",
+                    "chance": 1.5
+                },
+                {
+                    "output": "spot metering\npartial metering",
+                    "chance": 0.5
+                }
+            ]
+        },
+        "whitebalance": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "auto white balance",
+                    "chance": 4
+                },
+                {
+                    "output": "daylight white balance\ncloudy white balance",
+                    "chance": 1.5
+                },
+                {
+                    "output": "5200K\n5400K\n5600K\n5800K\n6000K",
+                    "chance": 1
+                },
+                {
+                    "output": "4000K\n4500K\n4800K\n6500K",
+                    "chance": 0.5
+                }
+            ]
+        },
+        "drive": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "single shot",
+                    "chance": 4
+                },
+                {
+                    "output": "continuous low\ncontinuous high\nburst mode",
+                    "chance": 1
+                },
+                {
+                    "output": "self-timer",
+                    "chance": 0.15
+                }
+            ]
+        },
+        "format": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "RAW",
+                    "chance": 2
+                },
+                {
+                    "output": "RAW photo\nuncompressed RAW",
+                    "chance": 1
+                },
+                {
+                    "output": "JPEG",
+                    "chance": 1
+                },
+                {
+                    "output": "RAW + JPEG",
+                    "chance": 0.5
                 }
             ]
         }
@@ -17,7 +243,17 @@
     "loras": [],
     "generate": [
         {
-            "output": ""
+            "output": "{{shot|taken} with|the photo was shot with} a __^camera_model__, {2-3$$__^shutter__|__^fstop__|__^iso__}"
+        },
+        {
+            "output": "{photographed|captured} using a __^camera_model__with a __^lens__, {2-4$$__^focal_length__|__^shutter__|__^fstop__|__^iso__|__^exposure__|__^focus__|__^metering__}"
+        },
+        {
+            "output": "camera: __^camera_model__, lens: __^lens__, {3-5$$focal length __^focal_length__|aperture __^fstop__|shutter speed __^shutter__|__^iso__|exposure __^exposure__|__^focus__|__^metering__}"
+        },
+        {
+            "output": "EXIF-style settings: __^camera_model__, __^lens__, __^focal_length__, __^fstop__, __^shutter__, __^iso__",
+            "chance": 0.25
         }
     ]
 }

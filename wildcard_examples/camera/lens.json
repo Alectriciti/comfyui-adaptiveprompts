@@ -1,0 +1,31 @@
+{
+    "displayname": "Camera Lens",
+    "color": "#adffe0",
+    "description": "called with `camera/lens`",
+    "variables": {
+        "camera_lens": {
+            "label": "#a8e4ff",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "## common prime lenses ##\n24mm f/1.4 lens\n35mm f/1.4 lens\n35mm f/1.8 lens\n50mm f/1.4 lens\n50mm f/1.8 lens\n50mm f/2 lens\n85mm f/1.4 lens\n85mm f/1.8 lens\n90mm f/2.8 macro lens"
+                },
+                {
+                    "output": "## common zoom lenses ##\n16-35mm f/2.8 lens\n24-70mm f/2.8 lens\n24-105mm f/4 lens\n24-120mm f/4 lens\n70-200mm f/2.8 lens\n70-300mm f/4.5-5.6 lens\n100-400mm f/4.5-5.6 lens",
+                    "chance": 2
+                },
+                {
+                    "output": "## specialty lenses ##\n14mm f/1.8 lens\n20mm f/1.4 lens\n28mm f/1.4 lens\n40mm f/2.8 lens\n58mm f/0.95 lens\n105mm f/1.4 lens\n135mm f/1.8 lens\n200mm f/2 lens",
+                    "chance": 0.5
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^camera_lens__"
+        }
+    ]
+}

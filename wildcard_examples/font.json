@@ -1,22 +1,234 @@
 {
     "displayname": "Font",
-    "description": "Converts `theme` into a font",
+    "description": "Uses `theme` or `style` to establish a font",
+    "notes": "`font_theme` will make use of any `theme` variable. Themes hold the context of aesthetic, such as \"pirate\", \"scifi\", \"grunge\".\n`font_style` will make use of any `style` variable. This is more or less the artistic medium of photographic style.\nIf neither is present, a fallback will occur. Theme takes some priority over style since it's typically more prevalent to the font choice.\n\nNote that some of these are not actual fonts, but rather descriptors of the type of font. But we can definitely include literal fonts too.",
     "variables": {
-        "font_style": {
-            "local": true,
+        "font_theme": {
+            "label": "#3bffac",
             "quantity": 1,
             "choices": [
                 {
-                    "output": "standard\nnormal",
+                    "output": "standard\nnormal\nplain\nneutral",
                     "chance": 0.05
                 },
                 {
-                    "output": "bold\nimpactful\nstrong\nprominent",
-                    "if": "theme == scifi || theme == futuristic"
+                    "output": "__^theme__",
+                    "chance": 0.25,
+                    "if": "theme"
                 },
                 {
-                    "output": "elegant\nexquisite\ncursive\nfabulous",
-                    "if": "theme == fantasy || theme == wonder"
+                    "output": "bold\nimpactful\nstrong\nprominent\nangular\nfuturistic\nsleek\ngeometric\nhigh-tech\nOrbitron\nEurostile\nBank Gothic\nMicrogramma\nEurostile Extended\nRajdhani",
+                    "if": "theme == scifi || theme == sci-fi || theme == futuristic || theme == cyberpunk"
+                },
+                {
+                    "output": "elegant\nexquisite\ncursive\nornamental\nrefined\nromantic\ndecorative\ncalligraphic\nCinzel\nTrajan Pro\nCormorant Garamond\nBaskerville\nGaramond\nDidot\nBodoni Moda\nIM FELL English\nUncial Antiqua",
+                    "if": "theme == fantasy || theme == wonder || theme == magical || theme == fairytale"
+                },
+                {
+                    "output": "old fashioned with serifs\nwestern display\nweathered serif\nfrontier poster lettering\nwoodcut-inspired\nRye\nRye Regular\nRoboto Slab\nClarendon\nRockwell\nAmerican Typewriter\nAlfa Slab One",
+                    "if": "theme == western || theme == cowboy || theme == frontier"
+                },
+                {
+                    "output": "medieval blackletter\ngothic calligraphy\nilluminated manuscript lettering\nold-world serif\nornamental blackletter\nUnifrakturCook\nUnifrakturMaguntia\nOld English Text MT\nUncial Antiqua\nCloister Black\nBlackletter\nIM FELL English\nCinzel Decorative",
+                    "if": "theme == medieval || theme == knight || theme == castle"
+                },
+                {
+                    "output": "gritty\nrough\nweathered\ndistressed\nhand-painted\nuneven\naggressive\nPermanent Marker\nBebas Neue\nAnton\nLeague Gothic\nArchivo Black\nBlack Ops One\nSpecial Elite",
+                    "if": "theme == grunge || theme == punk || theme == metal"
+                },
+                {
+                    "output": "pirate display\nrough serif\nnautical lettering\nweathered hand-lettering\nold treasure-map lettering\nPirata One\nRye\nIM FELL English\nGrenze Gotisch\nEwert\nUnifrakturCook",
+                    "if": "theme == pirate || theme == nautical"
+                },
+                {
+                    "output": "military stencil\nindustrial block lettering\nutilitarian sans serif\ncondensed bold\nstenciled\nStardos Stencil\nBlack Ops One\nTeko\nOswald\nRoboto Condensed\nDIN Condensed\nImpact",
+                    "if": "theme == military || theme == tactical || theme == industrial"
+                },
+                {
+                    "output": "luxurious\nhigh-fashion\nthin elegant serif\neditorial\nsophisticated\nminimalist\nDidot\nBodoni\nBodoni Moda\nBodoni 72\nPlayfair Display\nCormorant Garamond\nLibre Baskerville\nDM Serif Display",
+                    "if": "theme == luxury || theme == fashion || theme == elegant"
+                },
+                {
+                    "output": "cute\nplayful\nrounded\nfriendly\nbubbly\nsoft handwritten\nFredoka\nBaloo 2\nComic Sans MS\nCooper Black\nChewy\nBubblegum Sans\nSniglet\nMochiy Pop One\nSchoolbell",
+                    "if": "theme == cute || theme == kawaii || theme == playful"
+                },
+                {
+                    "output": "retro\nvintage display\nmid-century\npsychedelic\ngroovy\nrounded 1970s lettering\nCooper Black\nITC Benguiat\nSouvenir\nHobo\nFutura\nBauhaus 93\nBroadway\nPacifico\nLobster",
+                    "if": "theme == retro || theme == vintage || theme == 70s || theme == 60s"
+                },
+                {
+                    "output": "art deco\ngeometric display\nluxurious serif\ngold-age typography\ndecorative symmetrical lettering\nMetropolis\nPoiret One\nJosefin Sans\nCormorant SC\nBodoni\nBroadway\nCopperplate\nCinzel Decorative",
+                    "if": "theme == art deco || theme == 1920s || theme == noir"
+                },
+                {
+                    "output": "horror display\nominous serif\nthin distorted lettering\ndistressed gothic\nuneasy handwritten lettering\nNosifer\nCreepster\nEater\nSpecial Elite\nUnifrakturCook\nChiller\nBlackadder ITC\nButcherman",
+                    "if": "theme == horror || theme == creepy || theme == spooky"
+                },
+                {
+                    "output": "dreamy\nsoft serif\nwhimsical\nlight handwritten\nethereal\nflowing\nCormorant Garamond\nPlayfair Display\nQuicksand\nSacramento\nParisienne\nAllura\nDancing Script\nGreat Vibes",
+                    "if": "theme == dreamy || theme == surreal || theme == dream"
+                },
+                {
+                    "output": "comic book display\nbold outlined lettering\nenergetic\naction lettering\nexpressive\nBangers\nBurbank Big Condensed\nComic Sans MS\nKomika\nLuckiest Guy\nLilita One\nAnton\nImpact\nChewy",
+                    "if": "theme == comic || theme == comics || theme == superhero"
+                },
+                {
+                    "output": "ancient inscription\ncarved stone lettering\nclassical serif\nmonumental capitals\nRoman inscription style\nCinzel\nTrajan Pro\nMarcellus\nForum\nCormorant SC\nUncial Antiqua\nGFS Didot",
+                    "if": "theme == ancient || theme == roman || theme == greek || theme == mythology"
+                },
+                {
+                    "output": "sacred script\nornamental calligraphy\nformal serif\nilluminated lettering\nceremonial\nCinzel Decorative\nUncial Antiqua\nCormorant SC\nCardo\nIM FELL English\nEB Garamond\nCormorant Garamond",
+                    "if": "theme == religious || theme == sacred || theme == divine"
+                },
+                {
+                    "output": "nature-inspired\norganic lettering\nleaf-like curves\nrustic serif\nearthy handwritten\nAmatic SC\nDelius\nPatrick Hand\nLora\nCormorant Garamond\nBree Serif\nCabin Sketch",
+                    "if": "theme == nature || theme == forest || theme == botanical"
+                },
+                {
+                    "output": "underwater lettering\nflowing organic forms\nrounded display\nwave-like curves\nsmooth\nNunito\nQuicksand\nComfortaa\nFredoka\nBaloo 2\nM PLUS Rounded 1c\nVarela Round",
+                    "if": "theme == ocean || theme == underwater || theme == aquatic"
+                },
+                {
+                    "output": "space-age\nsleek geometric\nwide tracking\nminimal futuristic\ntechnical display\nOrbitron\nAudiowide\nMichroma\nExo 2\nRajdhani\nOxanium\nElectrolize\nSpace Grotesk",
+                    "if": "theme == space || theme == sci-fi || theme == futuristic"
+                },
+                {
+                    "output": "digital display\nmonospaced\nterminal-inspired\npixelated\ntechnical\nJetBrains Mono\nConsolas\nCascadia Mono\nSource Code Pro\nIBM Plex Mono\nShare Tech Mono\nVT323\nPress Start 2P",
+                    "if": "theme == computer || theme == digital || theme == hacker"
+                },
+                {
+                    "output": "neon display\nurban sans serif\ncondensed geometric\ncyberpunk lettering\nglow-sign style\nNeon Tubes\nAudiowide\nOrbitron\nRajdhani\nBebas Neue\nExo 2\nMonoton\nRighteous",
+                    "if": "theme == neon || theme == cyberpunk || theme == vaporwave"
+                },
+                {
+                    "output": "newspaper serif\ntraditional editorial\nformal headline type\nclassic print typography\nTimes New Roman\nBaskerville\nGeorgia\nLibre Baskerville\nMerriweather\nOld Standard TT\nCormorant Garamond\nRoboto Slab",
+                    "if": "theme == newspaper || theme == journalism || theme == editorial"
+                },
+                {
+                    "output": "academic serif\nscholarly\nformal\ntraditional book typography\nrestrained\nTimes New Roman\nGaramond\nBaskerville\nGeorgia\nPalatino\nLibre Baskerville\nEB Garamond\nSource Serif Pro",
+                    "if": "theme == academic || theme == scholarly || theme == university"
+                },
+                {
+                    "output": "children's book lettering\nplayful hand-lettering\nrounded friendly serif\nstorybook display\nFredoka\nBaloo 2\nComic Sans MS\nCooper Black\nChewy\nSchoolbell\nPatrick Hand\nCabin Sketch\nLondrina Solid",
+                    "if": "theme == children || theme == kids || theme == storybook"
+                }
+            ]
+        },
+        "font_style": {
+            "label": "#f148ff",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "basic\nplain\nstandard",
+                    "chance": 0.05
+                },
+                {
+                    "output": "sketched\nhand-drawn\npencil lettering\nrough sketch lettering\nloose handwritten\nPatrick Hand\nShadows Into Light\nArchitects Daughter\nComing Soon\nSchoolbell\nComic Sans MS\nCaveat\nKalam",
+                    "if": "style == drawing || style == sketch || style == hand-drawn"
+                },
+                {
+                    "output": "print\nclean print typography\neditorial typography\nphysical print lettering\nHelvetica\nArial\nTimes New Roman\nGeorgia\nBaskerville\nGaramond\nRoboto\nOpen Sans",
+                    "if": "style == photograph || style == photo || style == photography"
+                },
+                {
+                    "output": "3D rendered\nextruded\nvolumetric lettering\nthree-dimensional display type\nEurostile\nOrbitron\nBebas Neue\nAnton\nMontserrat ExtraBold\nLeague Gothic\nImpact",
+                    "if": "style == 3d || style == 3d render || style == render || style == rendered"
+                },
+                {
+                    "output": "toon\ncomic sans\nbold toon outline\ncartoon lettering\nplayful display\nComic Sans MS\nBangers\nLuckiest Guy\nChewy\nLilita One\nFredoka\nBaloo 2\nCooper Black\nBubblegum Sans\nLondrina Solid\nMochiy Pop One",
+                    "if": "style == cartoon || style == toon || style == animation"
+                },
+                {
+                    "output": "watercolor lettering\nsoft painted type\nbrush-painted\npigment-like lettering\nCaveat\nAmatic SC\nDancing Script\nKalam\nNanum Brush Script\nRock Salt",
+                    "if": "style == watercolor || style == painted"
+                },
+                {
+                    "output": "oil-painted lettering\nclassical painted type\nbrushy serif\nfine-art lettering\nCormorant Garamond\nBodoni Moda\nPlayfair Display\nCinzel\nLibre Baskerville\nDM Serif Display",
+                    "if": "style == oil painting || style == oilpaint || style == painting"
+                },
+                {
+                    "output": "inked\nbrush lettering\nink wash typography\ncalligraphic brushwork\nexpressive ink\nPermanent Marker\nRock Salt\nCaveat Brush\nNanum Brush Script\nBerkshire Swash\nPacifico\nKaushan Script",
+                    "if": "style == ink || style == ink drawing || style == inked"
+                },
+                {
+                    "output": "pixel font\npixelated\n8-bit lettering\nlow-resolution bitmap type\nPress Start 2P\nPixelify Sans\nVT323\nSilkscreen\nDotGothic16\nTiny5\n04b03",
+                    "if": "style == pixel art || style == pixel || style == 8-bit || style == retro game"
+                },
+                {
+                    "output": "vector-clean\nprecise geometric\nsmooth digital type\ncrisp modern lettering\nMontserrat\nPoppins\nInter\nFutura\nAvenir\nProxima Nova\nGotham\nRaleway",
+                    "if": "style == vector || style == graphic design || style == digital"
+                },
+                {
+                    "output": "chalk lettering\nchalkboard handwriting\npowdery hand-drawn\nrough chalk strokes\nCabin Sketch\nSpecial Elite\nAmatic SC\nSchoolbell\nKalam\nPermanent Marker",
+                    "if": "style == chalk || style == chalkboard"
+                },
+                {
+                    "output": "graffiti lettering\nspray-painted\nstreet-art typography\nwildstyle-inspired\nurban hand-lettering\nPermanent Marker\nRubik Dirt\nSedgwick Ave Display\nBowlby One SC\nBlack Ops One\nNosifer\nCreepster",
+                    "if": "style == graffiti || style == street art || style == street"
+                },
+                {
+                    "output": "neon sign lettering\nilluminated tubing\nretro signage\nglowing display type\nMonoton\nAudiowide\nRighteous\nOrbitron\nNeonderthaw\nBungee\nBebas Neue",
+                    "if": "style == neon || style == neon sign"
+                },
+                {
+                    "output": "embossed\nengraved\nimprinted\npressed lettering\nsubtle relief\nCinzel\nTrajan Pro\nCopperplate\nCormorant Garamond\nBaskerville\nRockwell",
+                    "if": "style == emboss || style == engraved || style == engraving"
+                },
+                {
+                    "output": "metallic lettering\nchrome type\nbrushed metal\nindustrial 3D lettering\nEurostile\nBank Gothic\nOrbitron\nBebas Neue\nAnton\nRajdhani\nMichroma",
+                    "if": "style == metallic || style == chrome || style == metal"
+                },
+                {
+                    "output": "woodcut lettering\ncarved type\nblock print\nlinocut-inspired\nIM FELL English\nUnifrakturCook\nRye\nSpecial Elite\nCinzel Decorative\nGrenze Gotisch",
+                    "if": "style == woodcut || style == linocut || style == block print"
+                },
+                {
+                    "output": "screen-printed\ninked print\nslightly imperfect registration\nposter typography\nBebas Neue\nAnton\nLeague Gothic\nOswald\nArchivo Black\nRoboto Condensed\nCooper Black",
+                    "if": "style == screen print || style == screen-print || style == poster"
+                },
+                {
+                    "output": "minimalist sans serif\nclean geometric type\nmodern Swiss-style typography\nrestrained\nHelvetica\nHelvetica Neue\nInter\nAvenir\nFutura\nUnivers\nGotham\nMontserrat",
+                    "if": "style == minimalist || style == minimal || style == modern"
+                },
+                {
+                    "output": "maximalist display\nornate typography\nlayered decorative lettering\nhigh-detail\nBodoni Moda\nPlayfair Display\nCinzel Decorative\nBerkshire Swash\nLobster\nAbril Fatface\nDM Serif Display",
+                    "if": "style == maximalist || style == ornate"
+                },
+                {
+                    "output": "calligraphic\nformal pen lettering\nflourished script\nelegant handwriting\nGreat Vibes\nAllura\nAlex Brush\nBickham Script\nEdwardian Script ITC\nBerkshire Swash\nParisienne\nSacramento",
+                    "if": "style == calligraphy || style == script"
+                },
+                {
+                    "output": "typewriter\nmonospaced\nmechanical print\naged typewritten lettering\nSpecial Elite\nCourier New\nAmerican Typewriter\nCourier Prime\nCutive Mono\nIBM Plex Mono\nRoboto Mono",
+                    "if": "style == typewriter || style == analog || style == vintage print"
+                },
+                {
+                    "output": "rubber-stamp lettering\ndistressed print\nink-stamped\nuneven industrial type\nSpecial Elite\nRoboto Slab\nBebas Neue\nBlack Ops One\nStencil\nStardos Stencil",
+                    "if": "style == stamp || style == rubber stamp"
+                },
+                {
+                    "output": "cut-paper lettering\ncollage typography\npaper-crafted\nhand-cut type\nBowlby One SC\nCooper Black\nFredoka\nLondrina Solid\nBungee\nChewy",
+                    "if": "style == collage || style == paper craft || style == cut paper"
+                },
+                {
+                    "output": "stitched lettering\nembroidered typography\nthread-based type\ntextile lettering\nAmatic SC\nSchoolbell\nPatrick Hand\nJosefin Sans\nLobster\nPacifico",
+                    "if": "style == textile || style == embroidery || style == fabric"
+                },
+                {
+                    "output": "glass lettering\ntranslucent type\nfrosted typography\netched glass\nCormorant Garamond\nBodoni Moda\nDidot\nJosefin Sans\nMontserrat Thin\nRaleway Thin",
+                    "if": "style == glass || style == translucent"
+                },
+                {
+                    "output": "handwritten\ncasual script\nnatural handwriting\npersonal lettering\nCaveat\nKalam\nPatrick Hand\nDancing Script\nShadows Into Light\nIndie Flower\nHandlee\nGloria Hallelujah",
+                    "if": "style == handwritten || style == handwriting"
+                },
+                {
+                    "output": "bold outlined lettering\nthick stroke\ncomic display\nheavy typography\nBangers\nAnton\nImpact\nLilita One\nLuckiest Guy\nBowlby One\nArchivo Black\nRoboto Black",
+                    "if": "style == comic || style == comic book"
+                },
+                {
+                    "output": "distressed print\ntorn lettering\nweathered typography\naged ink\nSpecial Elite\nRubik Dirt\nEwert\nPermanent Marker\nBlack Ops One\nBebas Neue\nRye",
+                    "if": "style == distressed || style == grunge"
                 }
             ]
         }
@@ -24,7 +236,18 @@
     "loras": [],
     "generate": [
         {
-            "output": "__^font_style__"
+            "output": "__^font_theme__",
+            "chance": 5,
+            "if": "theme"
+        },
+        {
+            "output": "__^font_style__",
+            "chance": 1,
+            "if": "style"
+        },
+        {
+            "output": "##fallback##\nArial\nHelvetica\nHelvetica Neue\nArial Black\nArial Narrow\nVerdana\nTahoma\nTrebuchet MS\nGeorgia\nTimes New Roman\nTimes\nGaramond\nBaskerville\nCaslon\nPalatino\nBook Antiqua\nBodoni\nDidot\nFutura\nGill Sans\nAvenir\nAvenir Next\nCentury Gothic\nFranklin Gothic\nGotham\nMontserrat\nProxima Nova\nRoboto\nRoboto Condensed\nRoboto Slab\nOpen Sans\nLato\nInter\nPoppins\nRaleway\nNunito\nSource Sans Pro\nSource Serif Pro\nOswald\nArchivo\nArchivo Black\nBebas Neue\nAnton\nImpact\nCooper Black\nCopperplate\nRockwell\nCourier New\nConsolas\nMenlo\nMonaco\nLucida Console\nComic Sans MS\nBrush Script MT\nPapyrus\nTrajan Pro\nCinzel\nCinzel Decorative\nPlayfair Display\nCormorant Garamond\nLibre Baskerville\nDM Serif Display\nAmatic SC\nCaveat\nKalam\nPermanent Marker\nPacifico\nLobster\nDancing Script\nGreat Vibes\nPatrick Hand\nSpecial Elite\nPress Start 2P\nOrbitron\nRajdhani\nEurostile\nBank Gothic\nUnifrakturCook\nUncial Antiqua",
+            "chance": 0.001
         }
     ]
 }

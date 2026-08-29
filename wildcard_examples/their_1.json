@@ -1,0 +1,23 @@
+{
+    "displayname": "Utility: They",
+    "color": "#84a4f0",
+    "description": "Converts gender into `he`, `she`, or `they`",
+    "variables": {},
+    "loras": [],
+    "generate": [
+        {
+            "output": "he",
+            "chance": 1000,
+            "if": "gender == male"
+        },
+        {
+            "output": "she",
+            "chance": 100,
+            "if": "gender == female"
+        },
+        {
+            "output": "they",
+            "chance": 0.001
+        }
+    ]
+}

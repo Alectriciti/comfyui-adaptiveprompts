@@ -1,0 +1,56 @@
+{
+    "displayname": "Camera Model",
+    "color": "#94a0ff",
+    "description": "called with `camera/model`",
+    "variables": {
+        "camera_model": {
+            "label": "#71d2ff",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "## Sony cameras ##\nSony a7 III%3\nSony a7 IV%3\nSony a7R III%2.5\nSony a7R IV%2.5\nSony a7R V%2\nSony a7S III%2\nSony A7C%1.5\nSony A7C II%2\nSony A7CR%1.5\nSony a9 II%1\nSony a9 III%1\nSony a1%1.5\nSony FX3%1.5\nSony RX100 VII%1",
+                    "chance": 3
+                },
+                {
+                    "output": "## Canon cameras ##\nCanon EOS R5%3\nCanon EOS R6%2.5\nCanon EOS R6 Mark II%2.5\nCanon EOS R5 Mark II%2\nCanon EOS R7%1.5\nCanon EOS R8%1.5\nCanon EOS R%1.5\nCanon EOS RP%1\nCanon EOS 5D Mark IV%2.5\nCanon EOS 5D Mark III%1.5\nCanon EOS 6D Mark II%1.5\nCanon EOS 90D%1.5\nCanon EOS 80D%1\nCanon EOS-1D X Mark II%1\nCanon EOS-1D X Mark III%1\nCanon PowerShot G7 X Mark III%1",
+                    "chance": 3
+                },
+                {
+                    "output": "## Nikon cameras ##\nNikon Z 6 II%2.5\nNikon Z 6%2\nNikon Z 7 II%2\nNikon Z 7%1.5\nNikon Z 8%2.5\nNikon Z 9%2\nNikon Z 5%1.5\nNikon Z f%1.5\nNikon Z fc%1\nNikon D850%3\nNikon D780%1.5\nNikon D750%2\nNikon D810%1.5\nNikon D7500%1\nNikon D500%1.5\nNikon D5600%1",
+                    "chance": 2.5
+                },
+                {
+                    "output": "## Fujifilm cameras ##\nFujifilm X-T5%2.5\nFujifilm X-T4%2.5\nFujifilm X-T3%2\nFujifilm X-T30 II%1.5\nFujifilm X-T30%1\nFujifilm X-H2%1.5\nFujifilm X-H2S%1\nFujifilm X-S20%2\nFujifilm X100V%3\nFujifilm X100VI%3\nFujifilm GFX 50S II%1\nFujifilm GFX 100S%1.5\nFujifilm GFX100 II%1",
+                    "chance": 2
+                },
+                {
+                    "output": "## Panasonic cameras ##\nPanasonic Lumix S5%2\nPanasonic Lumix S5 II%2\nPanasonic Lumix S1%1.5\nPanasonic Lumix S1H%1\nPanasonic Lumix GH5%2.5\nPanasonic Lumix GH6%1.5\nPanasonic Lumix GH7%1\nPanasonic Lumix GH5 II%1\nPanasonic Lumix G9%1\nPanasonic Lumix G9 II%1",
+                    "chance": 1
+                },
+                {
+                    "output": "## Leica cameras ##\nLeica Q2%1.5\nLeica Q3%2\nLeica M10%1\nLeica M11%1.5\nLeica SL2%1\nLeica SL3%1\nLeica TL2%0.5",
+                    "chance": 0.75
+                },
+                {
+                    "output": "## Olympus / OM System cameras ##\nOlympus OM-D E-M1 Mark II%1\nOlympus OM-D E-M1 Mark III%1.5\nOlympus OM-D E-M5 Mark III%1\nOlympus OM-D E-M10 Mark IV%1\nOM System OM-1%2\nOM System OM-1 Mark II%1",
+                    "chance": 1
+                },
+                {
+                    "output": "## Pentax cameras ##\nPentax K-1 Mark II%1\nPentax K-3 III%1.5\nPentax K-70%1\nPentax 645Z%0.5",
+                    "chance": 0.5
+                },
+                {
+                    "output": "## Hasselblad cameras ##\nHasselblad X1D II 50C%0.5\nHasselblad X2D 100C%1\nHasselblad 907X 50C%0.5\nHasselblad H6D-100c%0.25",
+                    "chance": 0.25
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^camera_model__"
+        }
+    ]
+}

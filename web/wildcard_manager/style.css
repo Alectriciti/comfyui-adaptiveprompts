@@ -365,11 +365,12 @@ body {
 .ap-card-description {
     font-size: 10.5px;
     color: #d4d4d4;
+    background: rgba(0, 0, 0, 0.5);
     line-height: 1.3;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
 }
 
@@ -380,7 +381,7 @@ body {
 }
 
 .ap-desc-code {
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.6);
     padding: 1px 4px;
     border-radius: 3px;
     color: var(--ap-accent);

@@ -4,38 +4,18 @@
     "description": "Internal tool - Applies `character` details",
     "notes": "This is a generic use generator that will apply details of a character automatically.\n\nWe establish `they` first, which will help with the grammatical context. It's important we do this before `details` so that it knows what grammar to use.\n\nThe chance for `he` and `she` is excessively high. This is a simple workaround to avoid having to do `gender != male && gender != female`. There is of course a 0.001% chance that it will draw `they` if a gender is indeed specified.\n\nNotice how the `details` variable has `*` as it's Qty. This will ensure that if the condition has been met, it will be applied to that variable. We localize this variable to make sure it is only used within this wildcard and does not leak to the global context.\n\nThen, in the GENERATE section, we will call every detail that was assigned, which ideally describes every aspect of the character.",
     "variables": {
-        "they": {
-            "label": "#777777",
-            "quantity": 1,
-            "choices": [
-                {
-                    "output": "he",
-                    "chance": 100,
-                    "if": "gender == male"
-                },
-                {
-                    "output": "she",
-                    "chance": 100,
-                    "if": "gender == female"
-                },
-                {
-                    "output": "## a fallback if gender is not specified ##\nthey",
-                    "chance": 0.001
-                }
-            ]
-        },
         "details": {
             "quantity": "*",
             "choices": [
                 {
-                    "output": "__^they__ __have__ __hair__ hair\n__^their__ hair is __hair__"
+                    "output": "__they__ __have__ __hair__ hair\n__their__ hair is __hair__"
                 },
                 {
-                    "output": "__^they__ __are__ wearing {*$$__^clothes__}",
+                    "output": "__they__ __are__ wearing {*$$__^clothes__}",
                     "if": "clothes"
                 },
                 {
-                    "output": "__^they__ __have__ __^eyecolor__ eyes\n__their__ eyes are __^eyecolor__",
+                    "output": "__they__ __have__ __^eyecolor__ eyes\n__their__ eyes are __^eyecolor__",
                     "if": "has != mask"
                 },
                 {

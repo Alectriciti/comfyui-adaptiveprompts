@@ -1,7 +1,7 @@
 {
     "displayname": "Pose",
     "color": "#ff7a9f",
-    "description": "converts `personality` into a `pose`",
+    "description": "converts a character's `personality` into a `pose`",
     "variables": {
         "pose": {
             "label": "#43addf",

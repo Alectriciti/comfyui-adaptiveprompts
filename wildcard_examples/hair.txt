@@ -1,1 +1,2 @@
+# this is a shortcut wildcard
 __hair/hair__
