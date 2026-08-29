@@ -1,8 +1,7 @@
 {
-    "displayname": "Mercy (Overwatch)",
-    "color": "#ffcf72",
-    "description": "Your Guardian Angel `Angela Ziegler`",
-    "notes": "In this example, we create some variables for this character.\n\n1. The VARIABLES section will be where we supply a name, personality, hair color, and other variables that establish the overall look of the character.\n\n\"personality\" will be a parameter that we can either call directly, or use with conditions to set flags later in the prompt chain. For instance, if the personality is \"confident\", we could use that to allow the pose \"hands on hips\".\n\n2. The LORA section will be what we supply to automatically append a lora tag (which is intended for use with the `Load Lora Tags` node). This is a completely optional feature, you can apply loras however you like.\n\n3. The GENERATE section is what actually gets output when calling __character/mercy__.",
+    "displayname": "Ana(Overwatch)",
+    "color": "#7281ff",
+    "description": "Mother Knows Best",
     "variables": {
         "state": {
             "label": "#ffffff",
@@ -14,20 +13,14 @@
                     "chance": 2
                 },
                 {
-                    "output": "casual",
-                    "chance": 8
+                    "output": "casual"
                 }
             ]
         },
         "has": {
             "label": "#a7d4a3",
             "quantity": 1,
-            "choices": [
-                {
-                    "output": "glasses",
-                    "if": "state == casual"
-                }
-            ]
+            "choices": []
         },
         "gender": {
             "label": "#6cda5c",
@@ -43,11 +36,11 @@
             "quantity": 1,
             "choices": [
                 {
-                    "output": "Mercy",
+                    "output": "Ana",
                     "chance": 2
                 },
                 {
-                    "output": "Angela Ziegler",
+                    "output": "Ana Amari",
                     "chance": 1
                 }
             ]
@@ -66,7 +59,7 @@
             "quantity": 1,
             "choices": [
                 {
-                    "output": "swiss"
+                    "output": "egyptian"
                 }
             ]
         },
@@ -75,11 +68,11 @@
             "quantity": 1,
             "choices": [
                 {
-                    "output": "angel medic\nguardian angel",
+                    "output": "tactician\nsniper\noverwatch {hero|tactician|sniper}",
                     "chance": 2.5
                 },
                 {
-                    "output": "{1-2$$ $$angelic|field|combat} medic"
+                    "output": "{tactician|sniper}"
                 }
             ]
         },
@@ -101,6 +94,9 @@
                 },
                 {
                     "output": "graceful"
+                },
+                {
+                    "output": "smug"
                 }
             ]
         },
@@ -112,7 +108,7 @@
                     "output": "## this will be used as a generic color palette. In this case, 1 to 2 values will be set to __^color__ ##\nwhite"
                 },
                 {
-                    "output": "## only one of these will be picked exclusively, never both##\ngold%2\nyellow\nred%0.5\npink%0.5"
+                    "output": "## only one of these will be picked exclusively, never both##\nblue"
                 }
             ]
         },
@@ -121,7 +117,7 @@
             "quantity": 1,
             "choices": [
                 {
-                    "output": "blue\n{sky|light} blue"
+                    "output": "brown"
                 }
             ]
         },
@@ -130,15 +126,15 @@
             "quantity": 1,
             "choices": [
                 {
-                    "output": "blonde",
+                    "output": "white",
                     "chance": 1
                 },
                 {
-                    "output": "light blonde",
+                    "output": "black",
                     "chance": 0.75
                 },
                 {
-                    "output": "white",
+                    "output": "gray",
                     "chance": 0.25
                 }
             ]
@@ -148,22 +144,18 @@
             "quantity": "1-3",
             "choices": [
                 {
-                    "output": "a __^color__ halo"
+                    "output": "a __^color__ {cloak|cloak with hood}"
                 },
                 {
-                    "output": "a __^color__ {shirt|blouse|top} and a white lab coat",
-                    "if": "state == casual"
-                },
-                {
-                    "output": "{casual|jean} {pants|shorts}",
-                    "if": "state == casual"
-                },
-                {
-                    "output": "valkyrie armor",
+                    "output": "tactician gear",
                     "if": "state == combat"
                 },
                 {
-                    "output": "glowing {1-2$$ $$valkyrie|angel} wings",
+                    "output": "__^color__ gloves",
+                    "if": "state == combat"
+                },
+                {
+                    "output": "{black|__^color__} eyepatch",
                     "if": "state == combat"
                 }
             ]
@@ -186,17 +178,15 @@
                     "output": ""
                 },
                 {
-                    "output": "healing staff"
+                    "output": "{1-2$$ $$healing|sniper} rifle"
                 },
                 {
-                    "output": "medic pistol"
+                    "output": "sleep dart {pistol|gun}"
                 }
             ]
         }
     },
-    "loras": [
-        ""
-    ],
+    "loras": [],
     "generate": [
         {
             "output": "__generate_character__ ## <-- This is a generic character template, it will utilize some of the variables we set here, but may not be as tailored ##",

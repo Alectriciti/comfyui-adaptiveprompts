@@ -1,2 +1,0 @@
-# relative and root wildcard pathing demonstration
-__color__ hair

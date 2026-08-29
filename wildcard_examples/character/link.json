@@ -1,0 +1,196 @@
+{
+    "displayname": "Link",
+    "color": "#4edf80",
+    "description": "Link from `The Legend of Zelda`",
+    "variables": {
+        "state": {
+            "label": "#ffffff",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "## this can be thought of as a master \"mode\" selector for what kind of variables will be chosen ##\ncasual",
+                    "chance": 2
+                },
+                {
+                    "output": "combat"
+                }
+            ]
+        },
+        "series": {
+            "label": "#ff6b6b",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "The Legend of Zelda\nLegend of Zelda: Ocarina of Time\nLegend of Zelda: A Link to the Past\nLegend of Zelda: Breath of the Wild\nLegend of Zelda: Tears of the Kingdom"
+                }
+            ]
+        },
+        "theme": {
+            "label": "#df8c9c",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "fantasy"
+                }
+            ]
+        },
+        "name": {
+            "label": "#ffda6a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "Link"
+                }
+            ]
+        },
+        "namefull": {
+            "label": "#ffda6a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "__^name__ \\(__^series__\\)"
+                }
+            ]
+        },
+        "has": {
+            "label": "#a3bdd4",
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "sword",
+                    "if": "state == combat"
+                }
+            ]
+        },
+        "heritage": {
+            "label": "#e7944a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "hylian"
+                }
+            ]
+        },
+        "gender": {
+            "label": "#6cda5c",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "male"
+                }
+            ]
+        },
+        "profession": {
+            "label": "#f25e46",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "Hero of {Destiny|Hyrule}",
+                    "chance": 2.5
+                },
+                {
+                    "output": "Warrior"
+                }
+            ]
+        },
+        "personality": {
+            "label": "#e085e7",
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "confident"
+                },
+                {
+                    "output": "kind"
+                },
+                {
+                    "output": "heroic"
+                },
+                {
+                    "output": "adventurous"
+                }
+            ]
+        },
+        "color": {
+            "label": "#dd61e1",
+            "quantity": "1-2",
+            "choices": [
+                {
+                    "output": "green"
+                },
+                {
+                    "output": "light blue",
+                    "if": "era == wild"
+                }
+            ]
+        },
+        "eyecolor": {
+            "label": "#3cc1ff",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "blue\n{sky|light} blue"
+                }
+            ]
+        },
+        "haircolor": {
+            "label": "#c2743b",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "blonde",
+                    "chance": 1
+                },
+                {
+                    "output": "mixed blonde",
+                    "chance": 0.5
+                },
+                {
+                    "output": "light brown"
+                }
+            ]
+        },
+        "clothes": {
+            "label": "#71df82",
+            "quantity": "1-3",
+            "choices": [
+                {
+                    "output": "a __^color__ tunic"
+                },
+                {
+                    "output": "chainmail and a __^color__ tunic",
+                    "if": "state == combat"
+                },
+                {
+                    "output": "{adventurer|leather} boots"
+                },
+                {
+                    "output": "__^color__ hat"
+                }
+            ]
+        },
+        "item": {
+            "quantity": "1-2",
+            "choices": [
+                {
+                    "output": "null",
+                    "chance": 2
+                },
+                {
+                    "output": "the Master Sword"
+                },
+                {
+                    "output": "the Hylian Shield"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__generate_character__ ## <-- This is a generic character template, it will utilize some of the variables we set here, but may not be as tailored ##",
+            "chance": 1
+        }
+    ]
+}

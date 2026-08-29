@@ -6,7 +6,12 @@
     "loras": [],
     "generate": [
         {
-            "output": "__color__ __style__ hair"
+            "output": "__color__ __style__ and __color__ {facial hair|beard}",
+            "chance": 100,
+            "if": "has == facial_hair"
+        },
+        {
+            "output": "__color__ __style__"
         }
     ]
 }

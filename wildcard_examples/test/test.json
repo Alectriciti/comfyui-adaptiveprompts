@@ -8,7 +8,7 @@
             "quantity": 1,
             "choices": [
                 {
-                    "output": "__outer_test__"
+                    "output": "__fruit__"
                 }
             ]
         },

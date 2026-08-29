@@ -1,0 +1,212 @@
+{
+    "displayname": "Anakin Skywalker",
+    "color": "#249be3",
+    "description": "Strong with the force",
+    "variables": {
+        "state": {
+            "label": "#ffffff",
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "casual",
+                    "chance": 2
+                },
+                {
+                    "output": "combat"
+                }
+            ]
+        },
+        "alliance": {
+            "label": "#000000",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "jedi"
+                },
+                {
+                    "output": "sith",
+                    "chance": 1
+                }
+            ]
+        },
+        "gender": {
+            "label": "#6cda5c",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "male"
+                }
+            ]
+        },
+        "name": {
+            "label": "#ffda6a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "Anakin Skywalker"
+                },
+                {
+                    "output": "Darth Vader",
+                    "chance": 0.25,
+                    "if": "alliance == sith"
+                }
+            ]
+        },
+        "has": {
+            "label": "#a7d4a3",
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "mask",
+                    "if": "name == Darth Vader"
+                }
+            ]
+        },
+        "namefull": {
+            "label": "#ffda6a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "__^name__ \\(Star Wars\\)"
+                }
+            ]
+        },
+        "heritage": {
+            "label": "#e7944a",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": ""
+                }
+            ]
+        },
+        "profession": {
+            "label": "#f25e46",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "Jedi\nJedi {Padawan|Knight}",
+                    "chance": 1,
+                    "if": "alliance == jedi"
+                },
+                {
+                    "output": "Jedi Master",
+                    "chance": 0,
+                    "if": "alliance == jedi"
+                },
+                {
+                    "output": "Sith Lord",
+                    "if": "alliance == sith"
+                }
+            ]
+        },
+        "personality": {
+            "label": "#e085e7",
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "confident"
+                },
+                {
+                    "output": "heroic",
+                    "if": "alliance == jedi"
+                },
+                {
+                    "output": "brave"
+                },
+                {
+                    "output": "evil",
+                    "if": "alliance == sith"
+                }
+            ]
+        },
+        "color": {
+            "label": "#dd61e1",
+            "quantity": "2",
+            "choices": [
+                {
+                    "output": "## this will be used as a generic color palette. In this case, 1 to 2 values will be set to __^color__ ##\nblack"
+                },
+                {
+                    "output": "blue",
+                    "if": "alliance == jedi"
+                },
+                {
+                    "output": "red",
+                    "if": "alliance == sith"
+                }
+            ]
+        },
+        "eyecolor": {
+            "label": "#3cc1ff",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "brown"
+                },
+                {
+                    "output": "yellow",
+                    "if": "alliance == sith"
+                }
+            ]
+        },
+        "haircolor": {
+            "label": "#c2743b",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "dark brown",
+                    "chance": 1
+                }
+            ]
+        },
+        "clothes": {
+            "label": "#71df82",
+            "quantity": "1-3",
+            "choices": [
+                {
+                    "output": "__^alliance__ robes"
+                },
+                {
+                    "output": "a __^color__ {shirt|top}",
+                    "if": "state == casual"
+                }
+            ]
+        },
+        "item": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "__^color__ lightsaber"
+                }
+            ]
+        },
+        "theme": {
+            "quantity": "*",
+            "choices": [
+                {
+                    "output": "star wars"
+                },
+                {
+                    "output": "galactic basic"
+                }
+            ]
+        },
+        "font": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "star wars styled"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__generate_character__ ## <-- This is a generic character template, it will utilize some of the variables we set here, but may not be as tailored ##",
+            "chance": 1
+        }
+    ]
+}

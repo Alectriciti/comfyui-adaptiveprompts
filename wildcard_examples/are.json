@@ -8,11 +8,12 @@
     "generate": [
         {
             "output": "is",
+            "chance": 1000,
             "if": "gender == male || gender == female"
         },
         {
             "output": "are",
-            "if": "gender == they"
+            "chance": 0.01
         }
     ]
 }

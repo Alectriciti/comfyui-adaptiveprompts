@@ -1,0 +1,30 @@
+{
+    "displayname": "Font",
+    "description": "Converts `theme` into a font",
+    "variables": {
+        "font_style": {
+            "local": true,
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "standard\nnormal",
+                    "chance": 0.05
+                },
+                {
+                    "output": "bold\nimpactful\nstrong\nprominent",
+                    "if": "theme == scifi || theme == futuristic"
+                },
+                {
+                    "output": "elegant\nexquisite\ncursive\nfabulous",
+                    "if": "theme == fantasy || theme == wonder"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^font_style__"
+        }
+    ]
+}

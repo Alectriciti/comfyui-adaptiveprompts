@@ -2,21 +2,23 @@
     "displayname": "Utility: Their",
     "color": "#84a4f0",
     "description": "Converts gender into `his`, `her`, or `their`",
-    "notes": "He `has`\nShe `has`\nThey `have`",
+    "notes": "He `his`\nShe `her`\nThey `their`",
     "variables": {},
     "loras": [],
     "generate": [
         {
             "output": "his",
+            "chance": 1000,
             "if": "gender == male"
         },
         {
             "output": "her",
+            "chance": 100,
             "if": "gender == female"
         },
         {
             "output": "their",
-            "if": "gender == they"
+            "chance": 0.01
         }
     ]
 }

@@ -1,0 +1,169 @@
+{
+    "displayname": "Pose",
+    "color": "#ff7a9f",
+    "description": "converts `personality` into a `pose`",
+    "variables": {
+        "pose": {
+            "label": "#43addf",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "{neutral|standing|default} pose",
+                    "chance": 0.01
+                },
+                {
+                    "output": "__^personality__ pose",
+                    "chance": 0.125,
+                    "if": "personality"
+                },
+                {
+                    "output": "hands on __their__ hips\ncrossing __their__ arms",
+                    "chance": 2,
+                    "if": "personality == confident"
+                },
+                {
+                    "output": "sophisticately presses __their__ glasses up to __their__ eyes",
+                    "chance": 2,
+                    "if": "personality == smart && has == glasses"
+                },
+                {
+                    "output": "fidgeting with __their__ hands",
+                    "chance": 2,
+                    "if": "personality == shy || personality == nervous"
+                },
+                {
+                    "output": "hugging __their__ arms tightly and shrinking back",
+                    "chance": 1,
+                    "if": "personality == shy"
+                },
+                {
+                    "output": "dancing with __their__ arms wide open",
+                    "chance": 1.5,
+                    "if": "personality == playful"
+                },
+                {
+                    "output": "striking a {__^personality__|dramatic} action pose",
+                    "chance": 1,
+                    "if": "personality == energetic"
+                },
+                {
+                    "output": "leaning forward {seductively|enticingly|and flirting}",
+                    "chance": 2,
+                    "if": "personality == flirty"
+                },
+                {
+                    "output": "{hands are in the shape of a heart|doing heart hands} while tilting __their__ head",
+                    "chance": 2,
+                    "if": "personality == cute"
+                },
+                {
+                    "output": "holding __their__ hands softly clasped at __their__ chest\ncalmly {clapsing|resting} __their__ hands\nrelaxed and __^personality__",
+                    "chance": 2,
+                    "if": "personality == gentle"
+                },
+                {
+                    "output": "__^personality__ and {flipping the bird|giving the middle finger|flipping off the viewer}",
+                    "if": "personality == rude"
+                },
+                {
+                    "output": "peeking {shyly|sweetly} through __their__ fingers",
+                    "chance": 2,
+                    "if": "personality == shy && personality == cute"
+                },
+                {
+                    "output": "looking over __their__ shoulder with a {piercing|mysterious|captivating} gaze",
+                    "chance": 1.5,
+                    "if": "personality == mysterious || personality == elegant"
+                },
+                {
+                    "output": "holding a book close to __their__ chest {thoughtfully|quietly}",
+                    "chance": 2,
+                    "if": "personality == smart && has == book"
+                },
+                {
+                    "output": "peeking {curiously|coyly} {over|over the top of} {an|__their__} open book",
+                    "chance": 1.5,
+                    "if": "personality == playful && has == book"
+                },
+                {
+                    "output": "flexing one bicep with a {proud|smug|confident} smirk",
+                    "chance": 1.5,
+                    "if": "personality == confident || personality == athletic"
+                },
+                {
+                    "output": "stretching __their__ arms {above __their__ head|out wide}",
+                    "chance": 1,
+                    "if": "personality == relaxed"
+                },
+                {
+                    "output": "sticking __their__ tongue out {playfully|teasingly}",
+                    "chance": 2,
+                    "if": "personality == bratty"
+                },
+                {
+                    "output": "pointing directly at the viewer with a __^personality__ expression",
+                    "chance": 1.5,
+                    "if": "personality == confident && personality == bratty"
+                },
+                {
+                    "output": "resting __their__ __^weapon__ over one shoulder casually",
+                    "chance": 2,
+                    "if": "weapon && personality == confident"
+                },
+                {
+                    "output": "holding __their__ phone up {high|at an angle}, taking a __^personality__ selfie",
+                    "chance": 1.5,
+                    "if": "has == phone && personality == cute"
+                },
+                {
+                    "output": "twirling her umbrella {gracefully|playfully} over her shoulder",
+                    "chance": 1.5,
+                    "if": "has == umbrella && personality == elegant"
+                },
+                {
+                    "output": "hugging her arms tightly around herself, looking {vulnerable|__^personality__}",
+                    "chance": 1,
+                    "if": "personality == sad || personality == nervous"
+                }
+            ]
+        },
+        "pose_item": {
+            "label": "#3bee4e",
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "holding __^item__ confidently\nholding __^item__ with a hand on __their__ hip",
+                    "if": "personality == confident"
+                },
+                {
+                    "output": "heroically {wielding|brandishing} __^item__",
+                    "if": "personality == heroic"
+                },
+                {
+                    "output": "playing with __^item__",
+                    "if": "personality == playful"
+                },
+                {
+                    "output": "teasing __^item__",
+                    "if": "personality == flirty"
+                },
+                {
+                    "output": "{gracefully|elegantly} holding __^item__",
+                    "if": "personality == elegant"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^pose_item__",
+            "chance": 10,
+            "if": "item && item != null"
+        },
+        {
+            "output": "__^pose__",
+            "chance": 0.1
+        }
+    ]
+}

@@ -1,0 +1,42 @@
+{
+    "displayname": "Style (Hair)",
+    "color": "#dfb195",
+    "description": "Accounts for `gender`",
+    "variables": {
+        "front_style": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "bangs\nbangs with loose strands\nside-swept bangs\nloose strands",
+                    "if": "gender == female"
+                }
+            ]
+        },
+        "back_style": {
+            "quantity": 1,
+            "choices": [
+                {
+                    "output": "quiff\ncombed\nspiky\nfaux hawk",
+                    "if": "gender == male"
+                },
+                {
+                    "output": "bun\ntwintails\nponytail\nfringe",
+                    "if": "gender == female"
+                },
+                {
+                    "output": "## generic hairstyles ##\nside-swept\nmessy\ntousled"
+                }
+            ]
+        }
+    },
+    "loras": [],
+    "generate": [
+        {
+            "output": "__^back_style__ __^front_style__",
+            "if": "front_style"
+        },
+        {
+            "output": "__^back_style__"
+        }
+    ]
+}
