@@ -42,10 +42,20 @@
                 <!-- Change 5: Added header for breadcrumbs and new actions -->
                 <header class="ap-nav-header">
                     <div id="ap-breadcrumb"></div>
+
                     <div class="ap-nav-actions">
                         <button id="ap-btn-new-file" title="New File"><i class="pi pi-file-plus"></i> New File</button>
                         <button id="ap-btn-refresh" title="Refresh Folders"><i class="pi pi-refresh"></i>
                             Refresh</button>
+                    </div>
+
+                    <!-- NEW: Search Container -->
+                    <div class="ap-search-container">
+                        <i class="pi pi-search ap-search-icon"></i>
+                        <input type="text" id="ap-search-input" placeholder="Search files..." autocomplete="off"
+                            spellcheck="false" />
+                        <button id="ap-search-clear" class="hidden" title="Clear Search"><i
+                                class="pi pi-times"></i></button>
                     </div>
                 </header>
                 <div id="ap-file-grid"></div>

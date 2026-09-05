@@ -603,6 +603,8 @@ function renderFileGrid(files) {
 
         grid.appendChild(card);
     }
+    // Maintain active search filter when refreshing or changing folders
+    if (typeof applySearch === "function") applySearch();
 }
 
 async function copyWildcardRef(file) {
@@ -918,6 +920,44 @@ function showFileContextMenu(e, file) {
     menu.style.top = `${e.clientY}px`;
     menu.style.display = "block";
 }
+
+
+// ---------- search ----------
+const searchInput = document.getElementById("ap-search-input");
+const searchClear = document.getElementById("ap-search-clear");
+
+function applySearch() {
+    const term = searchInput.value.toLowerCase();
+    const cards = document.querySelectorAll("#ap-file-grid .ap-card");
+
+    // Toggle the Clear 'X' visibility
+    if (term) {
+        searchClear.classList.remove("hidden");
+    } else {
+        searchClear.classList.add("hidden");
+    }
+
+    // Filter cards based on name or title (description/path)
+    cards.forEach(card => {
+        const title = card.title.toLowerCase();
+        const name = card.querySelector(".ap-card-name")?.textContent.toLowerCase() || "";
+
+        if (title.includes(term) || name.includes(term)) {
+            card.style.display = ""; // Reset to grid default
+        } else {
+            card.style.display = "none";
+        }
+    });
+}
+
+searchInput.addEventListener("input", applySearch);
+
+searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    applySearch();
+    searchInput.focus();
+});
+
 
 // ---------- top nav buttons ----------
 document.getElementById("ap-btn-refresh").onclick = () => {

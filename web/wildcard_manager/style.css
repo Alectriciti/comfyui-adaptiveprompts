@@ -205,7 +205,8 @@ body {
 #ap-breadcrumb {
     font-size: 12px;
     color: var(--ap-text-dim);
-    order: 2;
+    order: 3;
+    flex: 1;
 }
 
 #ap-breadcrumb span {
@@ -239,6 +240,61 @@ body {
 .ap-nav-actions button:hover {
     border-color: var(--ap-accent);
     color: var(--ap-accent);
+}
+
+.ap-search-container {
+    display: flex;
+    align-items: center;
+    background: #141414;
+    border: 1px solid var(--ap-border);
+    border-radius: 4px;
+    width: 240px;
+    order: 2;
+    transition: border-color 0.2s ease;
+}
+
+.ap-search-container:focus-within {
+    border-color: var(--ap-accent);
+}
+
+.ap-search-icon {
+    color: var(--ap-text-dim);
+    padding-left: 10px;
+    font-size: 13px;
+}
+
+#ap-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--ap-text);
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    min-width: 0;
+}
+
+#ap-search-input:focus {
+    outline: none;
+}
+
+#ap-search-clear {
+    background: transparent;
+    border: none;
+    color: var(--ap-text-dim);
+    padding: 0 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ap-search-clear:hover {
+    color: var(--ap-danger);
+}
+
+#ap-search-clear.hidden {
+    display: none;
 }
 
 /* Change 1: Fixed File Grid Overlap */
