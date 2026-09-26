@@ -385,36 +385,47 @@ def resolve_wildcard_path(name: str, rng: random.Random, wildcard_dir: str, sour
     # --- Core Search Tools ---
     
     def _gather_globs(base_dir: str, pattern: str, allow_bfs: bool) -> list[str]:
-        """Gathers candidates dynamically using RegEx translated from Globs."""
-        import re
-        candidates = []
-        if not os.path.isdir(base_dir):
-            return candidates
-        
-        # Convert glob to regex (e.g. * becomes [^/]*)
-        regex_str = re.escape(pattern).replace(r"\*", r"[^/]*")
-        
-        if allow_bfs:
-            # Matches strictly or inside any subdirectory
-            final_regex = f"^({regex_str}|.*/{regex_str})$"
-        else:
-            # Matches strictly from base_dir 
-            final_regex = f"^{regex_str}$"
+            """Gathers candidates dynamically using RegEx translated from Globs."""
+            import re
+            candidates_map = {}
+            if not os.path.isdir(base_dir):
+                return []
             
-        matcher = re.compile(final_regex)
-        
-        for root, dirs, files in os.walk(base_dir):
-            for file in files:
-                if not file.lower().endswith(".txt"):
-                    continue
-                    
-                full_path = os.path.join(root, file)
-                rel_path = os.path.relpath(full_path, base_dir)
-                rel_name = rel_path[:-4].replace("\\", "/") # Normalize slashes
+            # Convert glob to regex (e.g. * becomes [^/]*)
+            regex_str = re.escape(pattern).replace(r"\*", r"[^/]*")
+            
+            if allow_bfs:
+                # Matches strictly or inside any subdirectory
+                final_regex = f"^({regex_str}|.*/{regex_str})$"
+            else:
+                # Matches strictly from base_dir 
+                final_regex = f"^{regex_str}$"
                 
-                if matcher.match(rel_name):
-                    candidates.append(full_path)
-        return candidates
+            matcher = re.compile(final_regex)
+            
+            for root, dirs, files in os.walk(base_dir):
+                for file in files:
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext not in (".txt", ".json"):
+                        continue
+                        
+                    full_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(full_path, base_dir)
+                    
+                    # Split extension dynamically to support both 4-char (.txt) and 5-char (.json) extensions
+                    rel_name = os.path.splitext(rel_path)[0].replace("\\", "/") 
+                    
+                    if matcher.match(rel_name):
+                        # Ensure the file passes the existing JSON loop/empty array validations
+                        if not _is_valid_candidate(full_path):
+                            continue
+                            
+                        # Enforce priority: JSON files overwrite TXT files with the same relative name
+                        existing = candidates_map.get(rel_name)
+                        if not existing or ext == ".json":
+                            candidates_map[rel_name] = full_path
+                            
+            return list(candidates_map.values())
 
     def _check_direct(base: str, target: str) -> str | None:
         """
