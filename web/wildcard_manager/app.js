@@ -868,36 +868,37 @@ function showFileContextMenu(e, file) {
 
     const dupBtn = document.createElement("button");
     dupBtn.innerHTML = "<i class='pi pi-copy'></i> Duplicate";
-    dupBtn.onclick = async () => {
+    dupBtn.onclick = () => {
         hideContextMenu();
-        try {
-            const data = await apiGet(`/file?folder=${encodeURIComponent(file.folder)}&path=${encodeURIComponent(file.relPath)}&type=${file.type}`);
-
-            let newPath = file.relPath;
-            const match = newPath.match(/_(\d+)$/);
-            if (match) {
-                newPath = newPath.substring(0, match.index) + '_' + (parseInt(match[1]) + 1);
-            } else {
-                newPath += "_1";
-            }
-
-            // Check config to prompt for rename
-            if (typeof SettingsManager !== 'undefined' && SettingsManager.config && SettingsManager.config.rename_on_duplicate) {
-                const userPath = prompt(`Enter name for duplicated file:`, newPath);
-                if (!userPath) return; // Cancel duplicate entirely
-                newPath = userPath;
-            }
-
-            await apiSend("/file", { folder: file.folder, path: newPath, type: file.type, content: data.content });
-            log(`Duplicated file as ${newPath}`);
-            loadFiles();
-        } catch (err) { log(`Failed to duplicate: ${err.message}`, true); }
+        RenameFileModal.open(file, true); // Pass true to activate duplicate mode
     };
     menu.appendChild(dupBtn);
 
     const renBtn = document.createElement("button");
     renBtn.innerHTML = "<i class='pi pi-file-edit'></i> Rename";
-    renBtn.onclick = () => { hideContextMenu(); RenameFileModal.open(file); };
+    renBtn.onclick = () => {
+        hideContextMenu();
+
+        // Check if the user is attempting to rename the file they are actively working in
+        const isActive = state.activeFile && state.activeFile.folder === file.folder && state.activeFile.relPath === file.relPath && state.activeFile.type === file.type;
+        if (isActive) {
+            UnsavedModal.open(
+                `${file.name}.${file.type}`,
+                async () => {
+                    await editorSave();
+                    setEditorOpen(false);
+                    RenameFileModal.open(file);
+                },
+                async () => {
+                    setEditorOpen(false);
+                    RenameFileModal.open(file);
+                }
+            );
+            return;
+        }
+
+        RenameFileModal.open(file);
+    };
     menu.appendChild(renBtn);
 
     const delBtn = document.createElement("button");
@@ -1052,6 +1053,7 @@ const NewFileModal = {
 const RenameFileModal = {
     file: null,
     dirPrefix: '',
+    isDuplicate: false,
 
     init() {
         const input = document.getElementById('ap-rename-file-input');
@@ -1066,11 +1068,26 @@ const RenameFileModal = {
         document.getElementById('ap-rename-file-confirm').onclick = () => this.confirm();
     },
 
-    open(file) {
+    open(file, isDuplicate = false) {
         this.file = file;
+        this.isDuplicate = isDuplicate;
         const lastSlash = file.relPath.lastIndexOf('/');
         this.dirPrefix = lastSlash >= 0 ? file.relPath.substring(0, lastSlash + 1) : '';
-        const baseName = lastSlash >= 0 ? file.relPath.substring(lastSlash + 1) : file.relPath;
+        let baseName = lastSlash >= 0 ? file.relPath.substring(lastSlash + 1) : file.relPath;
+
+        if (this.isDuplicate) {
+            const match = baseName.match(/_(\d+)$/);
+            if (match) {
+                baseName = baseName.substring(0, match.index) + '_' + (parseInt(match[1]) + 1);
+            } else {
+                baseName += "_1";
+            }
+            document.querySelector('#ap-rename-file-modal h3').textContent = "Duplicate File";
+            document.getElementById('ap-rename-file-confirm').textContent = "Duplicate";
+        } else {
+            document.querySelector('#ap-rename-file-modal h3').textContent = "Rename File";
+            document.getElementById('ap-rename-file-confirm').textContent = "Rename";
+        }
 
         document.getElementById('ap-rename-file-prefix').textContent = this.dirPrefix;
         const input = document.getElementById('ap-rename-file-input');
@@ -1085,6 +1102,7 @@ const RenameFileModal = {
     close() {
         document.getElementById('ap-rename-file-modal').classList.add('hidden');
         this.file = null;
+        this.isDuplicate = false;
     },
 
     updatePreview() {
@@ -1098,21 +1116,41 @@ const RenameFileModal = {
         if (!baseName) return;
 
         const newPath = `${this.dirPrefix}${baseName}`;
-        if (newPath === this.file.relPath) { this.close(); return; }
+        if (!this.isDuplicate && newPath === this.file.relPath) { this.close(); return; }
 
         try {
             const data = await apiGet(`/file?folder=${encodeURIComponent(this.file.folder)}&path=${encodeURIComponent(this.file.relPath)}&type=${this.file.type}`);
-            await apiSend("/file", { folder: this.file.folder, path: newPath, type: this.file.type, content: data.content });
-            await apiSend(`/file?folder=${encodeURIComponent(this.file.folder)}&path=${encodeURIComponent(this.file.relPath)}&type=${this.file.type}`, {}, "DELETE");
 
-            log(`Renamed to ${newPath}.${this.file.type}`);
-            removeFromRecents(this.file);
-            const wasOpen = state.activeFile && state.activeFile.folder === this.file.folder && state.activeFile.relPath === this.file.relPath;
+            if (this.isDuplicate) {
+                let content = data.content;
+                if (this.file.type === "json") {
+                    try {
+                        const parsed = JSON.parse(content);
+                        parsed.displayname = ""; // Clear the display name for the duplicate
+                        content = JSON.stringify(parsed, null, 4);
+                    } catch (err) {
+                        // Fallback if JSON parse fails
+                    }
+                }
+                await apiSend("/file", { folder: this.file.folder, path: newPath, type: this.file.type, content: content });
+                log(`Duplicated file as ${newPath}`);
+            } else {
+                await apiSend("/file", { folder: this.file.folder, path: newPath, type: this.file.type, content: data.content });
+                await apiSend(`/file?folder=${encodeURIComponent(this.file.folder)}&path=${encodeURIComponent(this.file.relPath)}&type=${this.file.type}`, {}, "DELETE");
+
+                log(`Renamed to ${newPath}.${this.file.type}`);
+                removeFromRecents(this.file);
+                const wasOpen = state.activeFile && state.activeFile.folder === this.file.folder && state.activeFile.relPath === this.file.relPath;
+                this.close();
+                if (wasOpen) setEditorOpen(false);
+                loadFiles();
+                return;
+            }
+
             this.close();
-            if (wasOpen) setEditorOpen(false);
             loadFiles();
         } catch (err) {
-            log(`Failed to rename: ${err.message}`, true);
+            log(`Failed to ${this.isDuplicate ? 'duplicate' : 'rename'}: ${err.message}`, true);
         }
     }
 };
